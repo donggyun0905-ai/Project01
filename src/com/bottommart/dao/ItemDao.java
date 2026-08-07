@@ -1,7 +1,6 @@
 package com.bottommart.dao;
 
-import com.bottommart.db.DBConnection;
-import com.bottommart.model.Item;
+import com.bottommart.dto.Item;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -9,10 +8,9 @@ import java.util.List;
 
 public class ItemDao {
 
-    public Long insert(Item item) throws SQLException {
+    public Long insert(Connection conn, Item item) throws SQLException {
         String sql = "INSERT INTO ITEM (item_name, category, unit, threshold_min, capacity_max) VALUES (?, ?, ?, ?, ?)";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, item.getItemName());
             ps.setString(2, item.getCategory());
             ps.setString(3, item.getUnit());
@@ -28,10 +26,9 @@ public class ItemDao {
         return null;
     }
 
-    public boolean update(Item item) throws SQLException {
+    public boolean update(Connection conn, Item item) throws SQLException {
         String sql = "UPDATE ITEM SET item_name = ?, category = ?, unit = ?, threshold_min = ?, capacity_max = ? WHERE item_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, item.getItemName());
             ps.setString(2, item.getCategory());
             ps.setString(3, item.getUnit());
@@ -42,19 +39,17 @@ public class ItemDao {
         }
     }
 
-    public boolean deleteById(Long itemId) throws SQLException {
+    public boolean deleteById(Connection conn, Long itemId) throws SQLException {
         String sql = "DELETE FROM ITEM WHERE item_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, itemId);
             return ps.executeUpdate() > 0;
         }
     }
 
-    public Item findById(Long itemId) throws SQLException {
+    public Item findById(Connection conn, Long itemId) throws SQLException {
         String sql = "SELECT * FROM ITEM WHERE item_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, itemId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -65,11 +60,10 @@ public class ItemDao {
         return null;
     }
 
-    public List<Item> findAll() throws SQLException {
+    public List<Item> findAll(Connection conn) throws SQLException {
         String sql = "SELECT * FROM ITEM ORDER BY item_id";
         List<Item> result = new ArrayList<>();
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
+        try (PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 result.add(mapRow(rs));

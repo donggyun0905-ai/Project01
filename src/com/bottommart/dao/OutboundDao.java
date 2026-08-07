@@ -1,7 +1,6 @@
 package com.bottommart.dao;
 
-import com.bottommart.db.DBConnection;
-import com.bottommart.model.Outbound;
+import com.bottommart.dto.Outbound;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -9,10 +8,9 @@ import java.util.List;
 
 public class OutboundDao {
 
-    public Long insert(Outbound outbound) throws SQLException {
+    public Long insert(Connection conn, Outbound outbound) throws SQLException {
         String sql = "INSERT INTO OUTBOUND (lot_id, partner_id, quantity, outbound_date, created_by) VALUES (?, ?, ?, ?, ?)";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setLong(1, outbound.getLotId());
             ps.setLong(2, outbound.getPartnerId());
             ps.setInt(3, outbound.getQuantity());
@@ -28,10 +26,9 @@ public class OutboundDao {
         return null;
     }
 
-    public boolean update(Outbound outbound) throws SQLException {
+    public boolean update(Connection conn, Outbound outbound) throws SQLException {
         String sql = "UPDATE OUTBOUND SET lot_id = ?, partner_id = ?, quantity = ?, outbound_date = ?, created_by = ? WHERE outbound_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, outbound.getLotId());
             ps.setLong(2, outbound.getPartnerId());
             ps.setInt(3, outbound.getQuantity());
@@ -42,19 +39,17 @@ public class OutboundDao {
         }
     }
 
-    public boolean deleteById(Long outboundId) throws SQLException {
+    public boolean deleteById(Connection conn, Long outboundId) throws SQLException {
         String sql = "DELETE FROM OUTBOUND WHERE outbound_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, outboundId);
             return ps.executeUpdate() > 0;
         }
     }
 
-    public Outbound findById(Long outboundId) throws SQLException {
+    public Outbound findById(Connection conn, Long outboundId) throws SQLException {
         String sql = "SELECT * FROM OUTBOUND WHERE outbound_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, outboundId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -65,11 +60,10 @@ public class OutboundDao {
         return null;
     }
 
-    public List<Outbound> findAll() throws SQLException {
+    public List<Outbound> findAll(Connection conn) throws SQLException {
         String sql = "SELECT * FROM OUTBOUND ORDER BY outbound_id";
         List<Outbound> result = new ArrayList<>();
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
+        try (PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 result.add(mapRow(rs));

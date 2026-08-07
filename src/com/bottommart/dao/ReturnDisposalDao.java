@@ -1,7 +1,6 @@
 package com.bottommart.dao;
 
-import com.bottommart.db.DBConnection;
-import com.bottommart.model.ReturnDisposal;
+import com.bottommart.dto.ReturnDisposal;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -9,16 +8,15 @@ import java.util.List;
 
 public class ReturnDisposalDao {
 
-    public Long insert(ReturnDisposal record) throws SQLException {
+    public Long insert(Connection conn, ReturnDisposal disposalRecord) throws SQLException {
         String sql = "INSERT INTO RETURN_DISPOSAL (lot_id, type, reason, quantity, processed_by, processed_date) VALUES (?, ?, ?, ?, ?, ?)";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setLong(1, record.getLotId());
-            ps.setString(2, record.getType());
-            ps.setString(3, record.getReason());
-            ps.setInt(4, record.getQuantity());
-            ps.setLong(5, record.getProcessedBy());
-            ps.setDate(6, Date.valueOf(record.getProcessedDate()));
+        try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            ps.setLong(1, disposalRecord.getLotId());
+            ps.setString(2, disposalRecord.getType());
+            ps.setString(3, disposalRecord.getReason());
+            ps.setInt(4, disposalRecord.getQuantity());
+            ps.setLong(5, disposalRecord.getProcessedBy());
+            ps.setDate(6, Date.valueOf(disposalRecord.getProcessedDate()));
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) {
@@ -29,35 +27,32 @@ public class ReturnDisposalDao {
         return null;
     }
 
-    public boolean update(ReturnDisposal record) throws SQLException {
+    public boolean update(Connection conn, ReturnDisposal disposalRecord) throws SQLException {
         String sql = "UPDATE RETURN_DISPOSAL SET lot_id = ?, type = ?, reason = ?, quantity = ?, "
                 + "processed_by = ?, processed_date = ? WHERE record_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, record.getLotId());
-            ps.setString(2, record.getType());
-            ps.setString(3, record.getReason());
-            ps.setInt(4, record.getQuantity());
-            ps.setLong(5, record.getProcessedBy());
-            ps.setDate(6, Date.valueOf(record.getProcessedDate()));
-            ps.setLong(7, record.getRecordId());
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, disposalRecord.getLotId());
+            ps.setString(2, disposalRecord.getType());
+            ps.setString(3, disposalRecord.getReason());
+            ps.setInt(4, disposalRecord.getQuantity());
+            ps.setLong(5, disposalRecord.getProcessedBy());
+            ps.setDate(6, Date.valueOf(disposalRecord.getProcessedDate()));
+            ps.setLong(7, disposalRecord.getRecordId());
             return ps.executeUpdate() > 0;
         }
     }
 
-    public boolean deleteById(Long recordId) throws SQLException {
+    public boolean deleteById(Connection conn, Long recordId) throws SQLException {
         String sql = "DELETE FROM RETURN_DISPOSAL WHERE record_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, recordId);
             return ps.executeUpdate() > 0;
         }
     }
 
-    public ReturnDisposal findById(Long recordId) throws SQLException {
+    public ReturnDisposal findById(Connection conn, Long recordId) throws SQLException {
         String sql = "SELECT * FROM RETURN_DISPOSAL WHERE record_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, recordId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -68,11 +63,10 @@ public class ReturnDisposalDao {
         return null;
     }
 
-    public List<ReturnDisposal> findAll() throws SQLException {
+    public List<ReturnDisposal> findAll(Connection conn) throws SQLException {
         String sql = "SELECT * FROM RETURN_DISPOSAL ORDER BY record_id";
         List<ReturnDisposal> result = new ArrayList<>();
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
+        try (PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 result.add(mapRow(rs));
@@ -82,14 +76,14 @@ public class ReturnDisposalDao {
     }
 
     private ReturnDisposal mapRow(ResultSet rs) throws SQLException {
-        ReturnDisposal record = new ReturnDisposal();
-        record.setRecordId(rs.getLong("record_id"));
-        record.setLotId(rs.getLong("lot_id"));
-        record.setType(rs.getString("type"));
-        record.setReason(rs.getString("reason"));
-        record.setQuantity(rs.getInt("quantity"));
-        record.setProcessedBy(rs.getLong("processed_by"));
-        record.setProcessedDate(rs.getDate("processed_date").toLocalDate());
-        return record;
+        ReturnDisposal disposalRecord = new ReturnDisposal();
+        disposalRecord.setRecordId(rs.getLong("record_id"));
+        disposalRecord.setLotId(rs.getLong("lot_id"));
+        disposalRecord.setType(rs.getString("type"));
+        disposalRecord.setReason(rs.getString("reason"));
+        disposalRecord.setQuantity(rs.getInt("quantity"));
+        disposalRecord.setProcessedBy(rs.getLong("processed_by"));
+        disposalRecord.setProcessedDate(rs.getDate("processed_date").toLocalDate());
+        return disposalRecord;
     }
 }

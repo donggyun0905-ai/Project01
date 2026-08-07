@@ -1,7 +1,6 @@
 package com.bottommart.dao;
 
-import com.bottommart.db.DBConnection;
-import com.bottommart.model.Approval;
+import com.bottommart.dto.Approval;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -9,11 +8,10 @@ import java.util.List;
 
 public class ApprovalDao {
 
-    public Long insert(Approval approval) throws SQLException {
+    public Long insert(Connection conn, Approval approval) throws SQLException {
         String sql = "INSERT INTO APPROVAL (item_id, alert_id, request_type, requested_qty, status, "
                 + "requested_by, approved_by, approved_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setLong(1, approval.getItemId());
             setNullableLong(ps, 2, approval.getAlertId());
             ps.setString(3, approval.getRequestType());
@@ -32,11 +30,10 @@ public class ApprovalDao {
         return null;
     }
 
-    public boolean update(Approval approval) throws SQLException {
+    public boolean update(Connection conn, Approval approval) throws SQLException {
         String sql = "UPDATE APPROVAL SET item_id = ?, alert_id = ?, request_type = ?, requested_qty = ?, "
                 + "status = ?, requested_by = ?, approved_by = ?, approved_at = ? WHERE approval_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, approval.getItemId());
             setNullableLong(ps, 2, approval.getAlertId());
             ps.setString(3, approval.getRequestType());
@@ -50,19 +47,17 @@ public class ApprovalDao {
         }
     }
 
-    public boolean deleteById(Long approvalId) throws SQLException {
+    public boolean deleteById(Connection conn, Long approvalId) throws SQLException {
         String sql = "DELETE FROM APPROVAL WHERE approval_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, approvalId);
             return ps.executeUpdate() > 0;
         }
     }
 
-    public Approval findById(Long approvalId) throws SQLException {
+    public Approval findById(Connection conn, Long approvalId) throws SQLException {
         String sql = "SELECT * FROM APPROVAL WHERE approval_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, approvalId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -73,11 +68,10 @@ public class ApprovalDao {
         return null;
     }
 
-    public List<Approval> findAll() throws SQLException {
+    public List<Approval> findAll(Connection conn) throws SQLException {
         String sql = "SELECT * FROM APPROVAL ORDER BY approval_id";
         List<Approval> result = new ArrayList<>();
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
+        try (PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 result.add(mapRow(rs));

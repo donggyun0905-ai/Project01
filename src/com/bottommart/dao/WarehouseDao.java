@@ -1,7 +1,6 @@
 package com.bottommart.dao;
 
-import com.bottommart.db.DBConnection;
-import com.bottommart.model.Warehouse;
+import com.bottommart.dto.Warehouse;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -9,10 +8,9 @@ import java.util.List;
 
 public class WarehouseDao {
 
-    public Long insert(Warehouse warehouse) throws SQLException {
+    public Long insert(Connection conn, Warehouse warehouse) throws SQLException {
         String sql = "INSERT INTO WAREHOUSE (name, location) VALUES (?, ?)";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, warehouse.getName());
             ps.setString(2, warehouse.getLocation());
             ps.executeUpdate();
@@ -25,10 +23,9 @@ public class WarehouseDao {
         return null;
     }
 
-    public boolean update(Warehouse warehouse) throws SQLException {
+    public boolean update(Connection conn, Warehouse warehouse) throws SQLException {
         String sql = "UPDATE WAREHOUSE SET name = ?, location = ? WHERE warehouse_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, warehouse.getName());
             ps.setString(2, warehouse.getLocation());
             ps.setLong(3, warehouse.getWarehouseId());
@@ -36,19 +33,17 @@ public class WarehouseDao {
         }
     }
 
-    public boolean deleteById(Long warehouseId) throws SQLException {
+    public boolean deleteById(Connection conn, Long warehouseId) throws SQLException {
         String sql = "DELETE FROM WAREHOUSE WHERE warehouse_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, warehouseId);
             return ps.executeUpdate() > 0;
         }
     }
 
-    public Warehouse findById(Long warehouseId) throws SQLException {
+    public Warehouse findById(Connection conn, Long warehouseId) throws SQLException {
         String sql = "SELECT * FROM WAREHOUSE WHERE warehouse_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, warehouseId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -59,11 +54,10 @@ public class WarehouseDao {
         return null;
     }
 
-    public List<Warehouse> findAll() throws SQLException {
+    public List<Warehouse> findAll(Connection conn) throws SQLException {
         String sql = "SELECT * FROM WAREHOUSE ORDER BY warehouse_id";
         List<Warehouse> result = new ArrayList<>();
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
+        try (PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 result.add(mapRow(rs));

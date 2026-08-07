@@ -1,7 +1,6 @@
 package com.bottommart.dao;
 
-import com.bottommart.db.DBConnection;
-import com.bottommart.model.StockChangeLog;
+import com.bottommart.dto.StockChangeLog;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -9,11 +8,10 @@ import java.util.List;
 
 public class StockChangeLogDao {
 
-    public Long insert(StockChangeLog log) throws SQLException {
+    public Long insert(Connection conn, StockChangeLog log) throws SQLException {
         String sql = "INSERT INTO STOCK_CHANGE_LOG (lot_id, changed_by, change_type, before_value, "
                 + "after_value, reason, is_reverted) VALUES (?, ?, ?, ?, ?, ?, ?)";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setLong(1, log.getLotId());
             ps.setLong(2, log.getChangedBy());
             ps.setString(3, log.getChangeType());
@@ -31,11 +29,10 @@ public class StockChangeLogDao {
         return null;
     }
 
-    public boolean update(StockChangeLog log) throws SQLException {
+    public boolean update(Connection conn, StockChangeLog log) throws SQLException {
         String sql = "UPDATE STOCK_CHANGE_LOG SET lot_id = ?, changed_by = ?, change_type = ?, "
                 + "before_value = ?, after_value = ?, reason = ?, is_reverted = ? WHERE log_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, log.getLotId());
             ps.setLong(2, log.getChangedBy());
             ps.setString(3, log.getChangeType());
@@ -48,19 +45,17 @@ public class StockChangeLogDao {
         }
     }
 
-    public boolean deleteById(Long logId) throws SQLException {
+    public boolean deleteById(Connection conn, Long logId) throws SQLException {
         String sql = "DELETE FROM STOCK_CHANGE_LOG WHERE log_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, logId);
             return ps.executeUpdate() > 0;
         }
     }
 
-    public StockChangeLog findById(Long logId) throws SQLException {
+    public StockChangeLog findById(Connection conn, Long logId) throws SQLException {
         String sql = "SELECT * FROM STOCK_CHANGE_LOG WHERE log_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, logId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -71,11 +66,10 @@ public class StockChangeLogDao {
         return null;
     }
 
-    public List<StockChangeLog> findByLotId(Long lotId) throws SQLException {
+    public List<StockChangeLog> findByLotId(Connection conn, Long lotId) throws SQLException {
         String sql = "SELECT * FROM STOCK_CHANGE_LOG WHERE lot_id = ? ORDER BY changed_at DESC";
         List<StockChangeLog> result = new ArrayList<>();
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, lotId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -86,11 +80,10 @@ public class StockChangeLogDao {
         return result;
     }
 
-    public List<StockChangeLog> findAll() throws SQLException {
+    public List<StockChangeLog> findAll(Connection conn) throws SQLException {
         String sql = "SELECT * FROM STOCK_CHANGE_LOG ORDER BY log_id";
         List<StockChangeLog> result = new ArrayList<>();
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
+        try (PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 result.add(mapRow(rs));

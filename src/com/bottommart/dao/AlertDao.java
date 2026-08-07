@@ -1,7 +1,6 @@
 package com.bottommart.dao;
 
-import com.bottommart.db.DBConnection;
-import com.bottommart.model.Alert;
+import com.bottommart.dto.Alert;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -9,10 +8,9 @@ import java.util.List;
 
 public class AlertDao {
 
-    public Long insert(Alert alert) throws SQLException {
+    public Long insert(Connection conn, Alert alert) throws SQLException {
         String sql = "INSERT INTO ALERT (item_id, alert_type, message, is_resolved) VALUES (?, ?, ?, ?)";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setLong(1, alert.getItemId());
             ps.setString(2, alert.getAlertType());
             ps.setString(3, alert.getMessage());
@@ -27,10 +25,9 @@ public class AlertDao {
         return null;
     }
 
-    public boolean update(Alert alert) throws SQLException {
+    public boolean update(Connection conn, Alert alert) throws SQLException {
         String sql = "UPDATE ALERT SET item_id = ?, alert_type = ?, message = ?, is_resolved = ? WHERE alert_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, alert.getItemId());
             ps.setString(2, alert.getAlertType());
             ps.setString(3, alert.getMessage());
@@ -40,19 +37,17 @@ public class AlertDao {
         }
     }
 
-    public boolean deleteById(Long alertId) throws SQLException {
+    public boolean deleteById(Connection conn, Long alertId) throws SQLException {
         String sql = "DELETE FROM ALERT WHERE alert_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, alertId);
             return ps.executeUpdate() > 0;
         }
     }
 
-    public Alert findById(Long alertId) throws SQLException {
+    public Alert findById(Connection conn, Long alertId) throws SQLException {
         String sql = "SELECT * FROM ALERT WHERE alert_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, alertId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -63,11 +58,10 @@ public class AlertDao {
         return null;
     }
 
-    public List<Alert> findUnresolved() throws SQLException {
+    public List<Alert> findUnresolved(Connection conn) throws SQLException {
         String sql = "SELECT * FROM ALERT WHERE is_resolved = FALSE ORDER BY created_at DESC";
         List<Alert> result = new ArrayList<>();
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
+        try (PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 result.add(mapRow(rs));
@@ -76,11 +70,10 @@ public class AlertDao {
         return result;
     }
 
-    public List<Alert> findAll() throws SQLException {
+    public List<Alert> findAll(Connection conn) throws SQLException {
         String sql = "SELECT * FROM ALERT ORDER BY alert_id";
         List<Alert> result = new ArrayList<>();
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
+        try (PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 result.add(mapRow(rs));

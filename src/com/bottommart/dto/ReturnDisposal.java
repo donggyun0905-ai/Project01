@@ -1,4 +1,4 @@
-package com.bottommart.model;
+package com.bottommart.dto;
 
 import java.time.LocalDate;
 

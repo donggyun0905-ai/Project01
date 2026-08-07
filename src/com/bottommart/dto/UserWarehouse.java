@@ -1,4 +1,4 @@
-package com.bottommart.model;
+package com.bottommart.dto;
 
 // STAFF의 담당 창고 배정 (N:M). 복합키(user_id, warehouse_id)라 별도 auto-id가 없음.
 public class UserWarehouse {

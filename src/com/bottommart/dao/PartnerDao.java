@@ -1,7 +1,6 @@
 package com.bottommart.dao;
 
-import com.bottommart.db.DBConnection;
-import com.bottommart.model.Partner;
+import com.bottommart.dto.Partner;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -9,10 +8,9 @@ import java.util.List;
 
 public class PartnerDao {
 
-    public Long insert(Partner partner) throws SQLException {
+    public Long insert(Connection conn, Partner partner) throws SQLException {
         String sql = "INSERT INTO PARTNER (name, type, contact) VALUES (?, ?, ?)";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, partner.getName());
             ps.setString(2, partner.getType());
             ps.setString(3, partner.getContact());
@@ -26,10 +24,9 @@ public class PartnerDao {
         return null;
     }
 
-    public boolean update(Partner partner) throws SQLException {
+    public boolean update(Connection conn, Partner partner) throws SQLException {
         String sql = "UPDATE PARTNER SET name = ?, type = ?, contact = ? WHERE partner_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, partner.getName());
             ps.setString(2, partner.getType());
             ps.setString(3, partner.getContact());
@@ -38,19 +35,17 @@ public class PartnerDao {
         }
     }
 
-    public boolean deleteById(Long partnerId) throws SQLException {
+    public boolean deleteById(Connection conn, Long partnerId) throws SQLException {
         String sql = "DELETE FROM PARTNER WHERE partner_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, partnerId);
             return ps.executeUpdate() > 0;
         }
     }
 
-    public Partner findById(Long partnerId) throws SQLException {
+    public Partner findById(Connection conn, Long partnerId) throws SQLException {
         String sql = "SELECT * FROM PARTNER WHERE partner_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, partnerId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -61,11 +56,10 @@ public class PartnerDao {
         return null;
     }
 
-    public List<Partner> findAll() throws SQLException {
+    public List<Partner> findAll(Connection conn) throws SQLException {
         String sql = "SELECT * FROM PARTNER ORDER BY partner_id";
         List<Partner> result = new ArrayList<>();
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
+        try (PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 result.add(mapRow(rs));

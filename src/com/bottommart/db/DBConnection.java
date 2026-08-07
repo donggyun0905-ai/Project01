@@ -38,4 +38,33 @@ public class DBConnection {
         String password = p.getProperty("db.password");
         return DriverManager.getConnection(url, username, password);
     }
+
+    /**
+     * 여러 DAO 호출을 하나의 트랜잭션으로 묶어서 실행한다.
+     * work 안에서 예외가 발생하면 지금까지의 변경을 모두 롤백한다.
+     *
+     * 사용 예:
+     * DBConnection.executeInTransaction(conn -> {
+     *     Long warehouseId = warehouseDao.insert(conn, warehouse);
+     *     zone.setWarehouseId(warehouseId);
+     *     zoneDao.insert(conn, zone);
+     * });
+     */
+    public static void executeInTransaction(TransactionalWork work) throws SQLException {
+        try (Connection conn = getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                work.run(conn);
+                conn.commit();
+            } catch (Exception e) {
+                conn.rollback();
+                throw new SQLException("트랜잭션 실패로 롤백되었습니다: " + e.getMessage(), e);
+            }
+        }
+    }
+
+    @FunctionalInterface
+    public interface TransactionalWork {
+        void run(Connection conn) throws Exception;
+    }
 }

@@ -1,7 +1,6 @@
 package com.bottommart.dao;
 
-import com.bottommart.db.DBConnection;
-import com.bottommart.model.StockLot;
+import com.bottommart.dto.StockLot;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -9,11 +8,10 @@ import java.util.List;
 
 public class StockLotDao {
 
-    public Long insert(StockLot lot) throws SQLException {
+    public Long insert(Connection conn, StockLot lot) throws SQLException {
         String sql = "INSERT INTO STOCK_LOT (item_id, zone_id, partner_id, quantity, inbound_date, "
                 + "expiry_date, status, created_by, parent_lot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setLong(1, lot.getItemId());
             ps.setLong(2, lot.getZoneId());
             ps.setLong(3, lot.getPartnerId());
@@ -37,11 +35,10 @@ public class StockLotDao {
         return null;
     }
 
-    public boolean update(StockLot lot) throws SQLException {
+    public boolean update(Connection conn, StockLot lot) throws SQLException {
         String sql = "UPDATE STOCK_LOT SET item_id = ?, zone_id = ?, partner_id = ?, quantity = ?, "
                 + "inbound_date = ?, expiry_date = ?, status = ?, created_by = ?, parent_lot_id = ? WHERE lot_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, lot.getItemId());
             ps.setLong(2, lot.getZoneId());
             ps.setLong(3, lot.getPartnerId());
@@ -60,19 +57,17 @@ public class StockLotDao {
         }
     }
 
-    public boolean deleteById(Long lotId) throws SQLException {
+    public boolean deleteById(Connection conn, Long lotId) throws SQLException {
         String sql = "DELETE FROM STOCK_LOT WHERE lot_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, lotId);
             return ps.executeUpdate() > 0;
         }
     }
 
-    public StockLot findById(Long lotId) throws SQLException {
+    public StockLot findById(Connection conn, Long lotId) throws SQLException {
         String sql = "SELECT * FROM STOCK_LOT WHERE lot_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, lotId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -84,20 +79,19 @@ public class StockLotDao {
     }
 
     // FIFO 출고 순서 추천: 입고일이 빠른 순
-    public List<StockLot> findByItemIdOrderByInboundDate(Long itemId) throws SQLException {
-        return findByItemIdOrdered(itemId, "inbound_date");
+    public List<StockLot> findByItemIdOrderByInboundDate(Connection conn, Long itemId) throws SQLException {
+        return findByItemIdOrdered(conn, itemId, "inbound_date");
     }
 
     // FEFO 출고 순서 추천: 유통기한이 이른 순
-    public List<StockLot> findByItemIdOrderByExpiryDate(Long itemId) throws SQLException {
-        return findByItemIdOrdered(itemId, "expiry_date");
+    public List<StockLot> findByItemIdOrderByExpiryDate(Connection conn, Long itemId) throws SQLException {
+        return findByItemIdOrdered(conn, itemId, "expiry_date");
     }
 
-    private List<StockLot> findByItemIdOrdered(Long itemId, String orderColumn) throws SQLException {
+    private List<StockLot> findByItemIdOrdered(Connection conn, Long itemId, String orderColumn) throws SQLException {
         String sql = "SELECT * FROM STOCK_LOT WHERE item_id = ? ORDER BY " + orderColumn + " ASC";
         List<StockLot> result = new ArrayList<>();
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, itemId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -108,11 +102,10 @@ public class StockLotDao {
         return result;
     }
 
-    public List<StockLot> findAll() throws SQLException {
+    public List<StockLot> findAll(Connection conn) throws SQLException {
         String sql = "SELECT * FROM STOCK_LOT ORDER BY lot_id";
         List<StockLot> result = new ArrayList<>();
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
+        try (PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 result.add(mapRow(rs));
