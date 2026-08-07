@@ -125,13 +125,23 @@ public class Main {
         });
         System.out.println("트랜잭션 커밋 완료 (여기까지 예외 없이 왔다면 위 데이터가 전부 DB에 반영됨)");
 
-        // 데모 정리 (별도 트랜잭션)
-        DBConnection.executeInTransaction(conn -> {
-            itemDao.deleteById(conn, ids[2]);
-            zoneDao.deleteById(conn, ids[1]);
-            warehouseDao.deleteById(conn, ids[0]);
-            partnerDao.deleteById(conn, ids[3]);
-            userDao.deleteById(conn, ids[4]);
-        });
+        // 데모 정리 (별도 트랜잭션).
+        // 위 트랜잭션이 중간에 실패해 롤백됐다면 뒤쪽 id는 null로 남으므로, 그 경우 정리를 건너뛴다.
+        boolean allIdsPresent = true;
+        for (Long id : ids) {
+            if (id == null) {
+                allIdsPresent = false;
+                break;
+            }
+        }
+        if (allIdsPresent) {
+            DBConnection.executeInTransaction(conn -> {
+                itemDao.deleteById(conn, ids[2]);
+                zoneDao.deleteById(conn, ids[1]);
+                warehouseDao.deleteById(conn, ids[0]);
+                partnerDao.deleteById(conn, ids[3]);
+                userDao.deleteById(conn, ids[4]);
+            });
+        }
     }
 }

@@ -57,8 +57,15 @@ public class DBConnection {
                 work.run(conn);
                 conn.commit();
             } catch (Exception e) {
-                conn.rollback();
+                try {
+                    conn.rollback();
+                } catch (SQLException rollbackFailed) {
+                    // 원본 예외(e)가 진짜 원인이므로, rollback 실패는 억제된 예외로만 덧붙인다.
+                    e.addSuppressed(rollbackFailed);
+                }
                 throw new SQLException("트랜잭션 실패로 롤백되었습니다: " + e.getMessage(), e);
+            } finally {
+                conn.setAutoCommit(true);
             }
         }
     }

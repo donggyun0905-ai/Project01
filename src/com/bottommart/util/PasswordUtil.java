@@ -3,6 +3,7 @@ package com.bottommart.util;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.nio.charset.StandardCharsets;
+import java.util.HexFormat;
 
 /**
  * 비밀번호를 SHA-256으로 해시한다. java.security 표준 API만 사용 (외부 라이브러리 불필요).
@@ -15,11 +16,7 @@ public class PasswordUtil {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hashBytes = digest.digest(plainText.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hashBytes) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
+            return HexFormat.of().formatHex(hashBytes);
         } catch (NoSuchAlgorithmException e) {
             // SHA-256은 모든 JVM에 기본 내장되어 있어 실제로는 발생하지 않는다.
             throw new RuntimeException("SHA-256 알고리즘을 사용할 수 없습니다.", e);
