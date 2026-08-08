@@ -49,13 +49,27 @@ git push -u origin 내이름
 ```
 (맨 처음 push할 때만 `-u`를 붙입니다. 이후로는 그냥 `git push`만 하면 됩니다.)
 
-**6. GitHub에서 PR 만들기**
-- 저장소 페이지(https://github.com/donggyun0905-ai/Project01) 접속하면 "Compare & pull request" 버튼이 보임 → 클릭
+**6. GitHub에서 PR 만들기 (+ 링크 얻어서 공유하기)**
+- push하면 저장소 페이지(https://github.com/donggyun0905-ai/Project01) 상단에 **"내브랜치 had recent pushes... Compare & pull request"** 노란 배너가 뜸 → 클릭
+  (안 뜨면 **Pull requests** 탭 → **New pull request** → base: `master`, compare: `내브랜치` 선택)
 - 뭘 했는지 간단히 설명 쓰고 → **Create pull request**
-- 팀원에게 링크 공유해서 봐달라고 요청
+- 그러면 새 페이지로 이동하는데, 그 페이지의 **브라우저 주소창 URL**이 바로 PR 링크입니다
+  예: `https://github.com/donggyun0905-ai/Project01/pull/1`
+- 그 주소를 복사(주소창 클릭 → Ctrl+A → Ctrl+C)해서 카톡방에 붙여넣고 봐달라고 요청
 
-**7. 리뷰 끝나면 Merge**
-- PR 페이지에서 **Merge pull request** 버튼 클릭
+**7. 팀원이 승인(Approve)하기 — 리뷰어가 할 일**
+- 공유받은 PR 링크 클릭해서 들어감
+- 상단 **"Files changed"** 탭 클릭 → 뭐가 바뀌었는지 diff(빨강=삭제, 초록=추가)로 확인
+- 문제 있는 줄에 마우스 올리면 `+` 버튼 → 그 줄에 댓글 남길 수 있음
+- 다 봤으면 우측 상단 **"Review changes"** 버튼 → 셋 중 선택:
+  - **Approve** — 좋음, 합쳐도 됨
+  - **Request changes** — 이 부분 고쳐야 함
+  - **Comment** — 승인/반려 아니고 의견만
+- 주의: **자기가 올린 PR은 자기가 승인 못 함** (GitHub이 막음) — 반드시 다른 팀원이 눌러줘야 함
+
+**8. 승인 나면 Merge**
+- 최소 1명 Approve가 있어야 **"Merge pull request"** 버튼이 눌림 (브랜치 보호 규칙으로 강제해둠)
+- 버튼 클릭 → merge 완료
 - 그다음 내 컴퓨터에서도 `master`를 최신화:
 ```
 git checkout master
