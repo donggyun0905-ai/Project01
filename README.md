@@ -4,6 +4,8 @@
 
 Spring Boot 등 프레임워크 없이 `java.sql` 표준 API만 사용합니다.
 
+> 팀원과 같이 작업하는 방법(브랜치 전략, PR 올리는 법, Git 용어 설명)은 [CONTRIBUTING.md](CONTRIBUTING.md) 참고.
+
 ## 프로젝트 구조
 
 ```
