@@ -1,13 +1,10 @@
--- Bottom_mart: 물류 창고 재고 흐름 추적 시스템
+-- _mart: 물류 창고 재고 흐름 추적 시스템
 -- 확정 스키마 v2 (확정안_스키마설계.pdf) 기준 DDL
--- 실행: mysql -u root -p < schema.sql
 
-CREATE DATABASE IF NOT EXISTS bottommart CHARACTER SET utf8mb4;
-USE bottommart;
+CREATE DATABASE IF NOT EXISTS _mart CHARACTER SET utf8mb4;
+USE _mart;
 
--- ========== 마스터 테이블 ==========
-
--- USER는 MySQL 예약어라 APP_USER로 명명
+-- USER는 MySQL 예약어라 APP_USER로
 CREATE TABLE APP_USER (
     user_id     BIGINT AUTO_INCREMENT PRIMARY KEY,
     username    VARCHAR(50)  NOT NULL UNIQUE,

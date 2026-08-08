@@ -1,3 +1,3 @@
-db.url=jdbc:mysql://localhost:3306/bottommart?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+db.url=jdbc:mysql://localhost:3306/_mart?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
 db.username=root
-db.password=your_password_here
+db.password=여기에 비밀번호 넣어주세요
