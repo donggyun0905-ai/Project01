@@ -1,4 +1,4 @@
-# Bottom_mart
+# _mart
 
 물류 창고 재고 흐름 추적 시스템 — 순수 Java + JDBC + MySQL
 
@@ -9,13 +9,17 @@ Spring Boot 등 프레임워크 없이 `java.sql` 표준 API만 사용합니다.
 ```
 lib/        mysql-connector-j (JDBC 드라이버)
 schema.sql  DB/테이블 생성 DDL (13개 테이블)
-src/com/bottommart/
+com/bottommart/
   db/       DBConnection - JDBC 커넥션 유틸 + 트랜잭션 헬퍼(executeInTransaction)
   dto/      테이블별 DTO(Data Transfer Object) 클래스 - 데이터를 담아 나르는 용도
   dao/      테이블별 CRUD DAO(Data Access Object) 클래스 - 실제 SQL 실행 담당
   util/     PasswordUtil - SHA-256 비밀번호 해시
   Main.java CRUD 동작 데모
+.project, .classpath   Eclipse용 프로젝트 파일 (Import 시 자동 인식)
 ```
+
+`src` 폴더 없이 프로젝트 루트(`_mart/`) 바로 아래에 `com/bottommart/...` 패키지가 오는 구조입니다.
+즉 **`_mart` 폴더 자체가 소스 루트**입니다 — IntelliJ든 Eclipse든 별도 설정 없이 프로젝트 루트를 그대로 소스 루트로 잡으면 됩니다.
 
 DTO와 DAO는 짝으로 동작합니다: **DTO(데이터를 담는 그릇) ↔ DAO(그 데이터를 DB에 넣고 빼는 역할) ↔ DB**.
 
@@ -34,14 +38,18 @@ DAO 메서드는 `Connection`을 직접 열지 않고 파라미터로 받습니�
    cp db.properties.example db.properties
    ```
 3. **IntelliJ에서 열기**
-   - File > Project Structure > Modules > Dependencies 에서 `lib/mysql-connector-j-26.7.0.jar` 추가
-   - `src` 폴더를 Sources Root로 지정
+   - `_mart` 폴더를 열고, File > Project Structure > Modules > Dependencies 에서 `lib/mysql-connector-j-26.7.0.jar` 추가
+   - `_mart` 폴더(프로젝트 루트) 자체를 Sources Root로 지정 (`src`가 따로 없으므로 루트를 그대로 지정)
    - `Main.java` 실행
+4. **Eclipse에서 열기**
+   - File > Import > General > Existing Projects into Workspace
+   - `_mart` 폴더 선택 (이미 포함된 `.project`/`.classpath` 덕분에 소스 루트와 `lib/mysql-connector-j-26.7.0.jar` 라이브러리가 자동으로 잡힘)
+   - `Main.java` 우클릭 > Run As > Java Application
 
 ## 커맨드라인에서 빌드/실행
 
 ```
-javac -cp "lib/mysql-connector-j-26.7.0.jar" -d out $(find src -name "*.java")
+javac -cp "lib/mysql-connector-j-26.7.0.jar" -d out $(find com -name "*.java")
 java -cp "out;lib/mysql-connector-j-26.7.0.jar" com.bottommart.Main
 ```
 
