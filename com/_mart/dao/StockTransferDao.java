@@ -77,6 +77,9 @@ public class StockTransferDao {
     // from_zone과 to_zone이 같으면 안 됨 (확정안 스키마 설계 문서의 제약사항).
     // 이 검증은 원래 Service 계층에 둬야 하지만, 이 프로젝트에는 별도 Service 계층이 없어 DAO에 최소한으로 남겨둠.
     private void validateZones(StockTransfer transfer) {
+        if (transfer.getFromZoneId() == null || transfer.getToZoneId() == null) {
+            throw new IllegalArgumentException("fromZoneId와 toZoneId는 null일 수 없습니다.");
+        }
         if (transfer.getFromZoneId().equals(transfer.getToZoneId())) {
             throw new IllegalArgumentException("fromZoneId와 toZoneId는 같을 수 없습니다.");
         }

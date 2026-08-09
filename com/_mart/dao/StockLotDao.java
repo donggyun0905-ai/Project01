@@ -45,7 +45,7 @@ public class StockLotDao {
             ps.setInt(4, lot.getQuantity());
             ps.setDate(5, Date.valueOf(lot.getInboundDate()));
             ps.setDate(6, lot.getExpiryDate() != null ? Date.valueOf(lot.getExpiryDate()) : null);
-            ps.setString(7, lot.getStatus());
+            ps.setString(7, lot.getStatus() != null ? lot.getStatus() : "NORMAL");
             ps.setLong(8, lot.getCreatedBy());
             if (lot.getParentLotId() != null) {
                 ps.setLong(9, lot.getParentLotId());

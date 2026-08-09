@@ -38,7 +38,7 @@ public class ApprovalDao {
             setNullableLong(ps, 2, approval.getAlertId());
             ps.setString(3, approval.getRequestType());
             ps.setInt(4, approval.getRequestedQty());
-            ps.setString(5, approval.getStatus());
+            ps.setString(5, approval.getStatus() != null ? approval.getStatus() : "대기");
             setNullableLong(ps, 6, approval.getRequestedBy());
             setNullableLong(ps, 7, approval.getApprovedBy());
             ps.setTimestamp(8, approval.getApprovedAt() != null ? Timestamp.valueOf(approval.getApprovedAt()) : null);
