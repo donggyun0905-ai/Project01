@@ -17,7 +17,7 @@ public class DBConnection {
     private static final String CONFIG_FILE = "db.properties";
     private static Properties props;
 
-    private static Properties loadProps() {
+    private static synchronized Properties loadProps() {
         if (props == null) {
             props = new Properties();
             try (FileInputStream in = new FileInputStream(CONFIG_FILE)) {

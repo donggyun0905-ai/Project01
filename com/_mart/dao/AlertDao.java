@@ -58,6 +58,20 @@ public class AlertDao {
         return null;
     }
 
+    public List<Alert> findByItemId(Connection conn, Long itemId) throws SQLException {
+        String sql = "SELECT * FROM ALERT WHERE item_id = ? ORDER BY created_at DESC";
+        List<Alert> result = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, itemId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(mapRow(rs));
+                }
+            }
+        }
+        return result;
+    }
+
     public List<Alert> findUnresolved(Connection conn) throws SQLException {
         String sql = "SELECT * FROM ALERT WHERE is_resolved = FALSE ORDER BY created_at DESC";
         List<Alert> result = new ArrayList<>();
