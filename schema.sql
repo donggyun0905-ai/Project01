@@ -1,8 +1,8 @@
--- _mart: 물류 창고 재고 흐름 추적 시스템
+-- dmart: 물류 창고 재고 흐름 추적 시스템
 -- 확정 스키마 v2 (확정안_스키마설계.pdf) 기준 DDL
 
-CREATE DATABASE IF NOT EXISTS _mart CHARACTER SET utf8mb4;
-USE _mart;
+CREATE DATABASE IF NOT EXISTS dmart CHARACTER SET utf8mb4;
+USE dmart;
 
 -- USER는 MySQL 예약어라 APP_USER로
 CREATE TABLE APP_USER (
@@ -11,6 +11,7 @@ CREATE TABLE APP_USER (
     password    VARCHAR(255) NOT NULL,
     name        VARCHAR(50)  NOT NULL,
     role        VARCHAR(20)  NOT NULL,                 -- ADMIN / STAFF
+    is_active   BOOLEAN      NOT NULL DEFAULT TRUE,     -- 비활성화된 계정은 로그인 불가 (탈퇴 대신 사용 — 이력 FK 보존)
     created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_user_role CHECK (role IN ('ADMIN', 'STAFF'))
 );
@@ -44,7 +45,8 @@ CREATE TABLE ITEM (
     category      VARCHAR(50),
     unit          VARCHAR(20)  NOT NULL,
     threshold_min INT,                                  -- 재고부족 알림 임계치
-    capacity_max  INT                                   -- 재고초과 알림 임계치
+    capacity_max  INT,                                  -- 재고초과 알림 임계치
+    shelf_life_days INT                                 -- 유통기한 일수. 입고일+이 값 = expiry_date 자동계산용 (NULL = 유통기한 없는 품목)
 );
 
 -- ========== 재고 핵심 테이블 ==========
@@ -144,6 +146,7 @@ CREATE TABLE APPROVAL (
     alert_id       BIGINT,                               -- 수동 요청 시 NULL
     request_type   VARCHAR(20) NOT NULL,                 -- 발주 / 출고
     requested_qty  INT NOT NULL,
+    partner_id     BIGINT,                                -- 발주=공급처(선택, 없으면 자동실행 시 기존 로트 참고) / 출고=고객(승인 자동실행에 필수)
     status         VARCHAR(20) NOT NULL DEFAULT '대기',    -- 대기 / 승인 / 반려
     requested_by   BIGINT,                                -- 시스템 자동 제안 시 NULL
     approved_by    BIGINT,
@@ -151,6 +154,7 @@ CREATE TABLE APPROVAL (
     approved_at    DATETIME,
     CONSTRAINT fk_approval_item FOREIGN KEY (item_id) REFERENCES ITEM(item_id),
     CONSTRAINT fk_approval_alert FOREIGN KEY (alert_id) REFERENCES ALERT(alert_id),
+    CONSTRAINT fk_approval_partner FOREIGN KEY (partner_id) REFERENCES PARTNER(partner_id),
     CONSTRAINT fk_approval_requested_by FOREIGN KEY (requested_by) REFERENCES APP_USER(user_id),
     CONSTRAINT fk_approval_approved_by FOREIGN KEY (approved_by) REFERENCES APP_USER(user_id),
     CONSTRAINT chk_approval_status CHECK (status IN ('대기', '승인', '반려'))
