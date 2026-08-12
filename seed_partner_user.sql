@@ -1,6 +1,6 @@
 -- PARTNER 16개 (공급처 6 + 거래처 10), APP_USER 7명 (ADMIN 1 + STAFF 6), USER_WAREHOUSE 배정
 -- 테스트 비밀번호는 전부 '1234' (PasswordUtil.hash()로 SHA-256 해시한 값)
-USE _mart;
+USE dmart;
 
 INSERT INTO PARTNER (partner_id, name, type, contact) VALUES
 (1, '신선냉장유통(주)', 'SUPPLIER', '02-1544-2201'),
