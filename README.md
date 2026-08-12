@@ -11,6 +11,10 @@ Spring Boot 등 프레임워크 없이 `java.sql` 표준 API만 사용합니다.
 ```
 lib/        mysql-connector-j (JDBC 드라이버)
 schema.sql  DB/테이블 생성 DDL (13개 테이블)
+seed_item.sql            ITEM 초기 데이터 250개
+seed_warehouse_zone.sql  WAREHOUSE 10개 + ZONE 30개
+seed_partner_user.sql    PARTNER 16개 + APP_USER 7명 + USER_WAREHOUSE 12건
+seed_stock_lot.sql       STOCK_LOT 초기 데이터 400개 (FIFO/FEFO 검증용, 2단계 참고)
 com/_mart/
   db/       DBConnection - JDBC 커넥션 유틸 + 트랜잭션 헬퍼(executeInTransaction)
   dto/      테이블별 DTO(Data Transfer Object) 클래스 - 데이터를 담아 나르는 용도
@@ -57,17 +61,26 @@ com/_mart/
    ```
    mysql -u root -p < schema.sql
    ```
-2. **DB 접속 정보 설정**
+2. **초기 데이터 시드 (선택)**
+   FK 의존성 때문에 반드시 아래 순서대로 실행합니다 (ITEM → WAREHOUSE/ZONE → PARTNER/APP_USER → STOCK_LOT).
+   ```
+   mysql -u root -p < seed_item.sql
+   mysql -u root -p < seed_warehouse_zone.sql
+   mysql -u root -p < seed_partner_user.sql
+   mysql -u root -p < seed_stock_lot.sql
+   ```
+   각 시드의 설계 근거(수치를 왜 이렇게 정했는지)는 `Project01_설계안/초기데이터_시드_정리.md` 참고.
+3. **DB 접속 정보 설정**
    `db.properties.example`을 복사해서 `db.properties`를 프로젝트 루트에 만들고 본인 비밀번호를 입력합니다.
    `db.properties`는 `.gitignore`에 있어서 커밋되지 않습니다 (비밀번호를 절대 git에 올리지 마세요).
    ```
    cp db.properties.example db.properties
    ```
-3. **IntelliJ에서 열기**
+4. **IntelliJ에서 열기**
    - 프로젝트 폴더를 열고, File > Project Structure > Modules > Dependencies 에서 `lib/mysql-connector-j-26.7.0.jar` 추가
    - 프로젝트 루트 자체를 Sources Root로 지정 (`src`가 따로 없으므로 루트를 그대로 지정)
    - `Main.java` 실행
-4. **Eclipse에서 열기**
+5. **Eclipse에서 열기**
    - File > Import > General > Existing Projects into Workspace
    - 프로젝트 폴더 선택 (이미 포함된 `.project`/`.classpath` 덕분에 소스 루트와 `lib/mysql-connector-j-26.7.0.jar` 라이브러리가 자동으로 잡힘)
    - `Main.java` 우클릭 > Run As > Java Application
