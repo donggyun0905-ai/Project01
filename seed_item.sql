@@ -1,6 +1,6 @@
 ﻿-- ITEM_시드데이터_250개_최종.xlsx 로부터 생성
 -- shelf_life_days는 ITEM 테이블 컬럼이 아니라 STOCK_LOT 시드 생성 시 참고용이라 여기서는 제외함
-USE _mart;
+USE dmart;
 
 INSERT INTO ITEM (item_id, item_name, category, unit, threshold_min, capacity_max) VALUES
 (1, '두부 프리미엄', '냉장식품', 'EA', 16, 66),

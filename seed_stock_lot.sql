@@ -1,5 +1,5 @@
 ﻿-- STOCK_LOT 시드 400개 (유통기한 있는 150개 품목은 로트 2개, 없는 100개는 1개)
-USE _mart;
+USE dmart;
 
 INSERT INTO STOCK_LOT (lot_id, item_id, zone_id, partner_id, quantity, inbound_date, expiry_date, status, created_by) VALUES
 (1, 1, 3, 1, 40, '2026-07-22', '2026-07-30', 'NORMAL', 2),

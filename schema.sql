@@ -1,8 +1,8 @@
 -- _mart: 물류 창고 재고 흐름 추적 시스템
 -- 확정 스키마 v2 (확정안_스키마설계.pdf) 기준 DDL
 
-CREATE DATABASE IF NOT EXISTS _mart CHARACTER SET utf8mb4;
-USE _mart;
+CREATE DATABASE IF NOT EXISTS dmart CHARACTER SET utf8mb4;
+USE dmart;
 
 -- USER는 MySQL 예약어라 APP_USER로
 CREATE TABLE APP_USER (
