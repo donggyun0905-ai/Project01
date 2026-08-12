@@ -1,0 +1,119 @@
+/* outbound.css(출고 등록) */
+
+.page-title{
+	margin: 25px 0;
+	font-size: 26px;
+	font-weight: bold;
+}
+
+.form-box{
+	background: white;
+	border-radius: 12px;
+	padding: 20px;
+	margin-bottom: 25px;
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 24px;
+}
+
+.form-row{
+	display: flex;
+	gap: 10px;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.form-group{
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.expiration-group{
+	grid-column: span 2;
+}
+
+.form-group input, 
+.form-group select{
+	width: 100%;
+	height: 42px;
+	padding: 0 12px;
+	border: 1px solid #ddd;
+	border-radius: 8px;
+	box-sizing: border-box;
+	font-size: 15px;
+}
+
+.form-group label{
+    font-size:16px;
+    font-weight:600;
+    margin-bottom:6px;
+}
+
+.register-btn{
+	background: rgb(0, 128, 255);
+	color: white;
+	border: none;
+	padding: 10px 20px;
+	border-radius: 8px;
+	cursor: pointer;
+	width: 260px;
+	height: 42px;
+	align-self: end;
+}
+
+.date-range{
+	display: flex;
+	align-items:center;
+	gap:8px;
+}
+
+.date-range input{
+	flex: 1;
+}
+
+/* 품목 테이블(표) */
+.table-box{
+	margin-top: 30px;
+	background: white;
+	padding: 20px;
+	border-radius: 12px;
+}
+
+table{
+	width: 100%;
+	border-collapse: collapse;
+}
+
+thead{
+	background: #d9d9d9;
+}
+
+thead th:first-child{
+    border-radius:8px 0 0 8px;
+}
+
+thead th:last-child{
+    border-radius:0 8px 8px 0;
+}
+
+th{
+	padding: 14px;
+	font-size: 16px;
+	font-weight: bold;
+	text-align: center;	
+}
+
+td{
+	padding: 18px 10px;
+	text-align: center;
+	border-bottom: 1px solid #eeeeee;
+}
+
+tbody tr:hover{
+    background:#f7f7f7;
+}
+
+
+
+

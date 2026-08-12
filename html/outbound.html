@@ -1,13 +1,13 @@
-<!DOCTYPE html> <!-- 08.12 입고 등록 -->
+<!DOCTYPE html> <!-- 08.12 출고 등록 -->
 <html lang = "ko">
 <head> 
 	<meta charset="UTF-8">
-	<title>입고 등록</title>
+	<title>출고 등록</title>
 	
 	<!-- 공통 css -->
 	<link rel="stylesheet" href="../css/common.css">
 	<!--inbound css -->
-	<link rel="stylesheet" href="../css/inbound.css">
+	<link rel="stylesheet" href="../css/outbound.css">
 </head>
 
 <!-- 바디  -->
@@ -36,18 +36,18 @@
 	<main class="content">
 		<header class="top-menu">
 			<button class="menu-btn">품목 관리</button> 
-			<button class="menu-btn active">입출고 등록</button> <!--현재 화면이 입고 등록이라서 -->
+			<button class="menu-btn active">입출고 등록</button> <!--현재 화면이 출고 등록이라서 -->
 			<button class="menu-btn">창고 및 구역 관리</button>
 			<button class="menu-btn">창고 간 재고 이동</button>
 			<button class="menu-btn">감사로그</button>
 		</header>
 		
-		<h4 class= "page-title">입고 등록</h4>
+		<h4 class= "page-title">출고 등록</h4>
 		
 		<!-- 입력폼 -->
 		<section class="form-box">
 			<div class="form-group">
-				<label>입고일</label>
+				<label>출고일</label>
 				<input type="date">
 			</div>
 			
@@ -112,18 +112,18 @@
 				<input type= "text">
 			</div>
 			
-			<button class="register-btn">입고 등록</button>
+			<button class="register-btn">출고 등록</button>
 		</section>
 		
 		<!-- 입고입력(표)  -->
 		
 		<section class= "table-box">
-		<h4 class="table-title">입고 이력</h4>
+		<h4 class="table-title">출고 이력</h4>
 			<table>
 				<thead>
 					<tr>
 						<th>NO</th>
-						<th>입고 일자</th>
+						<th>출고 일자</th>
 						<th>품목 코드</th>
 						<th>품목명</th>
 						<th>수량</th>

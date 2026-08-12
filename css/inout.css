@@ -1,0 +1,43 @@
+/* inout.css(입출고 등록) */
+
+.page-title{
+	margin: 25px 0;
+	font-size: 26px;
+	font-weight: bold;
+}
+
+.form-group{
+	display: flex;
+	gap: 100px;
+	justify-content: center;
+	align-items: center;
+	margin-top: 80px;
+}
+
+.register-btn1{
+	background: rgb(255, 107, 87);
+	color: white;
+	border: none;
+	padding: 10px 20px;
+	border-radius: 8px;
+	cursor: pointer;
+	width: 300px;
+	height: 300px;
+	align-self: end;
+	font-size: 50px;
+	font-weight: bold;
+}
+
+.register-btn2{
+	background: rgb(0, 128, 255);
+	color: white;
+	border: none;
+	padding: 10px 20px;
+	border-radius: 8px;
+	cursor: pointer;
+	width: 300px;
+	height: 300px;
+	align-self: end;
+	font-size: 50px;
+	font-weight: bold;
+}
