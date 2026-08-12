@@ -56,6 +56,21 @@ public class ZoneDao {
         return null;
     }
 
+    // 용량 체크(현재 합계 조회 -> 비교 -> insert) 도중 동시 요청이 끼어드는 걸 막기 위해
+    // 트랜잭션 안에서 이 row를 잠그고 조회한다. InboundService/TransferService에서 사용.
+    public Zone findByIdForUpdate(Connection conn, Long zoneId) throws SQLException {
+        String sql = "SELECT * FROM ZONE WHERE zone_id = ? FOR UPDATE";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, zoneId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return mapRow(rs);
+                }
+            }
+        }
+        return null;
+    }
+
     public List<Zone> findByWarehouseId(Connection conn, Long warehouseId) throws SQLException {
         String sql = "SELECT * FROM ZONE WHERE warehouse_id = ? ORDER BY zone_id";
         List<Zone> result = new ArrayList<>();

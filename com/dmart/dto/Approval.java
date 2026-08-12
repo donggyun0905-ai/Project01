@@ -9,6 +9,7 @@ public class Approval {
     private Long alertId;       // 수동 요청 시 NULL
     private String requestType; // 발주 / 출고
     private Integer requestedQty;
+    private Long partnerId;     // 발주=공급처(선택) / 출고=고객(승인 자동실행에 필수)
     private String status;      // 대기 / 승인 / 반려
     private Long requestedBy;   // 시스템 자동 제안 시 NULL
     private Long approvedBy;
@@ -19,12 +20,14 @@ public class Approval {
     }
 
     public Approval(Long approvalId, Long itemId, Long alertId, String requestType, Integer requestedQty,
-                     String status, Long requestedBy, Long approvedBy, LocalDateTime requestedAt, LocalDateTime approvedAt) {
+                     Long partnerId, String status, Long requestedBy, Long approvedBy,
+                     LocalDateTime requestedAt, LocalDateTime approvedAt) {
         this.approvalId = approvalId;
         this.itemId = itemId;
         this.alertId = alertId;
         this.requestType = requestType;
         this.requestedQty = requestedQty;
+        this.partnerId = partnerId;
         this.status = status;
         this.requestedBy = requestedBy;
         this.approvedBy = approvedBy;
@@ -72,6 +75,14 @@ public class Approval {
         this.requestedQty = requestedQty;
     }
 
+    public Long getPartnerId() {
+        return partnerId;
+    }
+
+    public void setPartnerId(Long partnerId) {
+        this.partnerId = partnerId;
+    }
+
     public String getStatus() {
         return status;
     }
@@ -115,8 +126,8 @@ public class Approval {
     @Override
     public String toString() {
         return "Approval{approvalId=" + approvalId + ", itemId=" + itemId + ", alertId=" + alertId
-                + ", requestType='" + requestType + "', requestedQty=" + requestedQty + ", status='" + status
-                + "', requestedBy=" + requestedBy + ", approvedBy=" + approvedBy
+                + ", requestType='" + requestType + "', requestedQty=" + requestedQty + ", partnerId=" + partnerId
+                + ", status='" + status + "', requestedBy=" + requestedBy + ", approvedBy=" + approvedBy
                 + ", requestedAt=" + requestedAt + ", approvedAt=" + approvedAt + "}";
     }
 }

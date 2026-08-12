@@ -9,7 +9,7 @@ Spring Boot 등 프레임워크 없이 `java.sql` 표준 API만 사용합니다.
 ## 프로젝트 구조
 
 ```
-lib/        mysql-connector-j (JDBC 드라이버)
+lib/        mysql-connector-j (JDBC 드라이버), jakarta.servlet-api (톰캣 서블릿 컴파일용 - 실행 시엔 톰캣이 이미 갖고 있어서 배포엔 불필요)
 schema.sql  DB/테이블 생성 DDL (13개 테이블)
 seed_item.sql            ITEM 초기 데이터 250개
 seed_warehouse_zone.sql  WAREHOUSE 10개 + ZONE 30개
@@ -19,7 +19,9 @@ com/dmart/
   db/       DBConnection - JDBC 커넥션 유틸 + 트랜잭션 헬퍼(executeInTransaction)
   dto/      테이블별 DTO(Data Transfer Object) 클래스 - 데이터를 담아 나르는 용도
   dao/      테이블별 CRUD DAO(Data Access Object) 클래스 - 실제 SQL 실행 담당
-  util/     PasswordUtil - SHA-256 비밀번호 해시
+  service/  여러 DAO를 묶어 업무 흐름(입고/출고/이동/반품폐기/승인)을 완성하는 계층
+  util/     PasswordUtil(비밀번호 해시), JsonUtil/ApiResponse(서블릿 응답용 JSON, Gson 없이 직접 구현)
+  web/      톰캣 서블릿(컨트롤러) - CorsFilter, LoginServlet 등. API_명세.md 참고
   Main.java CRUD 동작 데모
 .project, .classpath   Eclipse용 프로젝트 파일 (Import 시 자동 인식)
 ```
@@ -77,22 +79,28 @@ com/dmart/
    cp db.properties.example db.properties
    ```
 4. **IntelliJ에서 열기**
-   - 프로젝트 폴더를 열고, File > Project Structure > Modules > Dependencies 에서 `lib/mysql-connector-j-26.7.0.jar` 추가
+   - 프로젝트 폴더를 열고, File > Project Structure > Modules > Dependencies 에서 `lib/mysql-connector-j-26.7.0.jar`, `lib/jakarta.servlet-api-6.0.0.jar` 둘 다 추가
    - 프로젝트 루트 자체를 Sources Root로 지정 (`src`가 따로 없으므로 루트를 그대로 지정)
    - `Main.java` 실행
 5. **Eclipse에서 열기**
    - File > Import > General > Existing Projects into Workspace
-   - 프로젝트 폴더 선택 (이미 포함된 `.project`/`.classpath` 덕분에 소스 루트와 `lib/mysql-connector-j-26.7.0.jar` 라이브러리가 자동으로 잡힘)
+   - 프로젝트 폴더 선택 (이미 포함된 `.project`/`.classpath` 덕분에 소스 루트와 `lib/` 안의 jar 2개가 자동으로 잡힘)
    - `Main.java` 우클릭 > Run As > Java Application
 
-   `.project`/`.classpath`가 왜 필요한가: Maven/Gradle 같은 빌드 도구가 없는 순수 JDBC 프로젝트라, Eclipse가 "어디가 소스 폴더인지" "어떤 jar를 참조해야 하는지"를 스스로 알아낼 방법이 없습니다. `.project`는 Eclipse에게 "이 폴더는 Java 프로젝트다"라고 알려주는 파일이고(이게 없으면 Import 목록에 아예 뜨지 않음), `.classpath`는 소스 폴더(프로젝트 루트 자체)와 `lib/mysql-connector-j-26.7.0.jar`를 라이브러리로 등록해둔 파일입니다. IntelliJ의 `.iml`은 각자 로컬에서 자동 생성되라고 git에서 제외했지만, 이 두 파일은 Eclipse 쪽엔 그런 자동 생성 수단이 없어서 예외적으로 커밋해뒀습니다.
+   `.project`/`.classpath`가 왜 필요한가: Maven/Gradle 같은 빌드 도구가 없는 순수 JDBC 프로젝트라, Eclipse가 "어디가 소스 폴더인지" "어떤 jar를 참조해야 하는지"를 스스로 알아낼 방법이 없습니다. `.project`는 Eclipse에게 "이 폴더는 Java 프로젝트다"라고 알려주는 파일이고(이게 없으면 Import 목록에 아예 뜨지 않음), `.classpath`는 소스 폴더(프로젝트 루트 자체)와 `lib/`의 jar들을 라이브러리로 등록해둔 파일입니다. IntelliJ의 `.iml`은 각자 로컬에서 자동 생성되라고 git에서 제외했지만, 이 두 파일은 Eclipse 쪽엔 그런 자동 생성 수단이 없어서 예외적으로 커밋해뒀습니다.
+
+   **주의**: 이 프로젝트는 (`myHTML` 같은) Eclipse Dynamic Web Project가 아니라 그냥 일반 Java 프로젝트입니다. `com/dmart/web/`의 서블릿 코드는 컴파일은 여기서 되지만, 실제로 브라우저로 띄워서 테스트하려면 톰캣에 별도로 배포해야 합니다(아직 Eclipse Server뷰의 "Run on Server" 연결은 안 돼 있음 — 필요해지면 별도로 설정).
 
 ## 커맨드라인에서 빌드/실행
 
+`com/dmart/web/`(서블릿)이 `jakarta.servlet-api`를 참조하기 때문에, 전체 컴파일 시 이 jar도 클래스패스에 있어야 합니다 (실행은 `Main.java`만 쓰면 서블릿 API가 실제로 필요 없지만, 컴파일은 전체 트리를 한 번에 하므로 필요).
+
 ```
-javac -cp "lib/mysql-connector-j-26.7.0.jar" -d out $(find com -name "*.java")
+javac -cp "lib/mysql-connector-j-26.7.0.jar;lib/jakarta.servlet-api-6.0.0.jar" -d out $(find com -name "*.java")
 java -cp "out;lib/mysql-connector-j-26.7.0.jar" com.dmart.Main
 ```
+
+서블릿(`com/dmart/web/`)을 실제로 띄워보려면 톰캣에 배포해야 합니다 — `out/com/dmart/...`를 톰캣 webapp의 `WEB-INF/classes/com/dmart/...`에, `lib/mysql-connector-j-26.7.0.jar`를 `WEB-INF/lib/`에, `db.properties`를 `WEB-INF/classes/`에 복사한 뒤 톰캣을 실행합니다 (`jakarta.servlet-api`는 톰캣이 이미 갖고 있으므로 배포본엔 안 넣음).
 
 ## 테이블 목록 (확정 스키마 v2)
 

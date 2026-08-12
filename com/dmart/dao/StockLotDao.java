@@ -65,6 +65,21 @@ public class StockLotDao {
         }
     }
 
+    // quantity 차감(출고/이동/반품폐기) 도중 동시 요청이 끼어드는 걸 막기 위해
+    // 트랜잭션 안에서 이 row를 잠그고 조회한다. OutboundService 등에서 사용.
+    public StockLot findByIdForUpdate(Connection conn, Long lotId) throws SQLException {
+        String sql = "SELECT * FROM STOCK_LOT WHERE lot_id = ? FOR UPDATE";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, lotId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return mapRow(rs);
+                }
+            }
+        }
+        return null;
+    }
+
     public StockLot findById(Connection conn, Long lotId) throws SQLException {
         String sql = "SELECT * FROM STOCK_LOT WHERE lot_id = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -100,6 +115,45 @@ public class StockLotDao {
             }
         }
         return result;
+    }
+
+    // 구역 용량 체크용: 그 구역에 현재 들어있는 활성(NORMAL) 재고 합계
+    public int sumQuantityByZoneId(Connection conn, Long zoneId) throws SQLException {
+        String sql = "SELECT COALESCE(SUM(quantity), 0) FROM STOCK_LOT WHERE zone_id = ? AND status = 'NORMAL'";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, zoneId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
+    // 품목 capacity_max 체크용: 그 품목의 전체 창고에 걸친 활성(NORMAL) 재고 합계
+    public int sumQuantityByItemId(Connection conn, Long itemId) throws SQLException {
+        String sql = "SELECT COALESCE(SUM(quantity), 0) FROM STOCK_LOT WHERE item_id = ? AND status = 'NORMAL'";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, itemId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
+    // 승인 자동실행(발주)에서 zoneId/partnerId 기본값을 정할 때 사용 — 12번 참고.
+    // "가장 최근 이 품목이 입고됐던 곳과 같은 곳에 다시 입고한다"는 가정.
+    public StockLot findMostRecentNormalByItemId(Connection conn, Long itemId) throws SQLException {
+        String sql = "SELECT * FROM STOCK_LOT WHERE item_id = ? AND status = 'NORMAL' ORDER BY inbound_date DESC LIMIT 1";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, itemId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return mapRow(rs);
+                }
+            }
+        }
+        return null;
     }
 
     public List<StockLot> findAll(Connection conn) throws SQLException {

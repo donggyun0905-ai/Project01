@@ -113,6 +113,22 @@ public class StockLot {
         this.parentLotId = parentLotId;
     }
 
+    // AuditLogService의 before/after 스냅샷용 — 원본 필드가 나중에 바뀌어도 영향받지 않는 독립된 복사본.
+    public StockLot copy() {
+        StockLot c = new StockLot();
+        c.setLotId(lotId);
+        c.setItemId(itemId);
+        c.setZoneId(zoneId);
+        c.setPartnerId(partnerId);
+        c.setQuantity(quantity);
+        c.setInboundDate(inboundDate);
+        c.setExpiryDate(expiryDate);
+        c.setStatus(status);
+        c.setCreatedBy(createdBy);
+        c.setParentLotId(parentLotId);
+        return c;
+    }
+
     @Override
     public String toString() {
         return "StockLot{lotId=" + lotId + ", itemId=" + itemId + ", zoneId=" + zoneId

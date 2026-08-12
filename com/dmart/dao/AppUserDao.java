@@ -11,12 +11,13 @@ import java.util.List;
 public class AppUserDao {
 
     public Long insert(Connection conn, AppUser user) throws SQLException {
-        String sql = "INSERT INTO APP_USER (username, password, name, role) VALUES (?, ?, ?, ?)";
+        String sql = "INSERT INTO APP_USER (username, password, name, role, is_active) VALUES (?, ?, ?, ?, ?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, user.getUsername());
             ps.setString(2, user.getPassword());
             ps.setString(3, user.getName());
             ps.setString(4, user.getRole());
+            ps.setBoolean(5, user.getIsActive() != null ? user.getIsActive() : true);
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) {
@@ -28,13 +29,23 @@ public class AppUserDao {
     }
 
     public boolean update(Connection conn, AppUser user) throws SQLException {
-        String sql = "UPDATE APP_USER SET username = ?, password = ?, name = ?, role = ? WHERE user_id = ?";
+        String sql = "UPDATE APP_USER SET username = ?, password = ?, name = ?, role = ?, is_active = ? WHERE user_id = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, user.getUsername());
             ps.setString(2, user.getPassword());
             ps.setString(3, user.getName());
             ps.setString(4, user.getRole());
-            ps.setLong(5, user.getUserId());
+            ps.setBoolean(5, user.getIsActive() != null ? user.getIsActive() : true);
+            ps.setLong(6, user.getUserId());
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    public boolean setActive(Connection conn, Long userId, boolean isActive) throws SQLException {
+        String sql = "UPDATE APP_USER SET is_active = ? WHERE user_id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setBoolean(1, isActive);
+            ps.setLong(2, userId);
             return ps.executeUpdate() > 0;
         }
     }
@@ -45,6 +56,19 @@ public class AppUserDao {
             ps.setLong(1, userId);
             return ps.executeUpdate() > 0;
         }
+    }
+
+    public AppUser findByUsername(Connection conn, String username) throws SQLException {
+        String sql = "SELECT * FROM APP_USER WHERE username = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, username);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return mapRow(rs);
+                }
+            }
+        }
+        return null;
     }
 
     public AppUser findById(Connection conn, Long userId) throws SQLException {
@@ -79,6 +103,7 @@ public class AppUserDao {
         user.setPassword(rs.getString("password"));
         user.setName(rs.getString("name"));
         user.setRole(rs.getString("role"));
+        user.setIsActive(rs.getBoolean("is_active"));
         Timestamp createdAt = rs.getTimestamp("created_at");
         if (createdAt != null) {
             user.setCreatedAt(createdAt.toLocalDateTime());

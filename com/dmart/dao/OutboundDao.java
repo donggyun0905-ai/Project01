@@ -60,6 +60,20 @@ public class OutboundDao {
         return null;
     }
 
+    // 이상출고 판정용: 그 품목의 과거 출고 평균 수량 (이번 건 제외, 이력 없으면 null)
+    public Double averageQuantityByItemId(Connection conn, Long itemId) throws SQLException {
+        String sql = "SELECT AVG(o.quantity) FROM OUTBOUND o JOIN STOCK_LOT sl ON o.lot_id = sl.lot_id "
+                + "WHERE sl.item_id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, itemId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                double avg = rs.getDouble(1);
+                return rs.wasNull() ? null : avg;
+            }
+        }
+    }
+
     public List<Outbound> findAll(Connection conn) throws SQLException {
         String sql = "SELECT * FROM OUTBOUND ORDER BY outbound_id";
         List<Outbound> result = new ArrayList<>();

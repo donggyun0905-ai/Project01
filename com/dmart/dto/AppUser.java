@@ -9,17 +9,19 @@ public class AppUser {
     private String password;
     private String name;
     private String role; // ADMIN / STAFF
+    private Boolean isActive;
     private LocalDateTime createdAt;
 
     public AppUser() {
     }
 
-    public AppUser(Long userId, String username, String password, String name, String role, LocalDateTime createdAt) {
+    public AppUser(Long userId, String username, String password, String name, String role, Boolean isActive, LocalDateTime createdAt) {
         this.userId = userId;
         this.username = username;
         this.password = password;
         this.name = name;
         this.role = role;
+        this.isActive = isActive;
         this.createdAt = createdAt;
     }
 
@@ -63,6 +65,14 @@ public class AppUser {
         this.role = role;
     }
 
+    public Boolean getIsActive() {
+        return isActive;
+    }
+
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -74,6 +84,6 @@ public class AppUser {
     @Override
     public String toString() {
         return "AppUser{userId=" + userId + ", username='" + username + "', name='" + name
-                + "', role='" + role + "', createdAt=" + createdAt + "}";
+                + "', role='" + role + "', isActive=" + isActive + ", createdAt=" + createdAt + "}";
     }
 }

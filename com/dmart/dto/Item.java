@@ -8,17 +8,20 @@ public class Item {
     private String unit;
     private Integer thresholdMin;
     private Integer capacityMax;
+    private Integer shelfLifeDays; // 유통기한 일수, null = 유통기한 없는 품목
 
     public Item() {
     }
 
-    public Item(Long itemId, String itemName, String category, String unit, Integer thresholdMin, Integer capacityMax) {
+    public Item(Long itemId, String itemName, String category, String unit, Integer thresholdMin,
+                Integer capacityMax, Integer shelfLifeDays) {
         this.itemId = itemId;
         this.itemName = itemName;
         this.category = category;
         this.unit = unit;
         this.thresholdMin = thresholdMin;
         this.capacityMax = capacityMax;
+        this.shelfLifeDays = shelfLifeDays;
     }
 
     public Long getItemId() {
@@ -69,9 +72,18 @@ public class Item {
         this.capacityMax = capacityMax;
     }
 
+    public Integer getShelfLifeDays() {
+        return shelfLifeDays;
+    }
+
+    public void setShelfLifeDays(Integer shelfLifeDays) {
+        this.shelfLifeDays = shelfLifeDays;
+    }
+
     @Override
     public String toString() {
         return "Item{itemId=" + itemId + ", itemName='" + itemName + "', category='" + category
-                + "', unit='" + unit + "', thresholdMin=" + thresholdMin + ", capacityMax=" + capacityMax + "}";
+                + "', unit='" + unit + "', thresholdMin=" + thresholdMin + ", capacityMax=" + capacityMax
+                + ", shelfLifeDays=" + shelfLifeDays + "}";
     }
 }
