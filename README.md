@@ -15,7 +15,7 @@ seed_item.sql            ITEM 초기 데이터 250개
 seed_warehouse_zone.sql  WAREHOUSE 10개 + ZONE 30개
 seed_partner_user.sql    PARTNER 16개 + APP_USER 7명 + USER_WAREHOUSE 12건
 seed_stock_lot.sql       STOCK_LOT 초기 데이터 400개 (FIFO/FEFO 검증용, 2단계 참고)
-com/_mart/
+com/dmart/
   db/       DBConnection - JDBC 커넥션 유틸 + 트랜잭션 헬퍼(executeInTransaction)
   dto/      테이블별 DTO(Data Transfer Object) 클래스 - 데이터를 담아 나르는 용도
   dao/      테이블별 CRUD DAO(Data Access Object) 클래스 - 실제 SQL 실행 담당
@@ -24,7 +24,7 @@ com/_mart/
 .project, .classpath   Eclipse용 프로젝트 파일 (Import 시 자동 인식)
 ```
 
-`src` 폴더 없이 프로젝트 루트 바로 아래에 `com/_mart/...` 패키지가 오는 구조입니다.
+`src` 폴더 없이 프로젝트 루트 바로 아래에 `com/dmart/...` 패키지가 오는 구조입니다.
 즉 **프로젝트 루트 자체가 소스 루트**입니다 — IntelliJ든 Eclipse든 별도 설정 없이 프로젝트 루트를 그대로 소스 루트로 잡으면 됩니다.
 
 DTO와 DAO는 짝으로 동작합니다: **DTO(데이터를 담는 그릇) ↔ DAO(그 데이터를 DB에 넣고 빼는 역할) ↔ DB**.
@@ -36,7 +36,7 @@ DAO 메서드는 `Connection`을 직접 열지 않고 파라미터로 받습니�
 지금은 재고 현황/입출고(1번 영역)의 CRUD만 구현된 상태입니다. 나머지 영역이 추가되면 아래처럼 하위 패키지가 늘어날 것으로 예상합니다 (뼈대만 미리 잡아둔 것이 아니라, 실제로 필요해질 때 그때그때 추가하는 방식을 권장):
 
 ```
-com/_mart/
+com/dmart/
   dto/      (완료) 13개 테이블 데이터 홀더
   dao/      (완료) 13개 테이블 CRUD
   db/       (완료) 커넥션 + 트랜잭션 유틸
@@ -91,7 +91,7 @@ com/_mart/
 
 ```
 javac -cp "lib/mysql-connector-j-26.7.0.jar" -d out $(find com -name "*.java")
-java -cp "out;lib/mysql-connector-j-26.7.0.jar" com._mart.Main
+java -cp "out;lib/mysql-connector-j-26.7.0.jar" com.dmart.Main
 ```
 
 ## 테이블 목록 (확정 스키마 v2)

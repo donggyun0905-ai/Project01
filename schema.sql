@@ -1,4 +1,4 @@
--- _mart: 물류 창고 재고 흐름 추적 시스템
+-- dmart: 물류 창고 재고 흐름 추적 시스템
 -- 확정 스키마 v2 (확정안_스키마설계.pdf) 기준 DDL
 
 CREATE DATABASE IF NOT EXISTS dmart CHARACTER SET utf8mb4;
