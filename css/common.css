@@ -1,0 +1,98 @@
+/*공통 스타일*/
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+body {
+	font-family: "Malgun Gothic", sans-serif;
+	background-color: #f3f3f3;
+	color: #333;
+}
+
+.container {
+	display:flex;
+	min-height: 100vh;
+}
+
+/* 사이드바 */
+.sidebar{
+	width: 220px;
+	background: #1f2628;
+	color: white;
+	padding: 20px 15px;
+}
+
+.logo{
+	text-align: center;
+	margin-bottom: 40px;
+}
+
+.logo img{
+	width: 80px;
+	margin-bottom: 10px;
+}
+
+.logo p{
+	font-size: 20px;
+	font-weight: bold;
+}
+
+.side-menu{
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+
+.side-menu li{
+	padding: 14px 22px;
+	margin-bottom: 12px;
+	border-radius: 25px;
+	cursor: pointer;
+	font-size: 16px;
+	font-weight: bold;
+}
+
+.side-menu li.active {
+	background: #404445;
+	border-radius: 25px;
+	font-weight: bold;
+}
+
+.side-menu li:hover{
+    background: #363b3d;
+}
+
+/* 위에 떠있는 애들(품목관리, 입출고 등록, 창고 및 구역관리 등) */
+.content{
+	flex: 1;
+	padding: 30px;
+}
+
+.top-menu{
+	display: flex;
+	gap: 0;
+	margin-bottom: 40px;
+}
+
+.menu-btn{
+	padding: 14px 24px;
+	border: none;
+	background: #d9d9d9;
+	cursor: pointer;
+	font-size: 16px;
+	font-weight: bold;
+}
+
+.menu-btn:first-child{
+    border-radius:8px 0 0 8px;
+}
+
+.menu-btn:last-child{
+    border-radius:0 8px 8px 0;
+}
+
+.menu-btn.active{
+	background: #bfbfbf;
+}

@@ -1,0 +1,109 @@
+/* item.css(품목관리) */
+/*상단의 검색 상자들*/
+.search-box{
+	display: flex;
+	align-items: center;
+	gap: 20px;
+	width: fit-content;
+	background: white;
+	padding: 18px 28px;
+	margin-bottom: 30px;
+	border-radius: 10px;
+	max-width: 680px;
+	height: 80px;
+}
+
+ /* 이부분 수정하기 글자 위치 수정*/
+.item-search{
+	gap: 30px;
+	padding: 18px 18px;
+}
+
+.search-box label {
+	font-size: 18px;
+	font-weight: bold;
+	white-space: nowrap;
+}
+
+.search-input-wrap{
+	display: flex;
+	align-items: center;
+	width: 320px;
+	height: 42px;
+	border: 1px solid #d8d8d8;
+	border-radius: 22px;
+	background: white;
+	overflow: hidden;
+}
+
+.search-input-wrap input {
+	flex: 1;
+	height: 100%;
+	border: none;
+	outline: none;
+	padding: 0 16px;
+	font-size: 15px;
+}
+
+.search-btn{
+	width: 48px;
+	height: 100%;
+	border: none;
+	background: white;
+	font-size: 22px;
+	cursor: pointer;
+}
+
+.category-select{
+	width: 110px;
+	height: 42px;
+	border: 1px solid #d8d8d8;
+	border-radius: 8px;
+	padding: 0 12px;
+	background: white;
+	font-size: 15px;
+}
+
+/* 품목 테이블(표) */
+.table-box{
+	margin-top: 30px;
+	background: white;
+	padding: 20px;
+	border-radius: 12px;
+}
+
+table{
+	width: 100%;
+	border-collapse: collapse;
+}
+
+thead{
+	background: #d9d9d9;
+}
+
+thead th:first-child{
+    border-radius:8px 0 0 8px;
+}
+
+thead th:last-child{
+    border-radius:0 8px 8px 0;
+}
+
+th{
+	padding: 14px;
+	font-size: 16px;
+	font-weight: bold;
+	text-align: center;	
+}
+
+td{
+	padding: 18px 10px;
+	text-align: center;
+	border-bottom: 1px solid #eeeeee;
+}
+
+tbody tr:hover{
+    background:#f7f7f7;
+}
+
+
