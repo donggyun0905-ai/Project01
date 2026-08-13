@@ -39,30 +39,24 @@ body {
 	font-weight: bold;
 }
 
-.side-menu{
-	list-style: none;
-	padding: 0;
-	margin: 0;
-}
-
-.side-menu li{
-	padding: 14px 22px;
-	margin-bottom: 12px;
-	border-radius: 25px;
-	cursor: pointer;
-	font-size: 16px;
+.sidebar-menu a {
+	display: block;
+	padding: 12px 16px;
+	margin-bottom: 18px;
+	color: white;
+	text-decoration: none;
+	border-radius: 20px;
 	font-weight: bold;
 }
 
-.side-menu li.active {
-	background: #404445;
-	border-radius: 25px;
-	font-weight: bold;
+.sidebar-menu a:hover{
+	background-color: #3a4143;
 }
 
-.side-menu li:hover{
-    background: #363b3d;
+.sidebar-menu a.active{
+	background-color: #4a5153;
 }
+
 
 /* 위에 떠있는 애들(품목관리, 입출고 등록, 창고 및 구역관리 등) */
 .content{

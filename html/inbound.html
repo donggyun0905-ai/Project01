@@ -21,14 +21,12 @@
 			<img src="../images/logo.png" alt="DOWN MART">
 		<p>DOWN MART</p>
 		</div>
-		<nav>
-			<ul class="side-menu">
-				<li>입출고 관리</li>			
-				<li>반품 및 폐기 관리</li>			
-				<li>알림</li>			
-				<li>통계</li>			
-				<li>설정 및 권한 관리</li>			
-			</ul>
+		<nav class="sidebar-menu">
+			<a href="inout.html" class="active">입출고 관리</a>
+			<a href="return.html" >반품 및 폐기 관리</a>
+			<a href="alert.html" >알림</a>
+			<a href="statistics.html" >통계</a>
+			<a href="settings.html" >설정 및 권한 관리</a>
 		</nav>
 	</aside>
 	
@@ -44,6 +42,7 @@
 		
 		<h4 class= "page-title">입고 등록</h4>
 		
+		<!-- 로트번호가 자동으로 생성된다고 생각하여 입력폼에 넣지 않았습니다-->
 		<!-- 입력폼 -->
 		<section class="form-box">
 			<div class="form-group">
@@ -125,11 +124,13 @@
 						<th>NO</th>
 						<th>입고 일자</th>
 						<th>품목 코드</th>
+						<th>로트 번호</th>
 						<th>품목명</th>
 						<th>수량</th>
 						<th>단위</th>
 						<th>단가</th>
 						<th>유통기한</th>
+						<th>공급처</th>
 						<th>구역</th>
 						<th>담당자</th>
 					</tr>				
@@ -140,11 +141,13 @@
 						<td>1</td>
 						<td>2026-08-06</td>
 						<td>ITEM-2001</td>
+						<td>LOT-357</td>
 						<td>두부</td>
 						<td>60</td>
 						<td>EA</td>
 						<td>1,500</td>
 						<td>2026-08-05~2026-12-28</td>
+						<td>한신물산</td>
 						<td>A</td>
 						<td>홍길동</td>
 					</tr>
@@ -153,11 +156,13 @@
 						<td>2</td>
 						<td>2026-08-06</td>
 						<td>ITEM-2001</td>
+						<td>LOT-4451</td>
 						<td>간장</td>
 						<td>32</td>
 						<td>EA</td>
 						<td>1,500</td>
 						<td>2026-08-05~2026-12-28</td>
+						<td>미국물산</td>
 						<td>A</td>
 						<td>김민지</td>
 					</tr>

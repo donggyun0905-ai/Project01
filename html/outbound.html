@@ -21,14 +21,12 @@
 			<img src="../images/logo.png" alt="DOWN MART">
 		<p>DOWN MART</p>
 		</div>
-		<nav>
-			<ul class="side-menu">
-				<li>입출고 관리</li>			
-				<li>반품 및 폐기 관리</li>			
-				<li>알림</li>			
-				<li>통계</li>			
-				<li>설정 및 권한 관리</li>			
-			</ul>
+		<nav class="sidebar-menu">
+			<a href="inout.html" class="active">입출고 관리</a>
+			<a href="return.html" >반품 및 폐기 관리</a>
+			<a href="alert.html" >알림</a>
+			<a href="statistics.html" >통계</a>
+			<a href="settings.html" >설정 및 권한 관리</a>
 		</nav>
 	</aside>
 	
@@ -112,10 +110,11 @@
 				<input type= "text">
 			</div>
 			
-			<button class="register-btn">출고 등록</button>
+			<!-- 버튼을 누르면 FIFO/FEFO 모달 페이지가 뜨면 좋을 것 같습니다-->
+			<button class="register-btn">자동 추천 및 확인</button>
 		</section>
 		
-		<!-- 입고입력(표)  -->
+		<!-- 출고 입력(표)  -->
 		
 		<section class= "table-box">
 		<h4 class="table-title">출고 이력</h4>
@@ -125,12 +124,13 @@
 						<th>NO</th>
 						<th>출고 일자</th>
 						<th>품목 코드</th>
+						<th>로트 번호</th>
 						<th>품목명</th>
 						<th>수량</th>
 						<th>단위</th>
 						<th>단가</th>
-						<th>유통기한</th>
 						<th>구역</th>
+						<th>목적지</th> <!-- 거래처랑 같습니다  -->
 						<th>담당자</th>
 					</tr>				
 				</thead>
@@ -140,12 +140,13 @@
 						<td>1</td>
 						<td>2026-08-06</td>
 						<td>ITEM-2001</td>
+						<td>LOT-2231</td>
 						<td>두부</td>
 						<td>60</td>
 						<td>EA</td>
 						<td>1,500</td>
-						<td>2026-08-05~2026-12-28</td>
 						<td>A</td>
+						<td>한신물산</td>
 						<td>홍길동</td>
 					</tr>
 					
@@ -153,12 +154,13 @@
 						<td>2</td>
 						<td>2026-08-06</td>
 						<td>ITEM-2001</td>
+						<td>ITEM-1125</td>
 						<td>간장</td>
 						<td>32</td>
 						<td>EA</td>
 						<td>1,500</td>
-						<td>2026-08-05~2026-12-28</td>
 						<td>A</td>
+						<td>강동물산</td>
 						<td>김민지</td>
 					</tr>
 				</tbody>
@@ -168,6 +170,83 @@
 	</main>
 	
 	</div>
+
+<!-- FIFO/FEFO 추천 (모달) 페이지 -->
+<div class = "modal-overlay" id="recommendModal">
+	<div class="modal-box">
+	
+		<div class="modal-header">
+			<h3>출고 방식 자동 추천</h3>
+			<button class = "modal-close"> x </button>
+		</div>
+		<div class="modal-content">
+			<h4>출고 방식 자동 추천 완료</h4>
+			<p>해당 품목은 유통기한 관리 대상이 아닙니다.<br>
+					따라서 <strong>FIFO(입고일 기준)</strong> 방식이 자동 추천되었습니다.</p>
+			<div class="recommend-box">
+				<span>추천 방식</span>
+				<strong>FIFO(선입선출)</strong>
+			</div>
+		</div>
+		
+		<div class="modal-footer">
+			<button class= "btn-cancel">취소</button>
+			<button class= "btn-primary">다음</button>
+		</div>
+	</div>
+</div>
+
+<!-- FIFO/FEFO 모달 2번째 페이지  -->
+<div class = "modal-overlay" id="lotModal">
+	<div class="modal-box lot-modal">
+	
+		<div class="modal-header">
+			<h3>출고 LOT 자동 선택 결과</h3>
+			<button class = "modal-close"> x </button>
+		</div>
+		
+		<div class="modal-content">
+			아래 로트에서 출고 수량이 차감됩니다.<br>
+			<strong>총 출고 수량: 90 EA</strong>
+		</div>
+		<table>
+			<thead>
+				<tr>
+					<th>순서</th>
+					<th>로트번호</th>
+					<th>입고일</th>
+					<th>유통기한</th>
+					<th>출고 수량</th>
+				</tr>
+			</thead>
+		
+		
+		<tbody>
+			<tr>
+				<td>1</td>
+				<td>LOT-112</td>
+				<td>2026-08-23</td>
+				<td>2026-08-23~2026-09-25</td>
+				<td>80</td>
+			</tr>
+			
+			<tr>
+				<td>2</td>
+				<td>LOT-4231</td>
+				<td>2026-08-25</td>
+				<td>2026-08-25~2026-09-28</td>
+				<td>81</td>
+			</tr>
+		</tbody>	
+		</table>	
+		<div class="policy-info"><strong>추천 방식: FIFO(선입선출)</strong></div>
+		
+		<div class="modal-footer">
+			<button class= "btn-cancel">취소</button>
+			<button class= "btn-primary">출고 등록</button>
+		</div>
+	</div>
+</div>
 
 </body>
 
