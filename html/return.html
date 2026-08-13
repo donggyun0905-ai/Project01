@@ -1,0 +1,213 @@
+<!DOCTYPE html> <!-- 08.13 반품 및 폐기 관리-->
+<!-- FIFO/FEFO 모달이 추가되었습니다 모달을 보려면 outbound.css에서 210번줄을 찾아가세요 -->
+<!-- 모달 2개 있는데 지금은 첫번째 페이지만 뜹니다 2번째 보려면 맨 밑으로 가서 주석 해제하시면 2번째 페이지가 뜹니다 -->
+<html lang = "ko">
+<head> 
+	<meta charset="UTF-8">
+	<title>반품 및 폐기 관리</title>
+	
+	<!-- 공통 css -->
+	<link rel="stylesheet" href="../css/common.css">
+	<!--inbound css -->
+	<link rel="stylesheet" href="../css/return.css">
+</head>
+
+<!-- 바디  -->
+<body>
+	<!-- 전체 화면 -->
+	<div class="container">
+	
+	<!--  사이드바-->	
+	<aside class="sidebar">
+		<div class="logo">
+			<img src="../images/logo.png" alt="DOWN MART">
+		<p>DOWN MART</p>
+		</div>
+		<nav class="sidebar-menu">
+			<a>입출고 관리</a>
+			<a class="active">반품 및 폐기 관리</a>
+			<a>알림</a>
+			<a>통계</a>
+			<a>설정 및 권한 관리</a>
+		</nav>
+	</aside>
+	
+	<!-- 오른쪽 위에 뜨는거 -->
+	<main class="content">
+	
+
+	<div class="top-bar">
+		<h4 class= "page-title">반품 및 폐기 관리</h4>
+	</div>
+		
+		<!-- 입력폼 -->
+		<section class="form-box">
+			<div class="form-group">
+				<label>출고일</label>
+				<input type="date">
+			</div>
+			
+			<div class="form-group expiration-group">
+				<label>유통기한</label>
+				<div class= "date-range">
+					<input type="date">
+					<span>~</span>
+					<input type="date">
+				</div>
+			</div>
+			
+			<div class="form-group">
+				<label> 카테고리</label> <!-- 임의로 넣어놨습니다 -->
+				<select>
+					<option>냉동식품</option>
+					<option>냉장식품</option>
+					<option>유제품</option>
+				</select>
+			</div>
+				
+			<!-- 기존 반품 등록/ 폐기 등록을 하나로 합쳤습니다-->
+			<button class="register-btn">반품/폐기 등록하기</button>
+		</section>
+		
+		<!-- 출고 입력(표)  -->
+		
+		<section class= "table-box">
+		<h4 class="table-title">반품/폐기 내역</h4>
+			<table>
+				<thead>
+					<tr>
+						<th>NO</th>
+						<th>구분</th> <!-- 반품/폐기 중 하나-->
+						<th>처리 유형</th> <!-- 고객 반품, 공급처 반품, 폐기 등등-->
+						<th>품목명</th>
+						<th>품목 코드</th>
+						<th>로트 번호</th>
+						<th>구역</th>
+						<th>수량</th>
+						<th>사유</th> <!-- 배송 실수, 고객 변심 등등 -->
+						<th>처리일</th>
+						<th>담당자</th>
+						<th>상태</th> <!-- 처리 중인지, 완료 되었는지, 대기 중인/  이 부분은 구현하기 어려우면 빼도 좋을 것 같습니다-->
+					</tr>				
+				</thead>
+				
+				<tbody> 
+					<tr>
+						<td>1</td>
+						<td>반품</td>
+						<td>고객 반품</td>
+						<td>핸드크림</td>
+						<td>ITEM-223</td>
+						<td>LOT-3942</td>
+						<td>B</td>
+						<td>115</td>
+						<td>고객 변심</td>
+						<td>2026-11-25</td>
+						<td>홍길동</td>
+						<td>완료</td>
+					</tr>
+					
+					<tr>
+						<td>1</td>
+						<td>반품</td>
+						<td>고객 반품</td>
+						<td>핸드크림</td>
+						<td>ITEM-223</td>
+						<td>LOT-3942</td>
+						<td>B</td>
+						<td>115</td>
+						<td>고객 변심</td>
+						<td>2026-11-25</td>
+						<td>홍길동</td>
+						<td>완료</td>
+					</tr>
+				</tbody>
+			</table>
+		</section>
+		
+	</main>
+	
+	</div>
+
+<!-- 반품/폐기 등록 페이지 모달-->
+<div class = "modal-overlay" id="recommendModal">
+	<div class="modal-box">
+	
+		<div class="modal-header">
+			<h3>반품/폐기 등록</h3>
+			<button class = "modal-close"> x </button>
+		</div>
+		
+		<section class="form-box">
+			<div class="form-group">
+				<label> 구분</label> 
+				<select>
+					<option>반품</option>
+					<option>폐기</option>
+				</select>
+			</div>
+				
+			<div class="form-group">
+				<label>처리 유형</label>
+				<input type= "text">
+			</div>
+			
+			<div class="form-group">
+				<label>품목명</label>
+				<input type= "text">
+			</div>
+			
+			<div class="form-group">
+				<label>품목 번호</label>
+				<input type= "text">
+			</div>
+			
+			<div class="form-group">
+				<label>로트 번호</label>
+				<input type= "text">
+			</div>
+			
+			<div class="form-group">
+				<label>구역</label>
+					<select>
+					<option>A</option>
+					<option>B</option>
+					<option>C</option>
+				</select>
+			</div>
+		
+			<div class="form-group"	>
+				<label>수량</label>
+				<input type= "number">
+			</div>
+			
+			<div class="form-group">
+				<label>사유</label>
+				<input type= "text">
+			</div>
+			
+			<div class="form-group">
+				<label>처리일</label>
+				<div class= "date-range">
+					<input type="date">
+				</div>
+			</div>
+				
+			<div class="form-group"	>
+				<label>담당자</label>
+				<input type= "text">
+			</div>
+
+				<div class="modal-footer">
+					<button class= "btn-cancel">취소</button>
+					<button class= "btn-primary">등록</button>
+				</div>
+
+		</section>
+	</div>
+</div>
+</body>
+
+
+
+</html>

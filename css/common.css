@@ -91,33 +91,7 @@ body {
 	background: #bfbfbf;
 }
 
-/*계정 표시 */
-.top-bar{
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	margin-bottom: 20px;
-}
 
-.top-bar h2{
-	margin: 0;
-}
-
-.user-info {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	font-size: 12px;
-	color: #555;
-}
-
-.notification {
-	cursor: pointer;
-}
-
-.user-name {
-	font-weight: 500;
-}
 
 
 
