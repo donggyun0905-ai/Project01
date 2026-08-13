@@ -1,0 +1,161 @@
+<!DOCTYPE html> <!-- 08.13 창고 간 재고 이동 -->
+<html lang = "ko">
+<head> 
+	<meta charset="UTF-8">
+	<title>창고 간 재고 이동</title>
+	
+	<!-- 공통 css -->
+	<link rel="stylesheet" href="../css/common.css">
+	<!--inbound css -->
+	<link rel="stylesheet" href="../css/movement.css">
+</head>
+
+<!-- 바디  -->
+<body>
+	<!-- 전체 화면 -->
+	<div class="container">
+	
+	<!--  사이드바-->	
+	<aside class="sidebar">
+		<div class="logo">
+			<img src="../images/logo.png" alt="DOWN MART">
+		<p>DOWN MART</p>
+		</div>
+		<nav>
+			<ul class="side-menu">
+				<li>입출고 관리</li>			
+				<li>반품 및 폐기 관리</li>			
+				<li>알림</li>			
+				<li>통계</li>			
+				<li>설정 및 권한 관리</li>			
+			</ul>
+		</nav>
+	</aside>
+	
+	<!-- 오른쪽 위에 뜨는거 -->
+	<main class="content">
+		<header class="top-menu">
+			<button class="menu-btn">품목 관리</button> 
+			<button class="menu-btn">입출고 등록</button> 
+			<button class="menu-btn">창고 및 구역 관리</button>
+			<button class="menu-btn active">창고 간 재고 이동</button> <!--현재 화면이 창고 간 재고 이동이라서 -->
+			<button class="menu-btn">감사로그</button>
+		</header>
+		
+		<h4 class= "page-title">재고 이동</h4>
+		
+		<!-- 입력폼 -->
+		<section class="form-box">
+			<div class="form-group">
+				<label>이동 일자</label>
+				<input type="date">
+			</div>
+			
+			<div class="form-group">
+				<label>담당자</label>
+				<input type= "text">
+			</div>
+			
+			<div class="form-group">
+				<label>품목명</label>
+				<input type= "text">
+			</div>
+			
+			<div class="form-group">
+				<label>품목 코드</label>
+				<input type= "text">
+			</div>
+			
+			<div class="form-group">
+				<label>로트 번호</label>
+				<input type= "text">
+			</div>
+			
+			<div class="form-group">
+				<label>수량</label>
+				<input type= "number">
+			</div>
+			
+			<div class="form-group">
+				<label>출발 구역</label>
+					<select>
+					<option>A</option>
+					<option>B</option>
+					<option>C</option>
+				</select>
+			</div>
+			
+			<div class="form-group">
+				<label>도착 구역</label>
+					<select>
+					<option>A</option>
+					<option>B</option>
+					<option>C</option>
+				</select>
+			</div>
+				
+			<div class="form-group"	>
+				<label>비고</label>
+				<input type= "text">
+			</div>
+			
+			<button class="register-btn">이동 등록</button>
+		</section>
+		
+		<!-- 이동 이력 목록(표)  -->
+		
+		<section class= "table-box">
+		<h4 class="table-title">이동 이력 목록</h4>
+			<table>
+				<thead>
+					<tr>
+						<th>이동 일자</th>
+						<th>담당자</th>
+						<th>품목명</th>
+						<th>품목 번호</th>
+						<th>로트 번호</th>
+						<th>수량</th>
+						<th>출발 구역</th>
+						<th>도착 구역</th>
+						<th>비고</th>
+					</tr>				
+				</thead>
+				
+				<tbody> 
+					<tr>
+						<td>2026.08.04</td>
+						<td>김민지</td>
+						<td>아이스티</td>
+						<td>ITEM-993</td>
+						<td>LOT-123</td>
+						<td>33</td>
+						<td>A-01</td>
+						<td>B-02</td>
+						<td>구역 정리</td>
+					</tr>
+					
+					<tr>
+						<td>2026.08.04</td>
+						<td>김민지</td>
+						<td>아이스티</td>
+						<td>ITEM-993</td>
+						<td>LOT-123</td>
+						<td>33</td>
+						<td>A-01</td>
+						<td>B-02</td>
+						<td>구역 정리</td>
+					</tr>
+					
+				</tbody>
+			</table>
+		</section>
+		
+	</main>
+	
+	</div>
+
+</body>
+
+
+
+</html>
