@@ -23,6 +23,7 @@ public class InboundService {
     private final PartnerDao partnerDao = new PartnerDao();
     private final StockLotDao stockLotDao = new StockLotDao();
     private final AlertDao alertDao = new AlertDao();
+    private final AlertResolutionService alertResolutionService = new AlertResolutionService();
 
     public static class InboundResult {
         public final Long lotId;
@@ -103,6 +104,9 @@ public class InboundService {
                 alertDao.insert(conn, alert);
                 alertCreated = true;
             }
+
+            // 11번 자동 해결 규칙 — 이번 입고로 재고부족이 해소됐을 수 있음
+            alertResolutionService.reevaluate(conn, itemId);
 
             return new InboundResult(lotId, expiryDate, alertCreated);
         });

@@ -60,7 +60,7 @@ CREATE TABLE STOCK_LOT (
     quantity      INT NOT NULL,
     inbound_date  DATE NOT NULL,                        -- FIFO 기준
     expiry_date   DATE,                                 -- FEFO 기준
-    status        VARCHAR(20) NOT NULL DEFAULT 'NORMAL', -- NORMAL / DISPOSED / RETURNED
+    status        VARCHAR(20) NOT NULL DEFAULT 'NORMAL', -- NORMAL / DISPOSED / RETURNED / DELETED(소프트 삭제, 8/13 추가)
     created_by    BIGINT NOT NULL,
     parent_lot_id BIGINT,                                -- 부분 이동으로 분할된 로트의 원본 참조 (자기참조)
     CONSTRAINT fk_lot_item FOREIGN KEY (item_id) REFERENCES ITEM(item_id),
@@ -69,7 +69,7 @@ CREATE TABLE STOCK_LOT (
     CONSTRAINT fk_lot_created_by FOREIGN KEY (created_by) REFERENCES APP_USER(user_id),
     CONSTRAINT fk_lot_parent FOREIGN KEY (parent_lot_id) REFERENCES STOCK_LOT(lot_id),
     CONSTRAINT chk_lot_quantity CHECK (quantity >= 0),
-    CONSTRAINT chk_lot_status CHECK (status IN ('NORMAL', 'DISPOSED', 'RETURNED'))
+    CONSTRAINT chk_lot_status CHECK (status IN ('NORMAL', 'DISPOSED', 'RETURNED', 'DELETED'))
 );
 
 CREATE TABLE OUTBOUND (

@@ -97,6 +97,43 @@ public class ApprovalDao {
         return result;
     }
 
+    // 12번 목록 API용. status 선택 필터.
+    public List<Approval> findPage(Connection conn, String status, int offset, int limit) throws SQLException {
+        String sql = "SELECT * FROM APPROVAL" + whereClause(status) + " ORDER BY requested_at DESC LIMIT ? OFFSET ?";
+        List<Approval> result = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = 1;
+            if (status != null) {
+                ps.setString(idx++, status);
+            }
+            ps.setInt(idx++, limit);
+            ps.setInt(idx, offset);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(mapRow(rs));
+                }
+            }
+        }
+        return result;
+    }
+
+    public int count(Connection conn, String status) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM APPROVAL" + whereClause(status);
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            if (status != null) {
+                ps.setString(1, status);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
+    private String whereClause(String status) {
+        return status == null ? "" : " WHERE status = ?";
+    }
+
     private void setNullableLong(PreparedStatement ps, int index, Long value) throws SQLException {
         if (value == null) {
             ps.setNull(index, Types.BIGINT);

@@ -168,6 +168,96 @@ public class StockLotDao {
         return result;
     }
 
+    // 10.1 목록 API용. warehouseId 필터는 ZONE과 조인해서 처리(STOCK_LOT엔 warehouse_id가 없음).
+    // allowedWarehouseIds가 null이면 전체(ADMIN), 아니면 그 창고들 소속 구역의 로트만(STAFF) — 4번과 동일한 패턴.
+    public List<StockLot> findPage(Connection conn, Long itemId, Long zoneId, Long warehouseId, String status,
+                                    List<Long> allowedWarehouseIds, int offset, int limit) throws SQLException {
+        if (allowedWarehouseIds != null && allowedWarehouseIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        String sql = "SELECT sl.* FROM STOCK_LOT sl JOIN ZONE z ON sl.zone_id = z.zone_id"
+                + whereClause(itemId, zoneId, warehouseId, status, allowedWarehouseIds)
+                + " ORDER BY sl.lot_id LIMIT ? OFFSET ?";
+        List<StockLot> result = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = bindFilterParams(ps, 1, itemId, zoneId, warehouseId, status, allowedWarehouseIds);
+            ps.setInt(idx++, limit);
+            ps.setInt(idx, offset);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(mapRow(rs));
+                }
+            }
+        }
+        return result;
+    }
+
+    public int count(Connection conn, Long itemId, Long zoneId, Long warehouseId, String status,
+                      List<Long> allowedWarehouseIds) throws SQLException {
+        if (allowedWarehouseIds != null && allowedWarehouseIds.isEmpty()) {
+            return 0;
+        }
+        String sql = "SELECT COUNT(*) FROM STOCK_LOT sl JOIN ZONE z ON sl.zone_id = z.zone_id"
+                + whereClause(itemId, zoneId, warehouseId, status, allowedWarehouseIds);
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            bindFilterParams(ps, 1, itemId, zoneId, warehouseId, status, allowedWarehouseIds);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
+    private String whereClause(Long itemId, Long zoneId, Long warehouseId, String status, List<Long> allowedWarehouseIds) {
+        StringBuilder sb = new StringBuilder();
+        if (itemId != null) {
+            sb.append(" AND sl.item_id = ?");
+        }
+        if (zoneId != null) {
+            sb.append(" AND sl.zone_id = ?");
+        }
+        if (warehouseId != null) {
+            sb.append(" AND z.warehouse_id = ?");
+        }
+        if (status != null) {
+            sb.append(" AND sl.status = ?");
+        }
+        if (allowedWarehouseIds != null) {
+            sb.append(" AND z.warehouse_id IN (");
+            for (int i = 0; i < allowedWarehouseIds.size(); i++) {
+                if (i > 0) {
+                    sb.append(',');
+                }
+                sb.append('?');
+            }
+            sb.append(')');
+        }
+        return sb.length() == 0 ? "" : " WHERE 1=1" + sb;
+    }
+
+    private int bindFilterParams(PreparedStatement ps, int startIndex, Long itemId, Long zoneId, Long warehouseId,
+                                  String status, List<Long> allowedWarehouseIds) throws SQLException {
+        int idx = startIndex;
+        if (itemId != null) {
+            ps.setLong(idx++, itemId);
+        }
+        if (zoneId != null) {
+            ps.setLong(idx++, zoneId);
+        }
+        if (warehouseId != null) {
+            ps.setLong(idx++, warehouseId);
+        }
+        if (status != null) {
+            ps.setString(idx++, status);
+        }
+        if (allowedWarehouseIds != null) {
+            for (Long id : allowedWarehouseIds) {
+                ps.setLong(idx++, id);
+            }
+        }
+        return idx;
+    }
+
     private StockLot mapRow(ResultSet rs) throws SQLException {
         StockLot lot = new StockLot();
         lot.setLotId(rs.getLong("lot_id"));

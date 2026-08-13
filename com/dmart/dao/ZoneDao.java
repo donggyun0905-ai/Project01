@@ -85,6 +85,43 @@ public class ZoneDao {
         return result;
     }
 
+    // 4번 목록 API용. warehouseId가 null이면 전체 구역, 있으면 해당 창고 소속만.
+    public List<Zone> findPage(Connection conn, Long warehouseId, int offset, int limit) throws SQLException {
+        String sql = "SELECT * FROM ZONE" + whereClause(warehouseId) + " ORDER BY zone_id LIMIT ? OFFSET ?";
+        List<Zone> result = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = 1;
+            if (warehouseId != null) {
+                ps.setLong(idx++, warehouseId);
+            }
+            ps.setInt(idx++, limit);
+            ps.setInt(idx, offset);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(mapRow(rs));
+                }
+            }
+        }
+        return result;
+    }
+
+    public int count(Connection conn, Long warehouseId) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM ZONE" + whereClause(warehouseId);
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            if (warehouseId != null) {
+                ps.setLong(1, warehouseId);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
+    private String whereClause(Long warehouseId) {
+        return warehouseId == null ? "" : " WHERE warehouse_id = ?";
+    }
+
     public List<Zone> findAll(Connection conn) throws SQLException {
         String sql = "SELECT * FROM ZONE ORDER BY zone_id";
         List<Zone> result = new ArrayList<>();

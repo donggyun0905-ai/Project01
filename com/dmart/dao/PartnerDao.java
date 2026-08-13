@@ -68,6 +68,56 @@ public class PartnerDao {
         return result;
     }
 
+    // 5번 목록 API용. ITEM의 category/keyword 필터 패턴과 동일.
+    public List<Partner> findPage(Connection conn, String type, String keyword, int offset, int limit) throws SQLException {
+        String sql = "SELECT * FROM PARTNER" + whereClause(type, keyword) + " ORDER BY partner_id LIMIT ? OFFSET ?";
+        List<Partner> result = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = bindFilterParams(ps, 1, type, keyword);
+            ps.setInt(idx++, limit);
+            ps.setInt(idx, offset);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(mapRow(rs));
+                }
+            }
+        }
+        return result;
+    }
+
+    public int count(Connection conn, String type, String keyword) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM PARTNER" + whereClause(type, keyword);
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            bindFilterParams(ps, 1, type, keyword);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
+    private String whereClause(String type, String keyword) {
+        StringBuilder sb = new StringBuilder();
+        if (type != null) {
+            sb.append(" AND type = ?");
+        }
+        if (keyword != null) {
+            sb.append(" AND name LIKE ?");
+        }
+        return sb.length() == 0 ? "" : " WHERE 1=1" + sb;
+    }
+
+    private int bindFilterParams(PreparedStatement ps, int startIndex, String type, String keyword) throws SQLException {
+        int idx = startIndex;
+        if (type != null) {
+            ps.setString(idx++, type);
+        }
+        if (keyword != null) {
+            ps.setString(idx++, "%" + keyword + "%");
+        }
+        return idx;
+    }
+
     private Partner mapRow(ResultSet rs) throws SQLException {
         Partner partner = new Partner();
         partner.setPartnerId(rs.getLong("partner_id"));

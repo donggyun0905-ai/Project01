@@ -32,6 +32,7 @@ public class OutboundService {
     private final AlertDao alertDao = new AlertDao();
     private final ApprovalDao approvalDao = new ApprovalDao();
     private final AuditLogService auditLogService = new AuditLogService();
+    private final AlertResolutionService alertResolutionService = new AlertResolutionService();
 
     public static class OutboundResult {
         public final Long outboundId;
@@ -129,6 +130,9 @@ public class OutboundService {
                     approvalId = approvalDao.insert(conn, approval);
                 }
             }
+
+            // 11번 자동 해결 규칙 — 이번 출고로 재고초과가 해소됐을 수 있음
+            alertResolutionService.reevaluate(conn, lot.getItemId());
 
             return new OutboundResult(outboundId, remaining, alertCreated, approvalId);
         });

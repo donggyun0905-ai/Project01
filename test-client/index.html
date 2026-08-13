@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>dmart API 테스트 콘솔</title>
+<style>
+  :root {
+    --bg: #f1f4f9;
+    --card: #ffffff;
+    --border: #e2e6ee;
+    --text: #1f2430;
+    --muted: #6b7280;
+    --primary: #4f46e5;
+    --primary-dark: #4338ca;
+    --read: #0ea5e9;
+    --danger: #dc2626;
+    --ok: #16a34a;
+    --group: #eef0ff;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", -apple-system, "Malgun Gothic", sans-serif; margin: 0; background: var(--bg); color: var(--text); }
+
+  header { background: linear-gradient(135deg, #1e2340, #2d2f5f); color: #fff; padding: 14px 22px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+  header h1 { font-size: 17px; margin: 0; margin-right: auto; font-weight: 600; letter-spacing: 0.2px; }
+  header h1 span { display: block; font-size: 11px; font-weight: 400; color: #b7bcf0; margin-top: 2px; }
+  header input { padding: 6px 8px; font-size: 13px; border-radius: 5px; border: 1px solid #444a7a; background: #2a2d55; color: #fff; }
+  header input::placeholder { color: #9498c9; }
+  header button { padding: 7px 14px; font-size: 13px; cursor: pointer; border: none; border-radius: 5px; font-weight: 600; }
+  #loginBtn { background: var(--ok); color: #fff; }
+  #logoutBtn { background: #374151; color: #fff; }
+  header button:hover { filter: brightness(1.1); }
+  #whoami { font-size: 13px; padding: 5px 10px; border-radius: 12px; background: rgba(255,255,255,0.12); }
+  #whoami.logged-in { background: #14532d; }
+
+  #guide { margin: 14px 16px 0; background: #fffbea; border: 1px solid #fbe7a1; border-radius: 8px; padding: 12px 16px; font-size: 13px; line-height: 1.7; }
+  #guide summary { cursor: pointer; font-weight: 700; color: #92600a; list-style: none; display: flex; align-items: center; gap: 6px; }
+  #guide summary::-webkit-details-marker { display: none; }
+  #guide summary::before { content: "▶"; font-size: 10px; transition: transform 0.15s; }
+  #guide[open] summary::before { transform: rotate(90deg); }
+  #guide ol { margin: 8px 0 0; padding-left: 20px; }
+  #guide code { background: #fff3c4; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+
+  main { display: flex; gap: 14px; padding: 14px 16px; align-items: flex-start; }
+  .group-title { grid-column: 1 / -1; font-size: 12px; font-weight: 700; color: var(--primary-dark); background: var(--group); padding: 6px 12px; border-radius: 6px; margin-top: 4px; letter-spacing: 0.3px; }
+  #sections { flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; align-content: start; }
+
+  section { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; box-shadow: 0 1px 3px rgba(20,20,50,0.05); transition: box-shadow 0.15s; }
+  section:hover { box-shadow: 0 4px 14px rgba(20,20,50,0.08); }
+  section h2 { font-size: 13.5px; margin: 0 0 10px; padding-bottom: 8px; border-bottom: 1px solid #f0f1f5; display: flex; align-items: center; justify-content: space-between; }
+  section h2 .badge { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 10px; color: #fff; }
+  .badge.login { background: #0ea5e9; }
+  .badge.admin { background: #dc2626; }
+
+  section .row { display: flex; gap: 6px; margin-bottom: 7px; flex-wrap: wrap; }
+  section label { font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 84px; }
+  section input, section select { padding: 5px 7px; font-size: 12px; width: 100%; border: 1px solid #d7dae2; border-radius: 5px; }
+  section input:focus, section select:focus { outline: 2px solid #c7d2fe; border-color: var(--primary); }
+
+  section button { margin-top: 2px; margin-right: 4px; padding: 7px 12px; font-size: 12px; cursor: pointer; border: none; border-radius: 6px; font-weight: 600; color: #fff; }
+  .btn-read { background: var(--read); }
+  .btn-write { background: var(--primary); }
+  .btn-danger { background: var(--danger); }
+  section button:hover { filter: brightness(1.08); }
+  .hint { font-size: 11px; color: #9aa0ab; margin-top: 5px; }
+  .divider { margin: 10px 0; border: none; border-top: 1px dashed #e5e7eb; }
+
+  #response-panel { position: sticky; top: 14px; width: 430px; background: #10142b; color: #d7e3ff; border-radius: 10px; padding: 14px; max-height: calc(100vh - 110px); overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+  #response-panel h2 { color: #fff; font-size: 14px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+  #status-pill { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 10px; background: #374151; }
+  #status-pill.ok { background: var(--ok); color: #fff; }
+  #status-pill.err { background: var(--danger); color: #fff; }
+  #response-meta { font-size: 12px; margin-bottom: 8px; color: #93c5fd; word-break: break-all; }
+  #response-body { white-space: pre-wrap; word-break: break-all; font-size: 12.5px; font-family: Consolas, "D2Coding", monospace; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>dmart API 테스트 콘솔<span>Project01 백엔드 수동 테스트용 · API_명세.md 번호 순서대로 정렬</span></h1>
+  <a href="dashboard.html" style="color:#cbd0f5;font-size:12px">대시보드 보기 →</a>
+  <label style="color:#cbd0f5;font-size:11px">base URL<br><input id="baseUrl" value="http://localhost:8080/dmart" size="26"></label>
+  <input id="loginUser" placeholder="username" value="admin" size="8">
+  <input id="loginPass" placeholder="password" value="1234" size="8" type="password">
+  <button id="loginBtn" onclick="doLogin()">로그인</button>
+  <button id="logoutBtn" onclick="doLogout()">로그아웃</button>
+  <span id="whoami">로그인 안 됨</span>
+</header>
+
+<details id="guide" open>
+  <summary>사용법 (처음 쓰신다면 펼쳐서 읽어보세요)</summary>
+  <ol>
+    <li><b>먼저 로그인</b>하세요. 위쪽에 <code>admin</code>/<code>1234</code>가 기본으로 채워져 있어요 — 바로 "로그인" 버튼만 누르면 됩니다.</li>
+    <li>아래 카드는 <b>파란 배지(🔵 로그인)</b>는 로그인만 하면 되고, <b>빨간 배지(🔴 ADMIN)</b>는 admin 계정으로 로그인해야 성공합니다.</li>
+    <li>버튼 색: <b>하늘색</b>=조회(GET, 데이터 안 바뀜) / <b>보라색</b>=등록·수정 / <b>빨간색</b>=삭제 등 되돌리기 까다로운 동작.</li>
+    <li>버튼을 누르면 <b>오른쪽 패널</b>에 결과가 뜹니다. 초록 배지=성공, 빨강 배지=실패(왜 실패했는지 메시지도 같이 나옴).</li>
+    <li>입고→출고, 승인 생성→승인 처리처럼 이어지는 흐름은 <b>lotId/approvalId를 자동으로 다음 입력칸에 채워줘요</b> — 응답에 그 값이 있으면 바로 이어서 테스트할 수 있어요.</li>
+    <li>미리 채워진 값(item1=두부/EA, zone3, partner1 등)은 시드 데이터 기준이라 그대로 눌러도 대부분 동작합니다.</li>
+  </ol>
+</details>
+
+<main>
+  <div id="sections">
+
+    <div class="group-title">기준 정보</div>
+
+    <section>
+      <h2>3. 품목 <span class="badge login">로그인</span></h2>
+      <div class="row"><button class="btn-read" onclick="call('GET','/api/items?size=10')">목록 조회</button></div>
+      <hr class="divider">
+      <div class="row">
+        <label>itemName <input id="it_name" value="테스트품목"></label>
+        <label>category <input id="it_cat" value="테스트"></label>
+        <label>unit <input id="it_unit" value="EA"></label>
+      </div>
+      <div class="row">
+        <label>thresholdMin <input id="it_min" value="1"></label>
+        <label>capacityMax <input id="it_max" value="100"></label>
+        <label>shelfLifeDays <input id="it_shelf" value="30"></label>
+      </div>
+      <button class="btn-write" onclick="call('POST','/api/items', {itemName: val('it_name'), category: val('it_cat'), unit: val('it_unit'), thresholdMin: num('it_min'), capacityMax: num('it_max'), shelfLifeDays: num('it_shelf')})">생성 <span class="badge admin" style="margin-left:4px">ADMIN</span></button>
+    </section>
+
+    <section>
+      <h2>4~5. 창고/구역/거래처 <span class="badge login">로그인</span></h2>
+      <div class="row">
+        <button class="btn-read" onclick="call('GET','/api/warehouses?size=10')">창고 목록</button>
+        <button class="btn-read" onclick="call('GET','/api/zones?warehouseId=1')">구역 목록(창고1)</button>
+      </div>
+      <div class="row">
+        <button class="btn-read" onclick="call('GET','/api/partners?type=SUPPLIER')">거래처(공급처)</button>
+        <button class="btn-read" onclick="call('GET','/api/partners?type=CUSTOMER')">거래처(고객)</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>2.3~2.4 계정/사용자 <span class="badge admin">ADMIN</span></h2>
+      <div class="row"><button class="btn-read" onclick="call('GET','/api/users?size=10')">사용자 목록</button></div>
+      <hr class="divider">
+      <div class="row">
+        <label>username <input id="us_name" value="staffTest"></label>
+        <label>password <input id="us_pw" value="1234"></label>
+        <label>name <input id="us_disp" value="테스트직원"></label>
+        <label>role <select id="us_role"><option value="STAFF">STAFF</option><option value="ADMIN">ADMIN</option></select></label>
+      </div>
+      <button class="btn-write" onclick="call('POST','/api/users', {username: val('us_name'), password: val('us_pw'), name: val('us_disp'), role: val('us_role')})">계정 생성</button>
+    </section>
+
+    <div class="group-title">입출고 흐름</div>
+
+    <section>
+      <h2>6. 입고 <span class="badge login">로그인</span></h2>
+      <div class="row">
+        <label>itemId <input id="ib_item" value="1"></label>
+        <label>zoneId <input id="ib_zone" value="3"></label>
+        <label>partnerId(SUPPLIER) <input id="ib_partner" value="1"></label>
+      </div>
+      <div class="row">
+        <label>quantity <input id="ib_qty" value="10"></label>
+        <label>inboundDate <input id="ib_date" type="date"></label>
+      </div>
+      <button class="btn-write" onclick="call('POST','/api/inbound', {itemId: num('ib_item'), zoneId: num('ib_zone'), partnerId: num('ib_partner'), quantity: num('ib_qty'), inboundDate: val('ib_date')})">입고 등록</button>
+      <div class="hint">시드 기준: item1(두부,EA) → zone3(창고1의 EA구역), partner1(SUPPLIER). 유통기한·담당자는 서버가 자동 채워서 입력칸 없음.</div>
+    </section>
+
+    <section>
+      <h2>7. 출고 <span class="badge login">로그인</span></h2>
+      <div class="row">
+        <label>itemId(추천용) <input id="rc_item" value="1"></label>
+        <label>quantity <input id="rc_qty" value="5"></label>
+        <label>sortBy <select id="rc_sort"><option value="fefo">fefo</option><option value="fifo">fifo</option></select></label>
+      </div>
+      <button class="btn-read" onclick="call('GET', '/api/outbound/recommend?itemId=' + val('rc_item') + '&quantity=' + val('rc_qty') + '&sortBy=' + val('rc_sort'))">추천 조회</button>
+      <hr class="divider">
+      <div class="row">
+        <label>lotId <input id="ob_lot" value=""></label>
+        <label>partnerId(CUSTOMER) <input id="ob_partner" value="7"></label>
+      </div>
+      <div class="row">
+        <label>quantity <input id="ob_qty" value="1"></label>
+        <label>outboundDate <input id="ob_date" type="date"></label>
+      </div>
+      <button class="btn-write" onclick="call('POST','/api/outbound', {lotId: num('ob_lot'), partnerId: num('ob_partner'), quantity: num('ob_qty'), outboundDate: val('ob_date')})">출고 등록</button>
+      <div class="hint">lotId는 위 추천 조회나 10번 재고조회에서 확인해서 채우세요.</div>
+    </section>
+
+    <div class="group-title">재고 이동 · 조정</div>
+
+    <section>
+      <h2>8~9. 이동 / 반품폐기 <span class="badge login">로그인</span></h2>
+      <div class="row">
+        <label>lotId <input id="tr_lot" value=""></label>
+        <label>fromZoneId <input id="tr_from" value="3"></label>
+        <label>toZoneId <input id="tr_to" value="6"></label>
+      </div>
+      <div class="row">
+        <label>quantity <input id="tr_qty" value="1"></label>
+        <label>handlerId <input id="tr_handler" value="1"></label>
+      </div>
+      <button class="btn-write" onclick="call('POST','/api/transfers', {lotId: num('tr_lot'), fromZoneId: num('tr_from'), toZoneId: num('tr_to'), quantity: num('tr_qty'), handlerId: num('tr_handler')})">이동</button>
+      <hr class="divider">
+      <div class="row">
+        <label>lotId <input id="rt_lot" value=""></label>
+        <label>type <select id="rt_type"><option value="폐기">폐기</option><option value="반품">반품</option></select></label>
+        <label>reason <input id="rt_reason" value="테스트"></label>
+      </div>
+      <div class="row">
+        <label>quantity <input id="rt_qty" value="1"></label>
+        <label>processedBy <input id="rt_by" value="1"></label>
+        <label>processedDate <input id="rt_date" type="date"></label>
+      </div>
+      <button class="btn-write" onclick="call('POST','/api/returns', {lotId: num('rt_lot'), type: val('rt_type'), reason: val('rt_reason'), quantity: num('rt_qty'), processedBy: num('rt_by'), processedDate: val('rt_date')})">반품/폐기</button>
+    </section>
+
+    <section>
+      <h2>10. 재고조회 / 직접수정</h2>
+      <div class="row">
+        <label>itemId(선택) <input id="sl_item" value="1"></label>
+        <label>status <select id="sl_status"><option value="NORMAL">NORMAL</option><option value="DISPOSED">DISPOSED</option><option value="RETURNED">RETURNED</option><option value="DELETED">DELETED</option></select></label>
+      </div>
+      <button class="btn-read" onclick="call('GET', '/api/stock-lots?itemId=' + val('sl_item') + '&status=' + val('sl_status') + '&size=10')">재고 목록 <span class="badge login" style="margin-left:4px">로그인</span></button>
+      <hr class="divider">
+      <div class="row">
+        <label>lotId <input id="adj_lot" value=""></label>
+        <label>quantity <input id="adj_qty" value=""></label>
+        <label>reason <input id="adj_reason" value="재고 실사 보정"></label>
+      </div>
+      <button class="btn-write" onclick="call('PUT', '/api/stock-lots/' + val('adj_lot'), {quantity: num('adj_qty'), reason: val('adj_reason')})">직접수정 10.2 <span class="badge admin" style="margin-left:4px">ADMIN</span></button>
+      <div class="row" style="margin-top:8px">
+        <label>삭제할 lotId <input id="del_lot" value=""></label>
+        <label>reason <input id="del_reason" value="오입력"></label>
+      </div>
+      <button class="btn-danger" onclick="call('DELETE', '/api/stock-lots/' + val('del_lot') + '?reason=' + encodeURIComponent(val('del_reason')))">삭제 10.3 <span class="badge admin" style="margin-left:4px">ADMIN</span></button>
+      <div class="row" style="margin-top:8px">
+        <label>복원할 logId <input id="restore_log" value=""></label>
+      </div>
+      <button class="btn-write" onclick="call('POST', '/api/stock-change-logs/' + val('restore_log') + '/restore')">복원 10.4 <span class="badge admin" style="margin-left:4px">ADMIN</span></button>
+      <div class="hint">logId는 13번 감사로그 조회에서 lotId로 검색하면 확인할 수 있어요.</div>
+    </section>
+
+    <div class="group-title">알림 · 승인 · 감사로그</div>
+
+    <section>
+      <h2>11. 알림 <span class="badge login">로그인</span></h2>
+      <div class="row"><button class="btn-read" onclick="call('GET','/api/alerts?resolved=false&size=10')">미해결 알림 목록</button></div>
+      <hr class="divider">
+      <div class="row">
+        <label>해결할 alertId <input id="al_id" value=""></label>
+      </div>
+      <button class="btn-write" onclick="call('PATCH', '/api/alerts/' + val('al_id') + '/resolve')">해결 처리</button>
+    </section>
+
+    <section>
+      <h2>12. 승인</h2>
+      <div class="row"><button class="btn-read" onclick="call('GET', '/api/approvals?status=' + encodeURIComponent('대기') + '&size=10')">대기 목록 <span class="badge login" style="margin-left:4px">로그인</span></button></div>
+      <hr class="divider">
+      <div class="row">
+        <label>itemId <input id="ap_item" value="1"></label>
+        <label>requestType <select id="ap_type"><option value="발주">발주</option><option value="출고">출고</option></select></label>
+        <label>requestedQty <input id="ap_qty" value="10"></label>
+        <label>partnerId <input id="ap_partner" value="1"></label>
+      </div>
+      <button class="btn-write" onclick="call('POST','/api/approvals', {itemId: num('ap_item'), requestType: val('ap_type'), requestedQty: num('ap_qty'), partnerId: num('ap_partner')})">수동 요청 생성 <span class="badge login" style="margin-left:4px">로그인</span></button>
+      <div class="row" style="margin-top:8px">
+        <label>처리할 approvalId <input id="ap_decide_id" value=""></label>
+        <label>status <select id="ap_decide_status"><option value="승인">승인</option><option value="반려">반려</option></select></label>
+      </div>
+      <button class="btn-write" onclick="call('PATCH', '/api/approvals/' + val('ap_decide_id'), {status: val('ap_decide_status')})">승인/반려 처리 <span class="badge admin" style="margin-left:4px">ADMIN</span></button>
+    </section>
+
+    <section>
+      <h2>13. 감사로그 <span class="badge admin">ADMIN</span></h2>
+      <div class="row">
+        <label>lotId(선택) <input id="log_lot" value=""></label>
+      </div>
+      <button class="btn-read" onclick="call('GET', '/api/stock-change-logs?size=10' + (val('log_lot') ? '&lotId=' + val('log_lot') : ''))">감사로그 조회</button>
+    </section>
+
+  </div>
+
+  <div id="response-panel">
+    <h2>응답 <span id="status-pill">대기중</span></h2>
+    <div id="response-meta">왼쪽에서 버튼을 눌러보세요. 요청 내용과 결과가 여기에 표시됩니다.</div>
+    <div id="response-body"></div>
+  </div>
+</main>
+
+<script>
+function val(id) { return document.getElementById(id).value; }
+function num(id) { const v = document.getElementById(id).value; return v === '' ? null : Number(v); }
+
+// 오늘 날짜를 date input 기본값으로 채워둠
+document.querySelectorAll('input[type=date]').forEach(el => {
+  el.value = new Date().toISOString().slice(0, 10);
+});
+
+async function call(method, path, body) {
+  const base = val('baseUrl');
+  const metaEl = document.getElementById('response-meta');
+  const bodyEl = document.getElementById('response-body');
+  const pillEl = document.getElementById('status-pill');
+  metaEl.textContent = method + ' ' + path + ' ...';
+  pillEl.textContent = '요청 중';
+  pillEl.className = '';
+  bodyEl.textContent = '';
+  try {
+    const opts = { method, credentials: 'include', headers: {} };
+    if (body !== undefined) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+    const res = await fetch(base + path, opts);
+    const text = await res.text();
+    let pretty = text;
+    try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch (e) { /* JSON 아니면 그대로 */ }
+    metaEl.textContent = method + ' ' + path;
+    pillEl.textContent = 'HTTP ' + res.status;
+    pillEl.className = res.ok ? 'ok' : 'err';
+    bodyEl.textContent = pretty;
+
+    // lotId/approvalId 등이 응답에 있으면 관련 입력칸에 자동으로 채워줌 (다음 단계 테스트 편하게)
+    try {
+      const data = JSON.parse(text).data;
+      if (data && data.lotId) {
+        ['ob_lot','tr_lot','rt_lot','adj_lot','del_lot'].forEach(id => document.getElementById(id).value = data.lotId);
+      }
+      if (data && data.approvalId) { document.getElementById('ap_decide_id').value = data.approvalId; }
+    } catch (e) { /* 무시 */ }
+  } catch (e) {
+    metaEl.textContent = method + ' ' + path;
+    pillEl.textContent = '네트워크 오류';
+    pillEl.className = 'err';
+    bodyEl.textContent = String(e) + '\n\n※ 이 오류라면: 이 페이지를 http://localhost:5500 으로 열었는지, 톰캣이 떠 있는지, base URL이 맞는지 확인하세요.';
+  }
+}
+
+async function doLogin() {
+  await call('POST', '/api/login', { username: val('loginUser'), password: val('loginPass') });
+  refreshWhoAmI();
+}
+async function doLogout() {
+  await call('POST', '/api/logout');
+  const el = document.getElementById('whoami');
+  el.textContent = '로그아웃됨';
+  el.className = '';
+}
+function refreshWhoAmI() {
+  const el = document.getElementById('whoami');
+  try {
+    const data = JSON.parse(document.getElementById('response-body').textContent);
+    if (data.success) {
+      el.textContent = '✓ ' + data.data.username + ' (' + data.data.role + ')';
+      el.className = 'logged-in';
+    } else {
+      el.textContent = '로그인 실패';
+      el.className = '';
+    }
+  } catch (e) { /* 무시 */ }
+}
+</script>
+
+</body>
+</html>

@@ -102,6 +102,16 @@ public class DBConnection {
                     // 원본 예외(e)가 진짜 원인이므로, rollback 실패는 억제된 예외로만 덧붙인다.
                     e.addSuppressed(rollbackFailed);
                 }
+                // Service 계층은 검증 실패를 IllegalArgumentException(400)/IllegalStateException(409)으로 던지고,
+                // Servlet은 그 타입을 보고 HTTP 상태코드를 결정한다. 여기서 전부 SQLException으로 감싸버리면
+                // 그 구분이 사라져서 검증 실패도 500으로 응답하게 되므로, RuntimeException/SQLException은
+                // 원래 타입 그대로 다시 던지고, 그 외의 체크 예외만 SQLException으로 감싼다.
+                if (e instanceof RuntimeException) {
+                    throw (RuntimeException) e;
+                }
+                if (e instanceof SQLException) {
+                    throw (SQLException) e;
+                }
                 throw new SQLException("트랜잭션 실패로 롤백되었습니다: " + e.getMessage(), e);
             } finally {
                 conn.setAutoCommit(true);

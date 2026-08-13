@@ -27,6 +27,15 @@ public class UserWarehouseDao {
         }
     }
 
+    // 2.4 참고. 창고 배정을 통째로 교체하기 전에 기존 배정을 전부 지울 때 사용.
+    public void deleteByUserId(Connection conn, Long userId) throws SQLException {
+        String sql = "DELETE FROM USER_WAREHOUSE WHERE user_id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, userId);
+            ps.executeUpdate();
+        }
+    }
+
     public UserWarehouse findById(Connection conn, Long userId, Long warehouseId) throws SQLException {
         String sql = "SELECT * FROM USER_WAREHOUSE WHERE user_id = ? AND warehouse_id = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {

@@ -96,6 +96,56 @@ public class AppUserDao {
         return result;
     }
 
+    // 2.3 목록 API용. role/active 둘 다 선택 필터.
+    public List<AppUser> findPage(Connection conn, String role, Boolean active, int offset, int limit) throws SQLException {
+        String sql = "SELECT * FROM APP_USER" + whereClause(role, active) + " ORDER BY user_id LIMIT ? OFFSET ?";
+        List<AppUser> result = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = bindFilterParams(ps, 1, role, active);
+            ps.setInt(idx++, limit);
+            ps.setInt(idx, offset);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(mapRow(rs));
+                }
+            }
+        }
+        return result;
+    }
+
+    public int count(Connection conn, String role, Boolean active) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM APP_USER" + whereClause(role, active);
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            bindFilterParams(ps, 1, role, active);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
+    private String whereClause(String role, Boolean active) {
+        StringBuilder sb = new StringBuilder();
+        if (role != null) {
+            sb.append(" AND role = ?");
+        }
+        if (active != null) {
+            sb.append(" AND is_active = ?");
+        }
+        return sb.length() == 0 ? "" : " WHERE 1=1" + sb;
+    }
+
+    private int bindFilterParams(PreparedStatement ps, int startIndex, String role, Boolean active) throws SQLException {
+        int idx = startIndex;
+        if (role != null) {
+            ps.setString(idx++, role);
+        }
+        if (active != null) {
+            ps.setBoolean(idx++, active);
+        }
+        return idx;
+    }
+
     private AppUser mapRow(ResultSet rs) throws SQLException {
         AppUser user = new AppUser();
         user.setUserId(rs.getLong("user_id"));

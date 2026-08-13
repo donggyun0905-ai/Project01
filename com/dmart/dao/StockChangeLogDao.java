@@ -66,6 +66,21 @@ public class StockChangeLogDao {
         return null;
     }
 
+    // 10.4 복원 도중 같은 로그가 동시에 두 번 복원되는 것(중복 복원)을 막기 위한 락 조회.
+    // StockLotAdjustmentService.restore()에서 사용.
+    public StockChangeLog findByIdForUpdate(Connection conn, Long logId) throws SQLException {
+        String sql = "SELECT * FROM STOCK_CHANGE_LOG WHERE log_id = ? FOR UPDATE";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, logId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return mapRow(rs);
+                }
+            }
+        }
+        return null;
+    }
+
     public List<StockChangeLog> findByLotId(Connection conn, Long lotId) throws SQLException {
         String sql = "SELECT * FROM STOCK_CHANGE_LOG WHERE lot_id = ? ORDER BY changed_at DESC";
         List<StockChangeLog> result = new ArrayList<>();
@@ -90,6 +105,43 @@ public class StockChangeLogDao {
             }
         }
         return result;
+    }
+
+    // 13번 목록 API용. lotId 선택 필터(없으면 전체 감사 로그).
+    public List<StockChangeLog> findPage(Connection conn, Long lotId, int offset, int limit) throws SQLException {
+        String sql = "SELECT * FROM STOCK_CHANGE_LOG" + whereClause(lotId) + " ORDER BY changed_at DESC LIMIT ? OFFSET ?";
+        List<StockChangeLog> result = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = 1;
+            if (lotId != null) {
+                ps.setLong(idx++, lotId);
+            }
+            ps.setInt(idx++, limit);
+            ps.setInt(idx, offset);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(mapRow(rs));
+                }
+            }
+        }
+        return result;
+    }
+
+    public int count(Connection conn, Long lotId) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM STOCK_CHANGE_LOG" + whereClause(lotId);
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            if (lotId != null) {
+                ps.setLong(1, lotId);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
+    private String whereClause(Long lotId) {
+        return lotId == null ? "" : " WHERE lot_id = ?";
     }
 
     private StockChangeLog mapRow(ResultSet rs) throws SQLException {
