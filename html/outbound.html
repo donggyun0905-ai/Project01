@@ -1,4 +1,6 @@
 <!DOCTYPE html> <!-- 08.12 출고 등록 -->
+<!-- FIFO/FEFO 모달이 추가되었습니다 모달을 보려면 outbound.css에서 210번줄을 찾아가세요 -->
+<!-- 모달 2개 있는데 지금은 첫번째 페이지만 뜹니다 2번째 보려면 맨 밑으로 가서 주석 해제하시면 2번째 페이지가 뜹니다 -->
 <html lang = "ko">
 <head> 
 	<meta charset="UTF-8">
@@ -22,11 +24,11 @@
 		<p>DOWN MART</p>
 		</div>
 		<nav class="sidebar-menu">
-			<a href="inout.html" class="active">입출고 관리</a>
-			<a href="return.html" >반품 및 폐기 관리</a>
-			<a href="alert.html" >알림</a>
-			<a href="statistics.html" >통계</a>
-			<a href="settings.html" >설정 및 권한 관리</a>
+			<a class="active">입출고 관리</a>
+			<a>반품 및 폐기 관리</a>
+			<a>알림</a>
+			<a>통계</a>
+			<a>설정 및 권한 관리</a>
 		</nav>
 	</aside>
 	
@@ -196,8 +198,8 @@
 	</div>
 </div>
 
-<!-- FIFO/FEFO 모달 2번째 페이지  -->
-<div class = "modal-overlay" id="lotModal">
+<!-- FIFO/FEFO 모달 2번째 페이지를 보려면 주석 풀어주세요  -->
+ <!-- <div class = "modal-overlay" id="lotModal">
 	<div class="modal-box lot-modal">
 	
 		<div class="modal-header">
@@ -246,7 +248,7 @@
 			<button class= "btn-primary">출고 등록</button>
 		</div>
 	</div>
-</div>
+</div> -->
 
 </body>
 

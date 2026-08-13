@@ -1,0 +1,114 @@
+<!DOCTYPE html> <!-- 08.13 감사로그 -->
+<html lang = "ko">
+<head> 
+	<meta charset="UTF-8">
+	<title>감사로그</title>
+	
+	<!-- 공통 css -->
+	<link rel="stylesheet" href="../css/common.css">
+	<!--audit css -->
+	<link rel="stylesheet" href="../css/audit.css">
+</head>
+
+<!-- 바디  -->
+<body>
+	<!-- 전체 화면 -->
+	<div class="container">
+	
+	<!--  사이드바-->	
+	<aside class="sidebar">
+		<div class="logo">
+			<img src="../images/logo.png" alt="DOWN MART">
+		<p>DOWN MART</p>
+		</div>
+		<nav class="sidebar-menu">
+			<a class="active">입출고 관리</a>
+			<a>반품 및 폐기 관리</a>
+			<a>알림</a>
+			<a>통계</a>
+			<a>설정 및 권한 관리</a>
+		</nav>
+	</aside>
+	
+	<!-- 오른쪽 위에 뜨는거 -->
+	<main class="content">
+		<header class="top-menu">
+			<button class="menu-btn">품목 관리</button> 
+			<button class="menu-btn">입출고 등록</button> 
+			<button class="menu-btn">창고 및 구역 관리</button>
+			<button class="menu-btn">창고 간 재고 이동</button>
+			<button class="menu-btn  active">감사로그</button> <!--현재 화면이 감사로그라서 -->
+		</header>
+		
+		<h4 class= "page-title">감사로그</h4>
+		
+		<!-- 입력폼 -->
+		<section class="form-box">
+			<div class="form-group expiration-group">
+				<label>기간</label>
+				<div class= "date-range">
+					<input type="date">
+					<span>~</span>
+					<input type="date">
+				</div>
+			</div>
+		</section>
+		<!-- 입고입력(표)  -->
+		
+		<section class= "table-box">
+			<table>
+				<thead>
+					<tr>
+						<th>NO</th>
+						<th>변경 일시</th>
+						<th>담당자</th>
+						<th>변경 유형</th>
+						<th>품목명</th>
+						<th>품목 번호</th>
+						<th>로트 번호</th>
+						<th>변경 전</th>
+						<th>변경 후</th>
+						<th>사유</th>
+					</tr>				
+				</thead>
+				
+				<tbody> 
+					<tr>
+						<td>1</td>
+						<td>2026-08-06</td>
+						<td>이지원</td>
+						<td>수정</td>
+						<td>두부</td>
+						<td>ITEM-391</td>
+						<td>LOT-2341</td>
+						<td>수량: 20개</td>
+						<td>수량: 40개</td>
+						<td>오입력 수정</td>
+					</tr>
+					
+					<tr>
+						<td>2</td>
+						<td>2026-08-06</td>
+						<td>이지원</td>
+						<td>수정</td>
+						<td>두부</td>
+						<td>ITEM-391</td>
+						<td>LOT-2341</td>
+						<td>수량: 20개</td>
+						<td>수량: 40개</td>
+						<td>오입력 수정</td>
+					</tr>
+					
+				</tbody>
+			</table>
+		</section>
+		
+	</main>
+	
+	</div>
+
+</body>
+
+
+
+</html>
