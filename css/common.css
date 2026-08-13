@@ -90,6 +90,119 @@ body {
 .menu-btn.active{
 	background: #bfbfbf;
 }
+/*-----------------------*/
+/* css 정리 중 */
+.page-title{ /* item(품목) 제외하고 다 겹침, item에는 이게 없음*/
+	margin: 25px 0;
+	font-size: 26px;
+	font-weight: bold;
+}
+
+.expiration-group{ /* inout, item 빼고 전부 겹침 */
+	grid-column: span 2;
+}
+
+.form-group input, 
+.form-group select{ /*inout, item 빼고 전부 겹침  */
+	width: 100%;
+	height: 42px;
+	padding: 0 12px;
+	border: 1px solid #ddd;
+	border-radius: 8px;
+	box-sizing: border-box;
+	font-size: 15px;
+}
+
+.form-group label{ /*inout, item 빼고 전부 겹침  */
+    font-size:16px;
+    font-weight:600;
+    margin-bottom:6px;
+}
+
+.date-range{ /*inout, item 빼고 전부 겹침  */
+	display: flex;
+	align-items:center;
+	gap:8px;
+}
+
+.date-range input{ /*inout, item 빼고 전부 겹침  */
+	flex: 1;
+}
+
+.form-row{ /*audit, inout, item 빼고 전부 겹침  */
+	display: flex;
+	gap: 10px;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.form-box{ /*return, warehouse 빼고 전부 4줄 */
+	background: white;
+	border-radius: 12px;
+	padding: 20px;
+	margin-bottom: 25px;
+	display: grid;
+	gap: 24px;
+}
+
+/* 품목 테이블(표) */
+.table-box{
+	margin-top: 30px;
+	background: white;
+	padding: 20px;
+	border-radius: 12px;
+} 
+
+table{
+	width: 100%;
+	border-collapse: collapse;
+}
+
+thead{
+	background: #d9d9d9;
+}
+
+thead th:first-child{
+    border-radius:8px 0 0 8px;
+}
+
+thead th:last-child{
+    border-radius:0 8px 8px 0;
+}
+
+th{
+	padding: 14px;
+	font-size: 16px;
+	font-weight: bold;
+	text-align: center;	
+}
+
+td{
+	padding: 18px 10px;
+	text-align: center;
+	border-bottom: 1px solid #eeeeee;
+}
+
+tbody tr:hover{
+    background:#f7f7f7;
+}
+
+/* 버튼 */
+.register-btn{
+	color: white;
+	border: none;
+	padding: 10px 20px;
+	border-radius: 8px;
+	cursor: pointer;
+	width: 260px;
+	height: 42px;
+	align-self: end;
+}
+
+
+
+
+
 
 
 

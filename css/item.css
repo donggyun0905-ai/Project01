@@ -64,46 +64,4 @@
 	font-size: 15px;
 }
 
-/* 품목 테이블(표) */
-.table-box{
-	margin-top: 30px;
-	background: white;
-	padding: 20px;
-	border-radius: 12px;
-}
-
-table{
-	width: 100%;
-	border-collapse: collapse;
-}
-
-thead{
-	background: #d9d9d9;
-}
-
-thead th:first-child{
-    border-radius:8px 0 0 8px;
-}
-
-thead th:last-child{
-    border-radius:0 8px 8px 0;
-}
-
-th{
-	padding: 14px;
-	font-size: 16px;
-	font-weight: bold;
-	text-align: center;	
-}
-
-td{
-	padding: 18px 10px;
-	text-align: center;
-	border-bottom: 1px solid #eeeeee;
-}
-
-tbody tr:hover{
-    background:#f7f7f7;
-}
-
 

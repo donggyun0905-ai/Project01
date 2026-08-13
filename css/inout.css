@@ -1,11 +1,5 @@
 /* inout.css(입출고 등록) */
 
-.page-title{
-	margin: 25px 0;
-	font-size: 26px;
-	font-weight: bold;
-}
-
 .form-group{
 	display: flex;
 	gap: 100px;
