@@ -1,0 +1,220 @@
+<!DOCTYPE html> <!-- 08.13 반품 및 폐기 관리-->
+<!--  창고 등록, 구역 등록 모달 페이지가 2개 있습니다 warehouse.css 247줄에 가면 됩니다-->
+
+<html lang = "ko">
+<head> 
+	<meta charset="UTF-8">
+	<title>창고 및 구역 관리</title>
+	
+	<!-- 공통 css -->
+	<link rel="stylesheet" href="../css/common.css">
+	<!--inbound css -->
+	<link rel="stylesheet" href="../css/warehouse.css">
+</head>
+
+<!-- 바디  -->
+<body>
+	<!-- 전체 화면 -->
+	<div class="container">
+	
+	<!--  사이드바-->	
+	<aside class="sidebar">
+		<div class="logo">
+			<img src="../images/logo.png" alt="DOWN MART">
+		<p>DOWN MART</p>
+		</div>
+		<nav class="sidebar-menu">
+			<a class="active">입출고 관리</a>
+			<a>반품 및 폐기 관리</a>
+			<a>알림</a>
+			<a>통계</a>
+			<a>설정 및 권한 관리</a>
+		</nav>
+	</aside>
+	
+	<!-- 오른쪽 위에 뜨는거 -->
+	<main class="content">
+		<header class="top-menu">
+			<button class="menu-btn">품목 관리</button> 
+			<button class="menu-btn">입출고 등록</button> 
+			<button class="menu-btn active">창고 및 구역 관리</button>
+			<button class="menu-btn">창고 간 재고 이동</button>
+			<button class="menu-btn">감사로그</button>
+		</header>
+
+	<div class="top-bar">
+		<h4 class= "page-title">창고 및 구역 관리</h4>
+	</div>
+		
+		<!-- 창고 구역 -->
+		<section class="warehouse-wrap">
+			<div class="card">
+				<div class= "card-header">
+					<h4>창고 목록</h4>
+					<button class="small-btn">창고 등록</button>
+				</div>
+				
+		
+		
+		<!-- 창고 입력(표)  -->
+		<section class= "table-box">
+
+			<table>
+				<thead>
+					<tr>
+						<th>NO</th>
+						<th>창고명</th> 
+						<th>위치</th> 
+						<th>관리</th> 
+					</tr>				
+				</thead>
+				
+				<tbody> 
+					<tr>
+						<td>1</td>
+						<td>A</td>
+						<td>1-1</td>
+
+						<td>
+							<button class="edit-btn">수정</button>
+							<button class="delete-btn">삭제</button>
+						</td>
+					</tr>
+					
+				
+				</tbody>
+			</table>
+			</section>
+		</div>
+		
+		
+		<!-- 구역 목록 -->
+		<div class="card">
+			<div class="card-header">
+				<h4>구역 목록</h4>
+				<button class="small-btn">구역 등록</button>
+			</div>
+			
+			<!-- 구역 입력(표)  -->
+		<section class= "table-box">
+			<table>
+				<thead>
+					<tr>
+						<th>NO</th>
+						<th>구역명</th>
+						<th>최대 수용량</th> 
+						<th>현재 사용량</th> 
+						<th>관리</th> 
+					</tr>				
+				</thead>
+				
+				<tbody> 
+					<tr>
+						<td>1</td>
+						<td>A-01</td>
+						<td>1000</td>
+						<td>800</td>
+						<td>
+							<div class="action-buttons"> <!-- 이거 안하면 버튼이 한줄로 안나와서 했습니다 -->
+								<button class="edit-btn">수정</button>
+								<button class="delete-btn">삭제</button>
+							</div>
+						</td>
+					</tr>
+					
+				
+				</tbody>
+			</table>
+			</section>
+			
+			
+			
+		</div>
+		
+		</section>
+	</main>
+	
+	</div>
+
+<!-- 창고 등록 페이지 모달-->
+<div class = "modal-overlay" id="recommendModal">
+	<div class="modal-box">
+	
+		<div class="modal-header">
+			<h3>창고 등록</h3>
+			<button class = "modal-close"> x </button>
+		</div>
+		
+		<section class="modal-content">
+			<div class="modal-fields">
+				<div class="form-group">
+					<label>창고명</label>
+					<input type= "text">
+				</div>
+				
+				<div class="form-group">
+					<label>위치</label>
+					<input type= "text">
+				</div>
+			</div>
+				<div class="modal-footer">
+					<button class= "btn-cancel">취소</button>
+					<button class= "btn-primary">등록</button>
+				</div>
+
+		</section>
+	</div>
+</div>
+
+<!-- 구역 등록 페이지 모달-->
+<!-- 구역 현재 사용량을 사용자가 직접 입력하는 건 애매해서 일단 뺐습니다  -->
+<div class = "modal-overlay" id="recommendModal">
+	<div class="modal-box">
+	
+		<div class="modal-header">
+			<h3>구역 등록</h3>
+			<button class = "modal-close"> x </button>
+		</div>
+		
+		<section class="modal-content">
+			<div class="modal-fields">
+				<div class="form-group">
+				<label>창고 선택</label>
+					<select>
+					<option>A</option>
+					<option>B</option>
+					<option>C</option>
+				</select>
+			</div>
+			
+			<div class="form-group">
+				<label>구역명</label>
+					<select>
+					<option>1-1</option>
+					<option>1-2</option>
+					<option>2-1</option>
+				</select>
+			</div>
+				
+			<div class="form-group">
+				<label>최대 수용량</label>
+					<select>
+					<option>대형</option>
+					<option>중형</option>
+					<option>소형</option>
+				</select>
+			</div>
+			
+			</div>
+				<div class="modal-footer">
+					<button class= "btn-cancel">취소</button>
+					<button class= "btn-primary">등록</button>
+				</div>
+
+		</section>
+	</div>
+</div>
+
+
+</body>
+</html>
