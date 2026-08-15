@@ -1,4 +1,8 @@
-/* outbound.css(출고 등록) */
+/* setting.css(설정) */
+
+.form-box{
+	grid-template-columns: repeat(5, 1fr);
+}
 
 .form-group{
 	display: flex;
@@ -6,16 +10,12 @@
 	gap: 8px;
 }
 
-.form-box{
-	grid-template-columns: repeat(4, 1fr);
-}
-
 .register-btn{
-	background: rgb(0, 128, 255);
+	background: rgb(0, 128, 0);
 }
 
 
-/*FIFO/FEFO 모달  */
+/*반품/폐기 등록 모달  */
 .modal-overlay{
 	position: fixed;
 	top: 0;
@@ -30,7 +30,7 @@
 }
 
 .modal-box{
-	width: 420px;
+	width: 820px;
 	background: #fff;
 	border-radius: 8px;
 	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
@@ -52,7 +52,6 @@
 	font-size: 22px;
 	cursor: pointer;
 }
-
 
 /* 모달 가운데 */
 .modal-content{
@@ -98,20 +97,10 @@
 	padding: 15px 20px 20px;
 }
 
-.btn-cancel {
-	background: white;
-	border: 1px solid #ccc;
-}
-
-.btn-primary {
-	background: #1455c0;
-	border: none;
-	color: white;
-}
 
 /* 모달을 보려면 display: none -> display: flex로 변경  */
 .modal-overlay{
-	display: flex;
+	display: none;
 }
 
 .modal-overlay.active {
@@ -122,6 +111,7 @@
 .modal-footer button {
 	flex: 1;
 	height: 42px;
+	/* width: 100px; */
 	border: none;
 	border-radius: 6px;
 	font-size: 14px;
@@ -130,70 +120,13 @@
 	transition: 0.2s;
 }
 
-.btn-cancel{
-	background: #ffffff;
-	color: #555;
-	border: 1px solid #d9d9d9;
+.btn-cancel {
+	background: white;
+	border: 1px solid #ccc;
 }
 
-.btn-cancel:hover {
-    background: #f5f5f5;
+.btn-primary {
+	background: rgb(0, 128, 0);
+	border: none;
+	color: white;
 }
-
-.btn-primary{
-	background: #1d4ed8;
-	color: #ffffff;
-	border: 1px solid #d9d9d9;
-}
-
-.btn-primary:hover{
-	background: #1e40af;
-}
-
-/* FIFO/FEFO 모달 2번째 페이지 */
-.lot-modal{
-	width: 720px;
-}
-
-.quantity-info{
-	padding: 12px;
-	background: #f2fbf6;
-	border: 1px solid #a8ddbd;
-	border-radius: 5px;
-	text-align: left;
-	font-size: 13px;
-	margin-bottom: 18px;
-}
-
-.lot-table{
-	width: 100%; 
-	border-collapse: collapse;
-	font-size: 12px;
-}
-
-.lot-table th,
-.lot-table td{
-	padding: 10px 6px;
-	border: 1px solid #ddd;
-	text-align: center;
-}
-
-.lot-table th {
-	background: #f5f5f5;
-}
-
-.policy-info {
-	margin-top: 15px;
-	padding: 10px;
-	background: #fff928;
-	border: 1px solid #f1d68a;
-	font-size: 12px;
-	text-align: left;
-}
-
-
-
-
-
-
-

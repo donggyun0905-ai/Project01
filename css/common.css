@@ -90,20 +90,20 @@ body {
 .menu-btn.active{
 	background: #bfbfbf;
 }
-/*-----------------------*/
-/* css 정리 중 */
-.page-title{ /* item(품목) 제외하고 다 겹침, item에는 이게 없음*/
+
+/*페이지 타이틀  */
+.page-title{ 
 	margin: 25px 0;
 	font-size: 26px;
 	font-weight: bold;
 }
 
-.expiration-group{ /* inout, item 빼고 전부 겹침 */
+.expiration-group{ 
 	grid-column: span 2;
 }
 
 .form-group input, 
-.form-group select{ /*inout, item 빼고 전부 겹침  */
+.form-group select{ 
 	width: 100%;
 	height: 42px;
 	padding: 0 12px;
@@ -113,30 +113,29 @@ body {
 	font-size: 15px;
 }
 
-.form-group label{ /*inout, item 빼고 전부 겹침  */
+.form-group label{ 
     font-size:16px;
     font-weight:600;
     margin-bottom:6px;
 }
 
-.date-range{ /*inout, item 빼고 전부 겹침  */
+.date-range{
 	display: flex;
 	align-items:center;
 	gap:8px;
 }
 
-.date-range input{ /*inout, item 빼고 전부 겹침  */
+.date-range input{ 
 	flex: 1;
 }
 
-.form-row{ /*audit, inout, item 빼고 전부 겹침  */
-	display: flex;
+.form-row{ 
 	gap: 10px;
 	flex-wrap: wrap;
 	align-items: center;
 }
 
-.form-box{ /*return, warehouse 빼고 전부 4줄 */
+.form-box{ 
 	background: white;
 	border-radius: 12px;
 	padding: 20px;
