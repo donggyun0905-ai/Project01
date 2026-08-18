@@ -1,7 +1,7 @@
 /* return.css(반품 및 폐기 관리) */
 
 .form-box{
-	grid-template-columns: repeat(5, 1fr);
+	grid-template-columns: repeat(4, 1fr);
 }
 
 .form-group{
@@ -100,7 +100,7 @@
 
 /* 모달을 보려면 display: none -> display: flex로 변경  */
 .modal-overlay{
-	display: none;
+	display: flex;
 }
 
 .modal-overlay.active {
@@ -152,4 +152,33 @@
 	display: block;
 	margin-left: auto;
 	
+}
+
+/* 담당 창고  */
+.warehouse-group {
+	margin: 25px 25px 0;
+}
+
+.warehouse-group > label{
+    display: block;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.checkbox-group{
+	display: flex;
+	gap: 30px;
+	margin-left: 20px;
+	flex-wrap: wrap;
+}
+
+.checkbox-group label{
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.checkbox-group input{
+	width: 18px;
+	height: 18px;
 }
