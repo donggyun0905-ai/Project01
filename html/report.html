@@ -1,0 +1,128 @@
+<!DOCTYPE html> <!-- 보고서 내보내기 -->
+
+<html lang = "ko">
+<head> 
+	<meta charset="UTF-8">
+	<title>보고서 및 내보내기</title>
+	
+	<!-- 공통 css -->
+	<link rel="stylesheet" href="../css/common.css">
+	<!--approval css -->
+	<link rel="stylesheet" href="../css/report.css">
+</head>
+
+<!-- 바디  -->
+<body>
+	<!-- 전체 화면 -->
+	<div class="container">
+	
+	<!--  사이드바-->	
+	<aside class="sidebar">
+		<div class="logo">
+			<img src="../images/logo.png" alt="DOWN MART">
+		<p>DOWN MART</p>
+		</div>
+		<nav class="sidebar-menu">
+			<a>입출고 관리</a>
+			<a>반품 및 폐기 관리</a>
+			<a>알림</a>
+			<a class="active">통계</a>
+			<a>설정 및 권한 관리</a>
+		</nav>
+	</aside>
+		
+	<!-- 오른쪽 위에 뜨는거 -->
+	<main class="content">
+		<header class="top-menu">
+			<button class="menu-btn">통계 대시보드</button> 
+			<button class="menu-btn active">보고서 및 내보내기</button> 
+		</header>
+		
+		<section class = "reportbox"> <!-- 일일 보고서 -->
+			<h3>일일 보고서</h3>
+			
+			<div class="form-group">
+				<label>기준일</label>
+				<div class= "date-range">
+					<input type="date">
+				</div>
+			</div>
+			
+			<div class="form-group">
+				<label>전일 대비</label>
+				<p>입고량</p> 
+				<p>1,300EA</p> 
+				<p>▲ 12.5%</p> 
+			</div>
+				
+			<div class="form-group">
+				<label>부족 품목</label>
+				<p>품목1</p> 
+				<p>20EA</p> 
+				<p>최소 50EA</p> 
+			</div>
+			
+			<div class="form-group">
+				<label>TOP 출고 품목</label>
+				
+				<div class = "top-itemlist">
+					<div class="top-item">
+						<span>품목 2</span> 
+						<span>300EA</span> 
+					</div>
+					
+					<div class="top-item">
+						<span>품목 4</span> 
+						<span>280EA</span> 
+					</div>
+				</div>
+		
+			</div>
+			<button class= "make">보고서 생성하기</button>
+		</section>
+		
+		<section class = "report"> <!-- 데이터 내보내기 -->
+			<h3>데이터 내보내기</h3>
+			
+			<div class="form-group">
+				<label>데이터</label>
+					<select>
+						<option>입고 로그</option>
+						<option>출고 로그</option>
+						<option>재고 이동 로그</option>
+						<option>반품 및 폐기 로그</option>
+					</select>
+				</div>
+			
+				
+				<div class="form-group">
+					<label>기간</label>
+					<div class= "date-range">
+						<input type="date">
+					</div>
+					
+					<div class= "date-range">
+						<input type="date">
+					</div>
+				</div>
+
+			
+			<div class ="form-group">
+			<label>형식</label>
+				<div class="radio-group">	
+					<label><input type = "radio" name = "format">CSV</label>
+					<label><input type = "radio" name = "format">Excel</label>
+				</div>
+			</div>
+		
+		<button class= "push">내보내기</button>
+		</section>
+		
+		
+	</main>
+	
+	</div>
+</body>
+
+
+</html>
