@@ -45,7 +45,7 @@ public class DailyReportDao {
 		return new DailyComparison(0, 0, 0, 0);
 	}
 
-	// 재고 부족 품목 리스트 쿼리문 작성 필요
+	// 재고 부족 품목 리스트
 	public List<LowStockItem> selectLowStockItems(Connection conn, String alertType) throws SQLException{
 		String sql = "SELECT i.item_id, i.item_name, i.threshold_min, " 
 				+ "COALESCE(s_sum.current_qty, 0) AS current_qty "
