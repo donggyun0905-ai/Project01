@@ -197,7 +197,7 @@
 
 /* 모달을 보려면 display: none -> display: flex로 변경  */
 .modal-overlay{
-	display: alert;
+	display: none;
 }
 
 .modal-overlay.active {
