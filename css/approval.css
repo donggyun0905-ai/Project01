@@ -1,4 +1,4 @@
-/* return.css(반품 및 폐기 관리) */
+/* 자동 제안 및 승인 */
 
 .form-box{
 	grid-template-columns: repeat(4, 1fr);
@@ -12,7 +12,7 @@
 
 
 
-/*반품/폐기 등록 모달  */
+/*상세보기  */
 .modal-overlay{
 	position: fixed;
 	top: 0;
@@ -97,7 +97,7 @@
 
 /* 모달을 보려면 display: none -> display: flex로 변경  */
 .modal-overlay{
-	display: flex;
+	display: none;
 }
 
 .modal-overlay.active {
