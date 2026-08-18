@@ -60,35 +60,13 @@ public class DailyReportService {
 	}
 	
 	// LowStock(재고 부족) 품목 리스트
-	public List<LowStockItem> getLowStockitems(LocalDate searchDate) {
-		List<LowStockItem> result = new ArrayList<>();
-
+	public List<LowStockItem> getLowStockitems() {
 		try (Connection conn = DBConnection.getConnection()) {
-			List<Alert> alerts = alertDao.findUnresolved(conn);
-
-			for (Alert alert : alerts) {
-				if (!"재고부족".equals(alert.getAlertType()))
-					continue;
-
-				long itemId = alert.getItemId();
-
-				Item item = itemDao.findById(conn, itemId);
-				if (item == null)
-					continue;
-				
-				// NORMAL 상태 로트만 합산
-				List<StockLot> lots = stockLotDao.findByItemIdOrderByExpiryDate(conn, itemId);
-				int currentQty = lots.stream().filter(lot -> "NORMAL".equals(lot.getStatus()))
-						.mapToInt(StockLot::getQuantity).sum();
-
-				result.add(new LowStockItem(itemId, item.getItemName(), currentQty, item.getThresholdMin()));
-
-			}
+			return dao.selectLowStockItems(conn, "재고부족");
 		} catch (SQLException e) {
 			e.printStackTrace();
+			return new ArrayList<>();
 		}
-
-		return result;
 	}
 	
 	// 금일 Top5 출고량 품목
