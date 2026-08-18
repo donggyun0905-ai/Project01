@@ -34,6 +34,30 @@
 	overflow: hidden;
 }
 
+.alert-form{
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 24px 40px;
+	padding: 30px;
+}
+
+.alert-form-group{
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.alert-form-group label{
+	font-size: 15px;
+	color: #666;
+	margin-bottom: 8px;
+}
+
+.alert-form-group span{
+	font-size: 18px;
+	font-weight: 500;
+}
+
 /*모달 상단 제목  */
 .modal-header{
 	display: flex;
@@ -97,7 +121,7 @@
 
 /* 모달을 보려면 display: none -> display: flex로 변경  */
 .modal-overlay{
-	display: none;
+	display: flex;
 }
 
 .modal-overlay.active {
