@@ -1,7 +1,7 @@
 /* return.css(반품 및 폐기 관리) */
 
 .form-box{
-	grid-template-columns: repeat(5, 1fr);
+	grid-template-columns: repeat(4, 1fr);
 }
 
 .form-group{
@@ -10,9 +10,6 @@
 	gap: 8px;
 }
 
-.register-btn{
-	background: rgb(0, 128, 0);
-}
 
 
 /*반품/폐기 등록 모달  */
@@ -108,7 +105,7 @@
 }
 
 /* 모달 버튼 */
-.modal-footer button {
+ .modal-footer button {
 	flex: 1; 
 	height: 42px;
 	width: 50px; 
@@ -119,7 +116,7 @@
 	cursor: pointer;
 	transition: 0.2s;
 }
-
+ 
 .btn-cancel {
 	background: white;
 	border: 1px solid #ccc;
@@ -131,9 +128,8 @@
 	color: white;
 }
 
-/* 표에 있는 수정, 관리 버튼 */
-.edit-btn,
-.delete-btn {
+/* 표에 있는 상세보기 버튼 */
+.approval-btn {
 	width: 55px;
 	height: 35px;
 	border: none;
@@ -141,15 +137,3 @@
 	background: #e5e5e5;
 }
 
-/* 제일 위에 사용자 추가 버튼 */
-.small-btn{
-	background: #9b9b9b;
-	color: white;
-	border: none;
-	border-radius: 8px;
-	padding: 8px 18px;
-	cursor: pointer;
-	display: block;
-	margin-left: auto;
-	
-}
