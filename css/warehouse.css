@@ -41,7 +41,7 @@ th{
 }
 
 .small-btn{
-	background: #9b9b9b;
+	background: #7B8F4E;
 	color: white;
 	border: none;
 	border-radius: 8px;
@@ -176,3 +176,7 @@ th{
 	border-radius: 6px;
 	background: #e5e5e5;
 }
+
+.btn-primary{
+	background: #7B8F4E;
+} 

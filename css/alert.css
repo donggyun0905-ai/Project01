@@ -76,7 +76,7 @@
 }
 
 .register-btn{
-	background: rgb(0, 128, 0);
+	background: rgb(255, 255, 0);
 }
 
 
@@ -197,7 +197,7 @@
 
 /* 모달을 보려면 display: none -> display: flex로 변경  */
 .modal-overlay{
-	display: none;
+	display: flex;
 }
 
 .modal-overlay.active {
@@ -223,7 +223,7 @@
 }
 
 .btn-primary {
-	background: rgb(128, 128, 128);
+	background: #D99A3D;
 	border: none;
 	color: white;
 }
@@ -235,7 +235,7 @@
 	height: 35px;
 	border: none;
 	border-radius: 6px;
-	background: #e5e5e5;
+	background: rgb(192, 192, 192);
 }
 
 .alert-message {
