@@ -46,7 +46,7 @@ body {
 	color: white;
 	text-decoration: none;
 	border-radius: 20px;
-	font-weight: bold;
+	font-weight: 400; /* bold-> 일반 글씨로 바꿨습니다*/
 }
 
 .sidebar-menu a:hover{
@@ -55,6 +55,7 @@ body {
 
 .sidebar-menu a.active{
 	background-color: #4a5153;
+	font-weight: bold; /* active 표시된 애들만 글자가 굵게 나타납니다 */
 }
 
 
