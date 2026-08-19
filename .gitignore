@@ -14,3 +14,9 @@ db.properties
 
 ### VS Code ###
 .vscode/
+
+### Smart Tomcat (로컬 실행용, 개인 환경) ###
+.smarttomcat/
+
+### 개인 작업용 문서 (커밋 안 함) ###
+Dmart_아키텍처_지도.md

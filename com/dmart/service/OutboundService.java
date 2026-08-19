@@ -174,6 +174,9 @@ public class OutboundService {
                 if (!"NORMAL".equals(lot.getStatus())) {
                     continue; // 이미 반품/폐기된 로트는 후보에서 제외 — 7.2 참고
                 }
+                if (lot.getQuantity() <= 0) {
+                    continue; // 이미 다 소진된 로트(quantity=0)는 추천에서 제외
+                }
                 if (remaining <= 0) {
                     break;
                 }
