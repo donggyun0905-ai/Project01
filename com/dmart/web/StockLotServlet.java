@@ -136,6 +136,7 @@ public class StockLotServlet extends HttpServlet {
                 "zoneId", lot.getZoneId(),
                 "partnerId", lot.getPartnerId(),
                 "quantity", lot.getQuantity(),
+                "initialQuantity", lot.getInitialQuantity(),
                 "inboundDate", lot.getInboundDate(),
                 "expiryDate", lot.getExpiryDate(),
                 "status", lot.getStatus(),
