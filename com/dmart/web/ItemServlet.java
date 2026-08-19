@@ -44,11 +44,13 @@ public class ItemServlet extends HttpServlet {
     private void doList(HttpServletRequest req, HttpServletResponse resp) throws SQLException, IOException {
         String category = req.getParameter("category");
         String keyword = req.getParameter("keyword");
+        String activeParam = req.getParameter("active");
+        Boolean active = activeParam != null ? Boolean.valueOf(activeParam) : Boolean.TRUE; // 기본 active=true(2.3과 동일한 관례)
         Pagination pg = Pagination.from(req);
 
         try (Connection conn = DBConnection.getConnection()) {
-            List<Item> items = itemDao.findPage(conn, category, keyword, pg.offset, pg.size);
-            int total = itemDao.count(conn, category, keyword);
+            List<Item> items = itemDao.findPage(conn, category, keyword, active, pg.offset, pg.size);
+            int total = itemDao.count(conn, category, keyword, active);
             List<Object> data = items.stream().map(ItemServlet::toJson).collect(Collectors.toList());
             ApiResponse.success(resp, 200, pg.wrap(data, total));
         }
@@ -164,6 +166,7 @@ public class ItemServlet extends HttpServlet {
         item.setThresholdMin(RequestUtil.toInteger(body.get("thresholdMin")));
         item.setCapacityMax(RequestUtil.toInteger(body.get("capacityMax")));
         item.setShelfLifeDays(RequestUtil.toInteger(body.get("shelfLifeDays")));
+        item.setIsActive((Boolean) body.get("isActive"));
         return item;
     }
 
@@ -186,7 +189,8 @@ public class ItemServlet extends HttpServlet {
                 "unit", item.getUnit(),
                 "thresholdMin", item.getThresholdMin(),
                 "capacityMax", item.getCapacityMax(),
-                "shelfLifeDays", item.getShelfLifeDays()
+                "shelfLifeDays", item.getShelfLifeDays(),
+                "isActive", item.getIsActive()
         );
     }
 }
