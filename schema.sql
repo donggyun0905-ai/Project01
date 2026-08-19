@@ -46,7 +46,8 @@ CREATE TABLE ITEM (
     unit          VARCHAR(20)  NOT NULL,
     threshold_min INT,                                  -- 재고부족 알림 임계치
     capacity_max  INT,                                  -- 재고초과 알림 임계치
-    shelf_life_days INT                                 -- 유통기한 일수. 입고일+이 값 = expiry_date 자동계산용 (NULL = 유통기한 없는 품목)
+    shelf_life_days INT,                                 -- 유통기한 일수. 입고일+이 값 = expiry_date 자동계산용 (NULL = 유통기한 없는 품목)
+    is_active  BOOLEAN NOT NULL DEFAULT TRUE      -- 비활성화된 품목 표시용(단종 등). APP_USER.is_active와 동일한 패턴
 );
 
 -- ========== 재고 핵심 테이블 ==========

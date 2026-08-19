@@ -97,6 +97,8 @@ public class StockLotServlet extends HttpServlet {
             ));
         } catch (IllegalArgumentException e) {
             ApiResponse.error(resp, 400, "VALIDATION_ERROR", e.getMessage());
+        } catch (IllegalStateException e) {
+            ApiResponse.error(resp, 409, "CONFLICT", e.getMessage());
         } catch (SQLException e) {
             getServletContext().log("재고 직접 수정 중 DB 오류", e);
             ApiResponse.error(resp, 500, "INTERNAL_ERROR", "서버 오류가 발생했습니다");

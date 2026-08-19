@@ -1,6 +1,7 @@
 package com.dmart.web;
 
 import com.dmart.dao.ItemDao;
+import com.dmart.dao.StockLotDao;
 import com.dmart.db.DBConnection;
 import com.dmart.dto.Item;
 import com.dmart.util.ApiResponse;
@@ -17,15 +18,16 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 // API_명세.md 3번 참고. 다른 리소스 서블릿들이 따라갈 CRUD 패턴의 기준.
 @WebServlet("/api/items/*")
 public class ItemServlet extends HttpServlet {
 
     private final ItemDao itemDao = new ItemDao();
+    private final StockLotDao stockLotDao = new StockLotDao();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -44,12 +46,17 @@ public class ItemServlet extends HttpServlet {
     private void doList(HttpServletRequest req, HttpServletResponse resp) throws SQLException, IOException {
         String category = req.getParameter("category");
         String keyword = req.getParameter("keyword");
+        String activeParam = req.getParameter("active");
+        Boolean active = activeParam != null ? Boolean.valueOf(activeParam) : Boolean.TRUE; // 기본 active=true(2.3과 동일한 관례)
         Pagination pg = Pagination.from(req);
 
         try (Connection conn = DBConnection.getConnection()) {
-            List<Item> items = itemDao.findPage(conn, category, keyword, pg.offset, pg.size);
-            int total = itemDao.count(conn, category, keyword);
-            List<Object> data = items.stream().map(ItemServlet::toJson).collect(Collectors.toList());
+            List<Item> items = itemDao.findPage(conn, category, keyword, active, pg.offset, pg.size);
+            int total = itemDao.count(conn, category, keyword, active);
+            List<Object> data = new ArrayList<>();
+            for (Item item : items) {
+                data.add(toJson(conn, item));
+            }
             ApiResponse.success(resp, 200, pg.wrap(data, total));
         }
     }
@@ -66,7 +73,7 @@ public class ItemServlet extends HttpServlet {
                 ApiResponse.error(resp, 404, "NOT_FOUND", "존재하지 않는 itemId입니다: " + itemId);
                 return;
             }
-            ApiResponse.success(resp, 200, toJson(item));
+            ApiResponse.success(resp, 200, toJson(conn, item));
         }
     }
 
@@ -88,7 +95,7 @@ public class ItemServlet extends HttpServlet {
         try (Connection conn = DBConnection.getConnection()) {
             Long itemId = itemDao.insert(conn, item);
             item.setItemId(itemId);
-            ApiResponse.success(resp, 201, toJson(item));
+            ApiResponse.success(resp, 201, toJson(conn, item));
         } catch (SQLException e) {
             ApiResponse.error(resp, 500, "INTERNAL_ERROR", "서버 오류가 발생했습니다");
         }
@@ -118,7 +125,7 @@ public class ItemServlet extends HttpServlet {
                 return;
             }
             itemDao.update(conn, item);
-            ApiResponse.success(resp, 200, toJson(item));
+            ApiResponse.success(resp, 200, toJson(conn, item));
         } catch (SQLException e) {
             ApiResponse.error(resp, 500, "INTERNAL_ERROR", "서버 오류가 발생했습니다");
         }
@@ -164,6 +171,7 @@ public class ItemServlet extends HttpServlet {
         item.setThresholdMin(RequestUtil.toInteger(body.get("thresholdMin")));
         item.setCapacityMax(RequestUtil.toInteger(body.get("capacityMax")));
         item.setShelfLifeDays(RequestUtil.toInteger(body.get("shelfLifeDays")));
+        item.setIsActive((Boolean) body.get("isActive"));
         return item;
     }
 
@@ -178,7 +186,9 @@ public class ItemServlet extends HttpServlet {
         }
     }
 
-    private static Map<String, Object> toJson(Item item) {
+    // totalQuantity: 이 품목이 여러 존/로트에 나뉘어 있어도 한 번에 볼 수 있는 전체(NORMAL) 재고 합계.
+    private Map<String, Object> toJson(Connection conn, Item item) throws SQLException {
+        int totalQuantity = stockLotDao.sumQuantityByItemId(conn, item.getItemId());
         return JsonUtil.object(
                 "itemId", item.getItemId(),
                 "itemName", item.getItemName(),
@@ -186,7 +196,9 @@ public class ItemServlet extends HttpServlet {
                 "unit", item.getUnit(),
                 "thresholdMin", item.getThresholdMin(),
                 "capacityMax", item.getCapacityMax(),
-                "shelfLifeDays", item.getShelfLifeDays()
+                "shelfLifeDays", item.getShelfLifeDays(),
+                "isActive", item.getIsActive(),
+                "totalQuantity", totalQuantity
         );
     }
 }

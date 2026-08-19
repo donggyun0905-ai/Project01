@@ -2,9 +2,11 @@ package com.dmart.service;
 
 import com.dmart.dao.StockChangeLogDao;
 import com.dmart.dao.StockLotDao;
+import com.dmart.dao.ZoneDao;
 import com.dmart.db.DBConnection;
 import com.dmart.dto.StockChangeLog;
 import com.dmart.dto.StockLot;
+import com.dmart.dto.Zone;
 import com.dmart.util.JsonUtil;
 
 import java.sql.SQLException;
@@ -23,6 +25,7 @@ import java.util.Map;
 public class StockLotAdjustmentService {
 
     private final StockLotDao stockLotDao = new StockLotDao();
+    private final ZoneDao zoneDao = new ZoneDao();
     private final StockChangeLogDao stockChangeLogDao = new StockChangeLogDao();
     private final AuditLogService auditLogService = new AuditLogService();
     private final AlertResolutionService alertResolutionService = new AlertResolutionService();
@@ -59,6 +62,25 @@ public class StockLotAdjustmentService {
             }
 
             StockLot before = lot.copy();
+
+            // 6·8번(InboundService/TransferService)과 동일한 구역 용량 체크 — 직접수정으로 수량을 늘리거나
+            // status를 NORMAL로 되돌릴 때도 그 구역 물리 용량을 넘기면 안 됨. 수량이 줄거나 NORMAL을 벗어나는
+            // 경우는 여유가 생기는 방향이라 체크할 필요 없음.
+            String effectiveStatus = status != null ? status : lot.getStatus();
+            Integer effectiveQuantity = quantity != null ? quantity : lot.getQuantity();
+            if ("NORMAL".equals(effectiveStatus)) {
+                Zone zone = zoneDao.findByIdForUpdate(conn, lot.getZoneId());
+                if (zone != null && zone.getCapacity() != null) {
+                    int zoneTotal = stockLotDao.sumQuantityByZoneId(conn, lot.getZoneId());
+                    int oldContribution = "NORMAL".equals(before.getStatus()) ? before.getQuantity() : 0;
+                    int zoneTotalAfter = zoneTotal - oldContribution + effectiveQuantity;
+                    if (zoneTotalAfter > zone.getCapacity()) {
+                        throw new IllegalStateException(
+                                "구역(zoneId=" + lot.getZoneId() + ") 용량(" + zone.getCapacity() + ")을 초과합니다");
+                    }
+                }
+            }
+
             if (quantity != null) {
                 lot.setQuantity(quantity);
             }

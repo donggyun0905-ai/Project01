@@ -3,6 +3,7 @@ package com.dmart.dao;
 import com.dmart.dto.StockLot;
 
 import java.sql.*;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -156,6 +157,22 @@ public class StockLotDao {
             }
         }
         return null;
+    }
+
+    // 서버 시작 시 유통기한 자동폐기(ExpiryDisposalService)용 — 만료됐는데 아직 NORMAL로 남아있는 로트 전체 조회.
+    public List<StockLot> findExpiredNormalLots(Connection conn, LocalDate today) throws SQLException {
+        String sql = "SELECT * FROM STOCK_LOT WHERE status = 'NORMAL' AND expiry_date IS NOT NULL "
+                + "AND expiry_date < ? AND quantity > 0";
+        List<StockLot> result = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setDate(1, Date.valueOf(today));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(mapRow(rs));
+                }
+            }
+        }
+        return result;
     }
 
     public List<StockLot> findAll(Connection conn) throws SQLException {

@@ -177,6 +177,9 @@ public class OutboundService {
                 if (lot.getQuantity() <= 0) {
                     continue; // 이미 다 소진된 로트(quantity=0)는 추천에서 제외
                 }
+                if (lot.getExpiryDate() != null && lot.getExpiryDate().isBefore(LocalDate.now())) {
+                    continue; // 유통기한이 오늘 이전으로 지난 로트는 추천에서 제외
+                }
                 if (remaining <= 0) {
                     break;
                 }

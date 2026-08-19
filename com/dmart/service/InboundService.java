@@ -48,6 +48,9 @@ public class InboundService {
             if (item == null) {
                 throw new IllegalArgumentException("존재하지 않는 itemId입니다: " + itemId);
             }
+            if (Boolean.FALSE.equals(item.getIsActive())) {
+                throw new IllegalArgumentException("비활성화된 품목(itemId=" + itemId + ")은 입고할 수 없습니다");
+            }
             // 이후 용량 체크(현재 합계 조회 -> insert) 사이에 다른 요청이 끼어들지 못하게 잠근다.
             Zone zone = zoneDao.findByIdForUpdate(conn, zoneId);
             if (zone == null) {
