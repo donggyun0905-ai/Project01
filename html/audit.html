@@ -26,13 +26,16 @@
 		<p>DOWN MART</p>
 		</div>
 		<nav class="sidebar-menu">
-				<a href="dashboard.html">메인 대시보드</a>
+				<a href="dashboard.html">메인 화면</a>
 				<a class="active" href="item.html">입출고 관리</a>
 				<a href="return.html">반품 및 폐기 관리</a>
 				<a href="alert.html">알림</a>
 				<a href="statistics.html">통계</a>
 				<a href="setting.html">설정 및 권한 관리</a>
 			</nav>
+			<div class="logout-area">
+			<a href="login.html" onclick="logout()">로그아웃</a>
+		</div>
 	</aside>
 	
 	<!-- 오른쪽 위에 뜨는거 -->
@@ -50,15 +53,6 @@
 		
 		<!-- 입력폼 -->
 		<section class="form-box">
-			<div class="form-group expiration-group">
-				<label>기간</label>
-				<div class="date-range">
-					<input type="date" id="fFrom" onchange="drawList()">
-					<span>~</span>
-					<input type="date" id="fTo" onchange="drawList()">
-				</div>
-			</div>
-			
 			<div class="form-group">
 				<label>변경 유형</label>
 				<select id="fType" onchange="drawList()">
@@ -68,6 +62,22 @@
 					<option>복구</option>
 				</select>
 			</div>
+			
+			<div class="form-group">
+				<label>로트 번호 (숫자만)</label>
+				<input type="number" id="fLot" placeholder="예: 55" onkeyup="pressEnter(event)">
+			</div>
+			
+			<div class="form-group expiration-group">
+				<label>기간</label>
+				<div class="date-range">
+					<input type="date" id="fFrom" onchange="drawList()">
+					<span>~</span>
+					<input type="date" id="fTo" onchange="drawList()">
+				</div>
+			</div>
+			
+			<button class="register-btn" onclick="doSearch()">조회</button>
 		</section>
 		<!-- 입고입력(표)  -->
 		
@@ -93,6 +103,9 @@
 				<tbody id="lgBody">
 				</tbody>
 			</table>
+		
+			<!-- 쪽 번호 -->
+			<div class="paging" id="paging"></div>
 		</section>
 		
 	</main>
@@ -111,42 +124,163 @@
      ============================================================ -->
 <script>
 
-	/* 감사로그. 같은 번호끼리 한 줄입니다. */
+	/* ============================================================
+	   감사로그 - 서버 연동
+
+	   재고를 직접 고치거나 지운 기록이 쌓이는 곳입니다.
+	   출고·이동·반품처럼 재고가 바뀌는 처리도 여기에 기록됩니다.
+
+	   조회와 되돌리기 모두 관리자(ADMIN)만 할 수 있습니다.
+	   ============================================================ */
+
 	let logIds = [];
-	let logTimes = [];
+	let logLotIds = [];
 	let logWorkers = [];
-	let logTypes = [];       // 수정 / 삭제 / 복구
-	let logNames = [];
-	let logCodes = [];
-	let logLots = [];
-	let logBefore = [];      // 변경 전
-	let logAfter = [];       // 변경 후
+	let logTypes = [];
+	let logBefore = [];
+	let logAfter = [];
 	let logReasons = [];
-	let logReverted = [];    // 이미 되돌렸는지
+	let logReverted = [];
+	let logTimes = [];
 
-	let logSeq = 100;
+	let nowPage = 1;
+	let totalCount = 0;
 
 
-	/* 나중에 : apiGet("/api/stock-change-logs", putLogs) */
+	function startUp() {
+		loadData();
+	}
+
+
+	/* ============================================================
+	   목록 받아오기  (GET /api/stock-change-logs)
+
+	   서버는 lotId 로만 걸러 줍니다.
+	   변경 유형과 기간은 화면에서 걸러 냅니다.
+	   ============================================================ */
 	function loadData() {
 
-		logIds     = [1, 2, 3];
-		logTimes   = ["2026-08-06 10:22", "2026-08-07 14:05", "2026-08-09 09:31"];
-		logWorkers = ["이지원", "이지원", "김민준"];
-		logTypes   = ["수정", "삭제", "수정"];
-		logNames   = ["두부 프리미엄", "어묵 정품", "주방세제 대용량"];
-		logCodes   = ["ITEM-1", "ITEM-2", "ITEM-201"];
-		logLots    = ["LOT-1", "LOT-3", "LOT-5"];
-		logBefore  = ["수량: 20개", "수량: 8개 / 상태: 정상", "수량: 50개"];
-		logAfter   = ["수량: 40개", "삭제됨", "수량: 45개"];
-		logReasons = ["오입력 수정", "중복 등록", "재고 실사 오차 보정"];
-		logReverted = [false, false, false];
+		let path = "/api/stock-change-logs?page=" + nowPage + "&size=" + pageSize;
+		let lot = document.querySelector("#fLot").value;
+
+		if (lot != "") {
+			path = path + "&lotId=" + lot;
+		}
+
+		apiGet(path, putLogs);
+	}
+
+
+	function putLogs(data) {
+
+		let list = data.items;
+		totalCount = data.total;
+
+		logIds = [];
+		logLotIds = [];
+		logWorkers = [];
+		logTypes = [];
+		logBefore = [];
+		logAfter = [];
+		logReasons = [];
+		logReverted = [];
+		logTimes = [];
+
+		for (let i = 0; i < list.length; i++) {
+
+			logIds[i] = list[i].logId;
+			logLotIds[i] = list[i].lotId;
+			logReverted[i] = list[i].isReverted;
+
+			if (list[i].changedBy == null) {
+				logWorkers[i] = "-";
+			} else {
+				logWorkers[i] = "사용자 " + list[i].changedBy;
+			}
+
+			/* 서버는 UPDATE / DELETE / RESTORE 로 저장합니다.
+			   화면에는 우리말로 바꿔서 보여 줍니다. */
+			logTypes[i] = changeTypeText(list[i].changeType);
+
+			logBefore[i] = shortValue(list[i].beforeValue);
+			logAfter[i] = shortValue(list[i].afterValue);
+
+			if (list[i].reason == null) {
+				logReasons[i] = "-";
+			} else {
+				logReasons[i] = list[i].reason;
+			}
+
+			let t = list[i].changedAt;
+
+			if (t == null) {
+				t = "";
+			} else {
+				t = t.replace("T", " ");
+				if (t.length > 16) {
+					t = t.substring(0, 16);
+				}
+			}
+			logTimes[i] = t;
+		}
 
 		drawList();
 	}
 
 
-	/* 거르기 조건에 맞는 줄 번호만 골라냅니다 */
+	function changeTypeText(type) {
+
+		if (type == "UPDATE") {
+			return "수정";
+		}
+		if (type == "DELETE") {
+			return "삭제";
+		}
+		if (type == "RESTORE") {
+			return "복구";
+		}
+		return type;
+	}
+
+
+	/* 변경 전/후 값은 JSON 글자로 저장돼 있어서
+	   수량과 상태만 뽑아 짧게 보여 줍니다. */
+	function shortValue(text) {
+
+		if (text == null || text == "") {
+			return "-";
+		}
+
+		let value = null;
+
+		try {
+			value = JSON.parse(text);
+		} catch (e) {
+			return text;
+		}
+
+		let result = "";
+
+		if (value.quantity != null) {
+			result = "수량 " + value.quantity;
+		}
+
+		if (value.status != null) {
+			if (result != "") {
+				result = result + " / ";
+			}
+			result = result + "상태 " + value.status;
+		}
+
+		if (result == "") {
+			return text;
+		}
+
+		return result;
+	}
+
+
+	/* 변경 유형과 기간은 화면에서 걸러 냅니다 */
 	function getList() {
 
 		let type = document.querySelector("#fType").value;
@@ -160,7 +294,6 @@
 				continue;
 			}
 
-			/* logTimes 는 "2026-08-06 10:22" 라서 앞 10글자만 잘라 씁니다 */
 			let day = logTimes[i].substring(0, 10);
 
 			if (from != "" && day < from) {
@@ -184,8 +317,11 @@
 
 		if (list.length == 0) {
 			document.querySelector("#lgBody").innerHTML = "<tr><td colspan='11'>조건에 맞는 기록이 없습니다.</td></tr>";
+			drawPaging("#paging", totalCount, nowPage, "goPage");
 			return;
 		}
+
+		let startNo = (nowPage - 1) * pageSize;
 
 		for (let n = 0; n < list.length; n++) {
 
@@ -204,13 +340,13 @@
 			}
 
 			html = html + "<tr>";
-			html = html + "<td>" + (n + 1) + "</td>";
+			html = html + "<td>" + (startNo + n + 1) + "</td>";
 			html = html + "<td>" + logTimes[i] + "</td>";
 			html = html + "<td>" + logWorkers[i] + "</td>";
 			html = html + "<td>" + logTypes[i] + "</td>";
-			html = html + "<td>" + logNames[i] + "</td>";
-			html = html + "<td>" + logCodes[i] + "</td>";
-			html = html + "<td>" + logLots[i] + "</td>";
+			html = html + "<td>-</td>";                          /* 품목명 : 로그에 없는 값 */
+			html = html + "<td>-</td>";                          /* 품목 번호 : 로그에 없는 값 */
+			html = html + "<td>LOT-" + logLotIds[i] + "</td>";
 			html = html + "<td>" + logBefore[i] + "</td>";
 			html = html + "<td>" + logAfter[i] + "</td>";
 			html = html + "<td>" + logReasons[i] + "</td>";
@@ -219,20 +355,39 @@
 		}
 
 		document.querySelector("#lgBody").innerHTML = html;
+		drawPaging("#paging", totalCount, nowPage, "goPage");
 	}
 
 
-	/* 되돌리기 버튼
-	   나중에 : apiSend("POST", "/api/stock-change-logs/" + logIds[i] + "/restore", null, loadData) */
+	function goPage(p) {
+		nowPage = p;
+		loadData();
+	}
+
+
+	/* 로트 번호로 찾을 때는 서버에 다시 물어봅니다 */
+	function doSearch() {
+		nowPage = 1;
+		loadData();
+	}
+
+
+	function pressEnter(e) {
+		if (e.keyCode == 13) {
+			doSearch();
+		}
+	}
+
+
+	/* ============================================================
+	   되돌리기  (POST /api/stock-change-logs/{logId}/restore)
+
+	   변경 전 값으로 재고를 되돌립니다.
+	   되돌린 일 자체도 새 기록으로 남습니다.
+	   ============================================================ */
 	function doRestore(i) {
 
-		/* 관리자만 되돌릴 수 있습니다 */
-		if (sessionStorage.getItem("userRole") == "STAFF") {
-			alert("되돌리기는 관리자만 할 수 있습니다.");
-			return;
-		}
-
-		let ask = "로트 " + logLots[i] + " 을 아래 상태로 되돌릴까요?\n\n";
+		let ask = "LOT-" + logLotIds[i] + " 를 아래 상태로 되돌릴까요?\n\n";
 		ask = ask + "지금 : " + logAfter[i] + "\n";
 		ask = ask + "되돌린 뒤 : " + logBefore[i];
 
@@ -240,38 +395,22 @@
 			return;
 		}
 
-		/* 원래 기록에 되돌렸다고 표시합니다 */
-		logReverted[i] = true;
+		apiSend("POST", "/api/stock-change-logs/" + logIds[i] + "/restore", null, afterRestore);
+	}
 
-		/* 되돌린 일 자체도 새 기록으로 남깁니다 */
-		let last = logIds.length;
 
-		logIds[last]     = logSeq;
-		logTimes[last]   = getToday() + " 00:00";
-		logWorkers[last] = "관리자";
-		logTypes[last]   = "복구";
-		logNames[last]   = logNames[i];
-		logCodes[last]   = logCodes[i];
-		logLots[last]    = logLots[i];
-		logBefore[last]  = logAfter[i];
-		logAfter[last]   = logBefore[i];
-		logReasons[last] = "기록 " + logIds[i] + "번 되돌리기";
-		logReverted[last] = false;
+	function afterRestore(data) {
 
-		logSeq = logSeq + 1;
-
-		drawList();
-		alert("되돌렸습니다.");
+		loadData();
+		alert("되돌렸습니다.\nLOT-" + data.lotId + " 이(가) 수량 " + data.restoredQuantity
+		      + ", 상태 " + data.restoredStatus + " 로 복구되었습니다.");
 	}
 
 
 	/* 화면이 열릴 때 실행 */
-	loadData();
+	startUp();
 
 </script>
 
 </body>
-
-
-
 </html>

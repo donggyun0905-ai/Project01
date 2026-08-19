@@ -10,6 +10,10 @@
 	<link rel="stylesheet" href="../css/common.css">
 	<!--inbound css -->
 	<link rel="stylesheet" href="../css/inout.css">
+	
+	<!-- 서버 통신 공통 함수 (로그아웃에 필요) -->
+	<script src="../js/api.js"></script>
+	<script src="../js/common.js"></script>
 </head>
 
 <!-- 바디  -->
@@ -24,13 +28,16 @@
 		<p>DOWN MART</p>
 		</div>
 		<nav class="sidebar-menu">
-				<a href="dashboard.html">메인 대시보드</a>
+				<a href="dashboard.html">메인 화면</a>
 				<a class="active" href="item.html">입출고 관리</a>
 				<a href="return.html">반품 및 폐기 관리</a>
 				<a href="alert.html">알림</a>
 				<a href="statistics.html">통계</a>
 				<a href="setting.html">설정 및 권한 관리</a>
 			</nav>
+			<div class="logout-area">
+			<a href="login.html" onclick="logout()">로그아웃</a>
+		</div>
 	</aside>
 	
 	<!-- 오른쪽 위에 뜨는거 -->
@@ -46,8 +53,14 @@
 		<h4 class= "page-title">입출고 등록</h4>
 		
 		<div class="form-group">
-			<button class="register-btn1" onclick="location.href='inbound.html'">입고 등록</button>
-			<button class="register-btn2" onclick="location.href='outbound.html'">출고 등록</button>
+			<button class="register-btn1" onclick="location.href='inbound.html'">
+				<img src="../images/inbound.png" class="btn-icon" alt="입고">
+				<span>입고 등록</span>
+			</button>
+			<button class="register-btn2" onclick="location.href='outbound.html'">
+				<img src="../images/outbound.png" class="btn-icon" alt="출고">
+				<span>출고 등록</span>
+			</button>
 		</div>	
 		
 	</main>

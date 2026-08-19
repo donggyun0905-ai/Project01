@@ -28,13 +28,16 @@
 		<p>DOWN MART</p>
 		</div>
 		<nav class="sidebar-menu">
-				<a href="dashboard.html">메인 대시보드</a>
+				<a href="dashboard.html">메인 화면</a>
 				<a class="active" href="item.html">입출고 관리</a>
 				<a href="return.html">반품 및 폐기 관리</a>
 				<a href="alert.html">알림</a>
 				<a href="statistics.html">통계</a>
 				<a href="setting.html">설정 및 권한 관리</a>
 			</nav>
+			<div class="logout-area">
+			<a href="login.html" onclick="logout()">로그아웃</a>
+		</div>
 	</aside>
 	
 	<!-- 오른쪽 위에 뜨는거 -->
@@ -199,71 +202,130 @@
      ============================================================ -->
 <script>
 
-	/* ---------- 창고 ---------- */
+	/* ============================================================
+	   창고 / 구역 관리 - 서버 연동
+
+	   왼쪽 창고를 고르면 아래에 그 창고의 구역만 보입니다.
+	   현재 사용량은 재고 로트를 세어서 계산합니다.
+	   등록·수정·삭제는 관리자(ADMIN)만 할 수 있습니다.
+	   ============================================================ */
+
+	/* 창고 */
 	let whIds = [];
 	let whNames = [];
 	let whLocations = [];
 
-	/* ---------- 구역 ---------- */
+	/* 구역 */
 	let znIds = [];
-	let znWhIds = [];        // 어느 창고 소속인지
+	let znWhIds = [];
 	let znNames = [];
-	let znCapacities = [];   // 최대 수용량
-	let znUsed = [];         // 현재 사용량 (재고에서 계산되는 값)
+	let znCapacities = [];
+	let znUsed = [];
 
-	/* 지금 고른 창고와, 수정 중인 줄 번호 */
-	let pickedWh = 1;
+	/* 지금 고른 창고, 수정 중인 줄 번호 (-1 이면 새로 등록) */
+	let pickedWh = 0;
 	let editWh = -1;
 	let editZn = -1;
 
-	let whSeq = 11;
-	let znSeq = 31;
+
+	function startUp() {
+		loadData();
+	}
 
 
-	/* 창고와 구역 자료를 가져옵니다.
-	   값은 common.js 에 모아 두었습니다 (다른 화면과 같은 자료를 씁니다).
-	   나중에 : apiGet("/api/warehouses", ...) / apiGet("/api/zones", ...) */
+	/* ============================================================
+	   창고와 구역을 서버에서 받아옵니다
+	   ============================================================ */
 	function loadData() {
+		apiGet("/api/warehouses?size=200", putWarehouses);
+	}
 
-		loadMaster();
 
-		/* --- 창고 --- */
+	function putWarehouses(data) {
+
 		whIds = [];
 		whNames = [];
 		whLocations = [];
 
-		for (let i = 0; i < warehouseIds.length; i++) {
-			whIds[i] = warehouseIds[i];
-			whNames[i] = warehouseBaseNames[i];
-			whLocations[i] = warehouseLocations[i];
+		for (let i = 0; i < data.items.length; i++) {
+			whIds[i] = data.items[i].warehouseId;
+			whNames[i] = data.items[i].name;
+			whLocations[i] = data.items[i].location;
 		}
 
-		/* --- 구역 --- */
+		/* 고른 창고가 없으면 첫 번째 창고를 봅니다 */
+		if (pickedWh == 0 && whIds.length > 0) {
+			pickedWh = whIds[0];
+		}
+
+		apiGet("/api/zones?size=200", putZones);
+	}
+
+
+	function putZones(data) {
+
 		znIds = [];
 		znWhIds = [];
 		znNames = [];
 		znCapacities = [];
 		znUsed = [];
 
-		for (let i = 0; i < zoneIds.length; i++) {
-			znIds[i] = zoneIds[i];
-			znWhIds[i] = zoneWarehouseIds[i];
-			znNames[i] = zoneNames[i];
-			znCapacities[i] = zoneCapacities[i];
-			znUsed[i] = zoneUsed[i];
+		for (let i = 0; i < data.items.length; i++) {
+			znIds[i] = data.items[i].zoneId;
+			znWhIds[i] = data.items[i].warehouseId;
+			znNames[i] = data.items[i].zoneName;
+			znCapacities[i] = data.items[i].capacity;
+			znUsed[i] = 0;
 		}
 
-		/* 다음 번호는 지금 있는 것 뒤에서 시작합니다 */
-		whSeq = whIds.length + 1;
-		znSeq = znIds.length + 1;
-
 		drawWarehouse();
+		drawZone();
+
+		/* 사용량은 재고를 세어야 알 수 있어서 따로 받아옵니다 */
+		loadUsed();
+	}
+
+
+	/* 정상 재고를 전부 받아서 구역별로 수량을 더합니다.
+	   로트가 400개쯤이라 한 번에 200개씩 나눠 받습니다. */
+	function loadUsed() {
+		apiGet("/api/stock-lots?status=NORMAL&page=1&size=200", putUsed1);
+	}
+
+
+	function putUsed1(data) {
+
+		addUsed(data.items);
+
+		if (data.total > 200) {
+			apiGet("/api/stock-lots?status=NORMAL&page=2&size=200", putUsed2);
+		} else {
+			drawZone();
+		}
+	}
+
+
+	function putUsed2(data) {
+		addUsed(data.items);
 		drawZone();
 	}
 
 
-	/* ---------- 창고 표 ---------- */
+	function addUsed(list) {
 
+		for (let i = 0; i < list.length; i++) {
+			for (let k = 0; k < znIds.length; k++) {
+				if (znIds[k] == list[i].zoneId) {
+					znUsed[k] = znUsed[k] + list[i].quantity;
+				}
+			}
+		}
+	}
+
+
+	/* ============================================================
+	   창고 표
+	   ============================================================ */
 	function drawWarehouse() {
 
 		let html = "";
@@ -306,7 +368,6 @@
 	}
 
 
-	/* 창고를 누르면 아래 구역 목록이 그 창고 것으로 바뀝니다 */
 	function pickWarehouse(id) {
 		pickedWh = id;
 		drawWarehouse();
@@ -314,8 +375,9 @@
 	}
 
 
-	/* ---------- 구역 표 ---------- */
-
+	/* ============================================================
+	   구역 표
+	   ============================================================ */
 	function drawZone() {
 
 		/* 지금 어느 창고를 보고 있는지 제목에 적어 줍니다 */
@@ -344,6 +406,17 @@
 
 			count = count + 1;
 
+			/* 구역 이름만으로는 무엇을 담는 곳인지 알기 어려워 설명을 붙입니다 */
+			let zoneText = znNames[i];
+
+			if (znNames[i] == "PALLET") {
+				zoneText = "PALLET (팔레트)";
+			} else if (znNames[i] == "BOX") {
+				zoneText = "BOX (박스)";
+			} else if (znNames[i] == "EA") {
+				zoneText = "EA (낱개)";
+			}
+
 			/* 얼마나 찼는지 함께 보여 줍니다.
 			   90%를 넘으면 곧 자리가 없다는 뜻이라 눈에 띄게 표시합니다 (명세서 F-04).
 			   용량을 정해두지 않은 구역은 포화도를 계산하지 않습니다. */
@@ -366,17 +439,6 @@
 
 			html = html + "<tr>";
 			html = html + "<td>" + count + "</td>";
-			/* 구역 이름만으로는 무엇을 담는 곳인지 알기 어려워 설명을 붙입니다 */
-			let zoneText = znNames[i];
-
-			if (znNames[i] == "PALLET") {
-				zoneText = "PALLET (팔레트)";
-			} else if (znNames[i] == "BOX") {
-				zoneText = "BOX (박스)";
-			} else if (znNames[i] == "EA") {
-				zoneText = "EA (낱개)";
-			}
-
 			html = html + "<td>" + zoneText + "</td>";
 			html = html + "<td>" + addComma(znCapacities[i]) + "</td>";
 			html = html + "<td>" + usedText + "</td>";
@@ -418,17 +480,16 @@
 	}
 
 
-	/* ---------- 창고 등록 / 수정 ---------- */
-
-	/* index 가 -1 이면 새로 등록, 아니면 그 줄을 고칩니다 */
+	/* ============================================================
+	   창고 등록 / 수정  (POST, PUT /api/warehouses)
+	   ============================================================ */
 	function openWarehouse(index) {
 
 		editWh = index;
 
 		if (index == -1) {
 			document.querySelector("#whTitle").innerHTML = "창고 등록";
-			document.querySelector("#whName").value = "";
-			document.querySelector("#whLocation").value = "";
+			clearInput(["#whName", "#whLocation"]);
 		} else {
 			document.querySelector("#whTitle").innerHTML = "창고 수정";
 			document.querySelector("#whName").value = whNames[index];
@@ -446,22 +507,16 @@
 			return;
 		}
 
-		let name = document.querySelector("#whName").value;
-		let location = document.querySelector("#whLocation").value;
+		let body = {
+			name: document.querySelector("#whName").value,
+			location: document.querySelector("#whLocation").value
+		};
 
 		if (editWh == -1) {
-			let last = whIds.length;
-			whIds[last] = whSeq;
-			whNames[last] = name;
-			whLocations[last] = location;
-			whSeq = whSeq + 1;
+			apiSend("POST", "/api/warehouses", body, afterSave);
 		} else {
-			whNames[editWh] = name;
-			whLocations[editWh] = location;
+			apiSend("PUT", "/api/warehouses/" + whIds[editWh], body, afterSave);
 		}
-
-		drawWarehouse();
-		closeAll();
 	}
 
 
@@ -480,23 +535,24 @@
 			return;
 		}
 
-		removeAt([whIds, whNames, whLocations], index);
-		drawWarehouse();
-		drawZone();
+		apiSend("DELETE", "/api/warehouses/" + whIds[index], null, afterSave);
 	}
 
 
-	/* ---------- 구역 등록 / 수정 ---------- */
-
+	/* ============================================================
+	   구역 등록 / 수정  (POST, PUT /api/zones)
+	   ============================================================ */
 	function openZone(index) {
 
 		editZn = index;
 
 		/* 창고 드롭다운을 지금 목록으로 채웁니다 */
 		let html = "";
+
 		for (let i = 0; i < whIds.length; i++) {
 			html = html + "<option value='" + whIds[i] + "'>" + whNames[i] + "(" + whLocations[i] + ")</option>";
 		}
+
 		document.querySelector("#znWarehouse").innerHTML = html;
 
 		if (index == -1) {
@@ -528,7 +584,7 @@
 			return;
 		}
 
-		let whId = document.querySelector("#znWarehouse").value * 1;
+		let whId = getSelectValue("#znWarehouse") * 1;
 		let name = document.querySelector("#znName").value;
 
 		/* 같은 창고에 같은 이름의 구역이 두 개 있으면 안 됩니다 */
@@ -539,24 +595,19 @@
 			}
 		}
 
-		if (editZn == -1) {
-			let last = znIds.length;
-			znIds[last] = znSeq;
-			znWhIds[last] = whId;
-			znNames[last] = name;
-			znCapacities[last] = capacity;
-			znUsed[last] = 0;
-			znSeq = znSeq + 1;
-		} else {
-			znWhIds[editZn] = whId;
-			znNames[editZn] = name;
-			znCapacities[editZn] = capacity;
-		}
+		let body = {
+			warehouseId: whId,
+			zoneName: name,
+			capacity: capacity
+		};
 
 		pickedWh = whId;
-		drawWarehouse();
-		drawZone();
-		closeAll();
+
+		if (editZn == -1) {
+			apiSend("POST", "/api/zones", body, afterSave);
+		} else {
+			apiSend("PUT", "/api/zones/" + znIds[editZn], body, afterSave);
+		}
 	}
 
 
@@ -564,7 +615,7 @@
 
 		/* 재고가 남아 있는 구역은 지울 수 없습니다 */
 		if (znUsed[index] > 0) {
-			alert("이 구역에 재고가 " + znUsed[index] + "개 남아 있어 삭제할 수 없습니다.\n다른 구역으로 옮기거나 출고한 뒤에 지워 주세요.");
+			alert("이 구역에 재고가 " + addComma(znUsed[index]) + "개 남아 있어 삭제할 수 없습니다.\n다른 구역으로 옮기거나 출고한 뒤에 지워 주세요.");
 			return;
 		}
 
@@ -572,19 +623,27 @@
 			return;
 		}
 
-		removeAt([znIds, znWhIds, znNames, znCapacities, znUsed], index);
-		drawZone();
+		apiSend("DELETE", "/api/zones/" + znIds[index], null, afterSave);
+	}
+
+
+	/* 저장·삭제가 끝나면 목록을 서버에서 다시 받아옵니다 */
+	function afterSave(data) {
+		closeAll();
+		loadData();
 	}
 
 
 	function closeAll() {
 		closeModal("#whModal");
 		closeModal("#znModal");
+		editWh = -1;
+		editZn = -1;
 	}
 
 
 	/* 화면이 열릴 때 실행 */
-	loadData();
+	startUp();
 
 </script>
 

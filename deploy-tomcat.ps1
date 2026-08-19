@@ -2,7 +2,7 @@
 # Usage: from the Project01 folder, run  .\deploy-tomcat.ps1
 # Re-run this after every code change, then restart Tomcat (it does not hot-reload classes).
 
-$CatalinaHome = "C:\Jsp\Tomcat 10.1\apache-tomcat-10.1.36"
+$CatalinaHome = "C:\Jsp\Tomcat 10.1"
 $JavaHome = "C:\Java\jdk-24"
 $WebappName = "dmart"
 

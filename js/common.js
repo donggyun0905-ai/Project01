@@ -152,6 +152,7 @@ let itemCodes = [];
 let itemNameList = [];
 let itemUnitList = [];
 let itemCategoryList = [];
+let itemShelfList = [];    /* 유통기한 일수. 없는 품목은 null */
 
 /* 공급처 (PARTNER 중 type=SUPPLIER) - 입고에서 사용 */
 let supplierIds = [];
@@ -400,11 +401,20 @@ function cutPage(list, page) {
 }
 
 
+/* 한 번에 보여줄 쪽 번호 개수 */
+let pageBlock = 10;
+
+
 /* 쪽 번호 버튼을 그립니다.
-   areaId  : 버튼을 넣을 자리
-   total   : 전체 줄 수
-   page    : 지금 쪽
-   fnName  : 번호를 눌렀을 때 부를 함수 이름 (예: "goPage")      */
+
+   쪽이 40개면 번호를 40개 다 늘어놓지 않고,
+   지금 보고 있는 쪽 주변 10개만 보여줍니다.
+   앞뒤로 넘어가는 버튼과 처음·끝으로 가는 버튼도 같이 붙습니다.
+
+     areaId  : 버튼을 넣을 자리
+     total   : 전체 줄 수
+     page    : 지금 쪽
+     fnName  : 번호를 눌렀을 때 부를 함수 이름 (예: "goPage")      */
 function drawPaging(areaId, total, page, fnName) {
 
 	let area = document.querySelector(areaId);
@@ -420,9 +430,25 @@ function drawPaging(areaId, total, page, fnName) {
 		return;
 	}
 
+	/* 지금 쪽이 몇 번째 묶음에 있는지 계산합니다.
+	   예) 10개씩 묶고 지금 23쪽이면 -> 21~30 이 보입니다 */
+	let block = Math.ceil(page / pageBlock);
+	let from = (block - 1) * pageBlock + 1;
+	let to = from + pageBlock - 1;
+
+	if (to > last) {
+		to = last;
+	}
+
 	let html = "";
 
-	for (let i = 1; i <= last; i++) {
+	/* 맨 앞으로 / 앞 묶음으로 */
+	if (from > 1) {
+		html = html + "<button class='page-btn' onclick='" + fnName + "(1)'>처음</button>";
+		html = html + "<button class='page-btn' onclick='" + fnName + "(" + (from - 1) + ")'>이전</button>";
+	}
+
+	for (let i = from; i <= to; i++) {
 		if (i == page) {
 			html = html + "<button class='page-btn active'>" + i + "</button>";
 		} else {
@@ -430,8 +456,18 @@ function drawPaging(areaId, total, page, fnName) {
 		}
 	}
 
+	/* 뒤 묶음으로 / 맨 끝으로 */
+	if (to < last) {
+		html = html + "<button class='page-btn' onclick='" + fnName + "(" + (to + 1) + ")'>다음</button>";
+		html = html + "<button class='page-btn' onclick='" + fnName + "(" + last + ")'>끝</button>";
+	}
+
+	/* 전체가 몇 쪽인지도 같이 알려 줍니다 */
+	html = html + "<span class='page-info'>" + page + " / " + last + " 쪽 (전체 " + addComma(total) + "건)</span>";
+
 	area.innerHTML = html;
 }
+
 
 
 /* ============================================================
@@ -500,4 +536,209 @@ function isNearExpiry(expiry) {
 		return true;
 	}
 	return false;
+}
+
+
+/* ============================================================
+   7. 서버에서 기준 데이터 받아오기
+
+   loadMaster() 는 값을 직접 적어둔 것이고,
+   아래는 서버에서 실제 값을 받아 같은 배열에 채웁니다.
+
+   여러 번을 순서대로 불러야 해서, 하나가 끝나면 다음을 부르는
+   방식으로 이어 놓았습니다. 전부 끝나면 afterDone() 이 실행됩니다.
+
+     거래처 → 창고 → 구역 → 품목 → afterDone()
+   ============================================================ */
+
+/* 전부 받은 뒤에 실행할 함수를 담아 둡니다 */
+let masterDone = null;
+
+
+function loadMasterFromServer(afterDone) {
+
+	masterDone = afterDone;
+
+	/* 품목 분류는 품목 목록에서 뽑아 쓰므로 여기서 비워 둡니다 */
+	categoryNames = [];
+
+	apiGet("/api/partners?type=SUPPLIER&size=200", putSuppliers);
+}
+
+
+function putSuppliers(data) {
+
+	supplierIds = [];
+	supplierNames = [];
+
+	for (let i = 0; i < data.items.length; i++) {
+		supplierIds[i] = data.items[i].partnerId;
+		supplierNames[i] = data.items[i].name;
+	}
+
+	apiGet("/api/partners?type=CUSTOMER&size=200", putCustomers);
+}
+
+
+function putCustomers(data) {
+
+	customerIds = [];
+	customerNames = [];
+
+	for (let i = 0; i < data.items.length; i++) {
+		customerIds[i] = data.items[i].partnerId;
+		customerNames[i] = data.items[i].name;
+	}
+
+	apiGet("/api/warehouses?size=200", putWarehouseList);
+}
+
+
+function putWarehouseList(data) {
+
+	warehouseIds = [];
+	warehouseBaseNames = [];
+	warehouseLocations = [];
+	warehouseNames = [];
+
+	for (let i = 0; i < data.items.length; i++) {
+
+		warehouseIds[i] = data.items[i].warehouseId;
+		warehouseBaseNames[i] = data.items[i].name;
+		warehouseLocations[i] = data.items[i].location;
+
+		/* 드롭다운에는 "대형(0)" 처럼 붙여서 보여 줍니다 */
+		warehouseNames[i] = data.items[i].name + "(" + data.items[i].location + ")";
+	}
+
+	apiGet("/api/zones?size=200", putZoneList);
+}
+
+
+function putZoneList(data) {
+
+	zoneIds = [];
+	zoneWarehouseIds = [];
+	zoneNames = [];
+	zoneCapacities = [];
+	zoneUsed = [];
+
+	for (let i = 0; i < data.items.length; i++) {
+		zoneIds[i] = data.items[i].zoneId;
+		zoneWarehouseIds[i] = data.items[i].warehouseId;
+		zoneNames[i] = data.items[i].zoneName;
+		zoneCapacities[i] = data.items[i].capacity;
+
+		/* 지금 얼마나 차 있는지는 재고를 따로 세어야 알 수 있어서
+		   여기서는 0으로 두고, 필요한 화면에서 채웁니다 */
+		zoneUsed[i] = 0;
+	}
+
+	apiGet("/api/items?page=1&size=200", putItemList1);
+}
+
+
+function putItemList1(data) {
+
+	itemCodes = [];
+	itemNameList = [];
+	itemUnitList = [];
+	itemCategoryList = [];
+	itemShelfList = [];
+
+	addItemList(data.items);
+
+	/* 품목이 200개를 넘으면 다음 쪽도 받아옵니다 */
+	if (data.total > 200) {
+		apiGet("/api/items?page=2&size=200", putItemList2);
+	} else {
+		finishMaster();
+	}
+}
+
+
+function putItemList2(data) {
+	addItemList(data.items);
+	finishMaster();
+}
+
+
+function addItemList(list) {
+
+	for (let i = 0; i < list.length; i++) {
+
+		let last = itemCodes.length;
+
+		itemCodes[last] = "ITEM-" + list[i].itemId;
+		itemNameList[last] = list[i].itemName;
+		itemUnitList[last] = list[i].unit;
+		itemCategoryList[last] = list[i].category;
+		itemShelfList[last] = list[i].shelfLifeDays;
+
+		/* 분류 목록도 같이 모읍니다 (같은 값은 한 번만) */
+		let category = list[i].category;
+
+		if (category != null && category != "") {
+
+			let found = false;
+
+			for (let k = 0; k < categoryNames.length; k++) {
+				if (categoryNames[k] == category) {
+					found = true;
+				}
+			}
+
+			if (found == false) {
+				categoryNames[categoryNames.length] = category;
+			}
+		}
+	}
+}
+
+
+function finishMaster() {
+
+	if (masterDone != null) {
+		masterDone();
+	}
+}
+
+
+/* 품목 이름으로 품목번호를 찾습니다. 없으면 -1
+   (서버에 보낼 때는 이름이 아니라 번호가 필요합니다) */
+function getItemId(name) {
+
+	let i = findItemByName(name);
+
+	if (i == -1) {
+		return -1;
+	}
+
+	/* itemCodes 는 "ITEM-12" 모양이라 앞 5글자를 떼면 번호가 됩니다 */
+	return itemCodes[i].substring(5) * 1;
+}
+
+
+/* ============================================================
+   8. 로그아웃
+
+   서버에 로그아웃을 알려서 세션을 없애고,
+   화면에 저장해 둔 로그인 정보도 지웁니다.
+
+   실패해도 로그인 화면으로는 보내야 하므로
+   성공·실패 모두 같은 처리를 합니다.
+   ============================================================ */
+
+function logout() {
+
+	sessionStorage.removeItem("userId");
+	sessionStorage.removeItem("userName");
+	sessionStorage.removeItem("userRole");
+
+	apiSend("POST", "/api/logout", null, goLogin, goLogin);
+}
+
+
+function goLogin() {
+	location.href = "login.html";
 }

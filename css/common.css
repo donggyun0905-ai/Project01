@@ -24,6 +24,22 @@ body {
 	padding: 20px 15px;
 }
 
+.logout-area {
+    position: absolute;
+    left: 15px;
+    bottom: 15px;
+}
+
+.logout-area a {
+    color: #777;
+    font-size: 12px;
+    text-decoration: none;
+}
+
+.logout-area a:hover {
+    color: #ffffff;
+}
+
 .logo{
 	text-align: center;
 	margin-bottom: 40px;
@@ -46,7 +62,7 @@ body {
 	color: white;
 	text-decoration: none;
 	border-radius: 20px;
-	font-weight: bold;
+	font-weight: 400;
 }
 
 .sidebar-menu a:hover{
@@ -55,6 +71,7 @@ body {
 
 .sidebar-menu a.active{
 	background-color: #4a5153;
+	font-weight: bold;
 }
 
 
@@ -76,7 +93,7 @@ body {
 	background: #d9d9d9;
 	cursor: pointer;
 	font-size: 16px;
-	font-weight: bold;
+	font-weight: 400;
 }
 
 .menu-btn:first-child{
@@ -89,6 +106,7 @@ body {
 
 .menu-btn.active{
 	background: #bfbfbf;
+	font-weight: bold;
 }
 
 /*페이지 타이틀  */
@@ -386,5 +404,75 @@ tbody tr:hover{
 }
 
 tbody tr[onclick] {
+	cursor: pointer;
+}
+
+/* 표 안의 관리 버튼들이 서로 붙어 보이지 않게 간격을 줍니다 */
+td .edit-btn,
+td .delete-btn {
+	margin: 0 3px;
+}
+
+/* 표 위에 붙는 목록 거르기 줄 (기간 선택 등)
+   표와 딱 붙어 보이지 않게 아래 여백을 둡니다 */
+.list-filter {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 4px 0 16px 0;
+}
+
+.list-filter label {
+	font-size: 13px;
+	color: #555;
+	margin-right: 4px;
+}
+
+.list-filter input[type="date"] {
+	width: 160px;
+	flex: none;
+}
+
+/* 표 제목과 그 아래 내용 사이 여백 */
+.table-box .table-title {
+	margin-bottom: 12px;
+}
+
+/* 쪽 번호 옆에 붙는 안내 글 (3 / 40 쪽) */
+.page-info {
+	margin-left: 10px;
+	font-size: 13px;
+	color: #777;
+	align-self: center;
+}
+
+/* 표 위에 붙는 짧은 안내문 */
+.list-note {
+	margin: 0 0 10px 0;
+	font-size: 13px;
+	color: #777;
+}
+
+/* 표 위에서 여러 건을 한 번에 처리하는 줄 */
+.bulk-bar {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 0 0 12px 0;
+}
+
+.bulk-bar button {
+	height: 38px;
+	padding: 0 16px;
+	border-radius: 6px;
+	font-size: 14px;
+	font-weight: 600;
+}
+
+/* 표 안의 체크박스 */
+.row-check,
+#checkAll {
+	width: 16px;
+	height: 16px;
 	cursor: pointer;
 }

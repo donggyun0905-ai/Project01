@@ -41,7 +41,7 @@ th{
 }
 
 .small-btn{
-	background: #9b9b9b;
+	background: #7B8F4E;
 	color: white;
 	border: none;
 	border-radius: 8px;
@@ -197,4 +197,8 @@ td .action-buttons {
 	display: flex;
 	gap: 8px;
 	justify-content: center;
+}
+
+.btn-primary {
+	background: #7B8F4E;
 }

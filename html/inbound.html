@@ -26,13 +26,16 @@
 		<p>DOWN MART</p>
 		</div>
 		<nav class="sidebar-menu">
-				<a href="dashboard.html">메인 대시보드</a>
+				<a href="dashboard.html">메인 화면</a>
 				<a class="active" href="item.html">입출고 관리</a>
 				<a href="return.html">반품 및 폐기 관리</a>
 				<a href="alert.html">알림</a>
 				<a href="statistics.html">통계</a>
 				<a href="setting.html">설정 및 권한 관리</a>
 			</nav>
+			<div class="logout-area">
+			<a href="login.html" onclick="logout()">로그아웃</a>
+		</div>
 	</aside>
 	
 	<!-- 오른쪽 위에 뜨는거 -->
@@ -87,11 +90,6 @@
 			</div>
 		
 			<div class="form-group">
-				<label>단가</label>
-				<input type="number" id="inPrice">
-			</div>
-			
-			<div class="form-group">
 				<label>창고</label>
 				<select id="inWarehouse" onchange="changeWarehouse()">
 				</select>
@@ -103,24 +101,10 @@
 				</select>
 			</div>
 			
-			<div class="form-group expiration-group">
-				<label>유통기한</label>
-				<div class="date-range">
-					<input type="date" id="inExpFrom">
-					<span>~</span>
-					<input type="date" id="inExpTo">
-				</div>
-			</div>
-			
 			<div class="form-group">
 				<label>공급처</label>
 				<select id="inPartner">
 				</select>
-			</div>
-			
-			<div class="form-group">
-				<label>담당자</label>
-				<input type="text" id="inWorker">
 			</div>
 			
 			<button class="register-btn" onclick="doRegister()">입고 등록</button>
@@ -140,11 +124,9 @@
 						<th>품목명</th>
 						<th>수량</th>
 						<th>단위</th>
-						<th>단가</th>
 						<th>유통기한</th>
 						<th>공급처</th>
 						<th>구역</th>
-						<th>담당자</th>
 						<th>삭제</th>
 					</tr>				
 				</thead>
@@ -172,44 +154,55 @@
      ============================================================ -->
 <script>
 
-	/* 입고 이력 표에 뿌릴 값. 같은 번호끼리 한 줄이 됩니다. */
+	/* ============================================================
+	   입고 등록 - 서버 연동
+
+	   보내는 값 : itemId / zoneId / partnerId / quantity / inboundDate
+	   담당자(createdBy)는 로그인한 사람으로 서버가 채웁니다.
+	   유통기한은 품목의 유통기한 일수로 서버가 계산합니다.
+	   ============================================================ */
+
+	/* 입고 이력 표 */
+	let rowLotIds = [];
 	let rowDates = [];
-	let rowCodes = [];
-	let rowLots = [];
+	let rowItemIds = [];
 	let rowNames = [];
 	let rowQtys = [];
 	let rowUnits = [];
-	let rowPrices = [];
 	let rowExpiries = [];
 	let rowPartners = [];
 	let rowZones = [];
-	let rowWorkers = [];
 
-	/* 로트 번호는 자동으로 붙입니다 (LOT-1, LOT-2 ...) */
-	let lotSeq = 1;
-
-	/* 지금 보고 있는 쪽 */
 	let nowPage = 1;
+	let totalCount = 0;
 
 
-	/* 화면이 열릴 때 드롭다운을 채웁니다 */
-	function setupForm() {
+	/* 화면이 열리면 기준 데이터부터 받아옵니다 */
+	function startUp() {
+		loadMasterFromServer(afterMaster);
+	}
 
-		loadMaster();
+
+	/* 거래처·창고·구역·품목을 다 받은 뒤에 실행됩니다 */
+	function afterMaster() {
 
 		fillCategory("#inCategory");
-		fillItemList("#itemList");
 		fillPartner("#inPartner", "SUPPLIER");   // 입고는 공급처만
 		fillWarehouse("#inWarehouse");
 		fillZone("#inWarehouse", "#inZone");
+		fillItemList("#itemList");
+
+		/* 입고일은 오늘로 미리 채워 둡니다 */
+		document.querySelector("#inDate").value = getToday();
+
+		loadData();
 	}
 
 
 	/* 품목명을 고르면 코드·단위·카테고리가 알아서 채워집니다 */
 	function changeItem() {
 
-		let name = document.querySelector("#inName").value;
-		let i = findItemByName(name);
+		let i = findItemByName(document.querySelector("#inName").value);
 
 		if (i == -1) {
 			document.querySelector("#inCode").value = "";
@@ -218,172 +211,276 @@
 
 		document.querySelector("#inCode").value = itemCodes[i];
 		document.querySelector("#inUnit").value = itemUnitList[i];
-		document.querySelector("#inCategory").value = itemCategoryList[i];
+
+		if (itemCategoryList[i] != null) {
+			document.querySelector("#inCategory").value = itemCategoryList[i];
+		}
+
+		/* 품목 단위와 같은 이름의 구역을 자동으로 골라 줍니다 */
+		pickSameZone(itemUnitList[i]);
 	}
 
 
-	/* 창고를 바꾸면 그 창고의 구역만 보여 줍니다 */
 	function changeWarehouse() {
 		fillZone("#inWarehouse", "#inZone");
+		pickSameZone(document.querySelector("#inUnit").value);
 	}
 
 
-	/* 처음에 보여줄 예시 2줄
-	   나중에 : apiGet("/api/stock-lots", putRows) */
+	/* 지금 창고에서 단위와 이름이 같은 구역을 고릅니다 */
+	function pickSameZone(unit) {
+
+		let box = document.querySelector("#inZone");
+
+		for (let i = 0; i < box.options.length; i++) {
+			if (box.options[i].text == unit) {
+				box.selectedIndex = i;
+				return;
+			}
+		}
+	}
+
+
+	/* ============================================================
+	   입고 이력  (GET /api/stock-lots)
+
+	   입고 이력은 따로 있는 게 아니라 재고 로트가 곧 입고 기록입니다.
+	   수량은 남은 수량이 아니라 처음 들어온 수량을 보여 줍니다.
+	   ============================================================ */
 	function loadData() {
+		apiGet("/api/stock-lots?page=" + nowPage + "&size=" + pageSize, putRows);
+	}
 
-		rowDates    = ["2026-08-06", "2026-08-06"];
-		rowCodes    = ["ITEM-1", "ITEM-2"];
-		rowLots     = ["LOT-1", "LOT-2"];
-		rowNames    = ["두부 프리미엄", "어묵 정품"];
-		rowQtys     = [60, 32];
-		rowUnits    = ["EA", "BOX"];
-		rowPrices   = [1500, 800];
-		rowExpiries = ["2026-08-06~2026-08-14", "2026-08-06~2026-08-17"];
-		rowPartners = ["신선냉장유통(주)", "한아름냉동식품(주)"];
-		rowZones    = ["대형(0) EA", "대형(0) BOX"];
-		rowWorkers  = ["김민준", "이서연"];
 
-		lotSeq = 3;
+	function putRows(data) {
+
+		let list = data.items;
+		totalCount = data.total;
+
+		rowLotIds = [];
+		rowDates = [];
+		rowItemIds = [];
+		rowNames = [];
+		rowQtys = [];
+		rowUnits = [];
+		rowExpiries = [];
+		rowPartners = [];
+		rowZones = [];
+
+		for (let i = 0; i < list.length; i++) {
+
+			rowLotIds[i] = list[i].lotId;
+			rowDates[i] = list[i].inboundDate;
+			rowItemIds[i] = list[i].itemId;
+
+			/* 처음 입고된 수량이 있으면 그걸 쓰고, 없으면 남은 수량을 씁니다 */
+			if (list[i].initialQuantity == null) {
+				rowQtys[i] = list[i].quantity;
+			} else {
+				rowQtys[i] = list[i].initialQuantity;
+			}
+
+			if (list[i].expiryDate == null) {
+				rowExpiries[i] = "-";
+			} else {
+				rowExpiries[i] = list[i].expiryDate;
+			}
+
+			rowNames[i] = findItemName(list[i].itemId);
+			rowUnits[i] = findItemUnit(list[i].itemId);
+			rowPartners[i] = findPartnerName(list[i].partnerId);
+			rowZones[i] = findZoneName(list[i].zoneId);
+		}
 
 		drawList();
+	}
+
+
+	/* 번호로 이름을 찾는 함수들.
+	   서버는 번호만 주기 때문에 이름은 기준 데이터에서 찾아 씁니다. */
+
+	function findItemName(itemId) {
+
+		for (let i = 0; i < itemCodes.length; i++) {
+			if (itemCodes[i] == "ITEM-" + itemId) {
+				return itemNameList[i];
+			}
+		}
+		return "품목 " + itemId;
+	}
+
+
+	function findItemUnit(itemId) {
+
+		for (let i = 0; i < itemCodes.length; i++) {
+			if (itemCodes[i] == "ITEM-" + itemId) {
+				return itemUnitList[i];
+			}
+		}
+		return "";
+	}
+
+
+	function findPartnerName(partnerId) {
+
+		for (let i = 0; i < supplierIds.length; i++) {
+			if (supplierIds[i] == partnerId) {
+				return supplierNames[i];
+			}
+		}
+		for (let i = 0; i < customerIds.length; i++) {
+			if (customerIds[i] == partnerId) {
+				return customerNames[i];
+			}
+		}
+		return "거래처 " + partnerId;
+	}
+
+
+	function findZoneName(zoneId) {
+
+		for (let i = 0; i < zoneIds.length; i++) {
+			if (zoneIds[i] == zoneId) {
+
+				for (let k = 0; k < warehouseIds.length; k++) {
+					if (warehouseIds[k] == zoneWarehouseIds[i]) {
+						return warehouseNames[k] + " " + zoneNames[i];
+					}
+				}
+				return zoneNames[i];
+			}
+		}
+		return "구역 " + zoneId;
 	}
 
 
 	function drawList() {
 
-		/* 전체 줄 번호를 만든 뒤, 지금 쪽에 해당하는 것만 잘라 씁니다 */
-		let all = [];
-		for (let i = 0; i < rowDates.length; i++) {
-			all[i] = i;
-		}
-
-		let list = cutPage(all, nowPage);
 		let html = "";
 
-		if (rowDates.length == 0) {
-			document.querySelector("#inBody").innerHTML = "<tr><td colspan='13'>입고 이력이 없습니다.</td></tr>";
+		if (rowLotIds.length == 0) {
+			document.querySelector("#inBody").innerHTML = "<tr><td colspan='11'>입고 이력이 없습니다.</td></tr>";
 			drawPaging("#paging", 0, 1, "goPage");
 			return;
 		}
 
-		for (let n = 0; n < list.length; n++) {
+		let startNo = (nowPage - 1) * pageSize;
 
-			let i = list[n];
+		for (let i = 0; i < rowLotIds.length; i++) {
 
 			html = html + "<tr>";
-			html = html + "<td>" + (i + 1) + "</td>";
+			html = html + "<td>" + (startNo + i + 1) + "</td>";
 			html = html + "<td>" + rowDates[i] + "</td>";
-			html = html + "<td>" + rowCodes[i] + "</td>";
-			html = html + "<td>" + rowLots[i] + "</td>";
+			html = html + "<td>ITEM-" + rowItemIds[i] + "</td>";
+			html = html + "<td>LOT-" + rowLotIds[i] + "</td>";
 			html = html + "<td>" + rowNames[i] + "</td>";
 			html = html + "<td>" + rowQtys[i] + "</td>";
 			html = html + "<td>" + rowUnits[i] + "</td>";
-			html = html + "<td>" + addComma(rowPrices[i]) + "</td>";
 			html = html + "<td>" + rowExpiries[i] + "</td>";
 			html = html + "<td>" + rowPartners[i] + "</td>";
 			html = html + "<td>" + rowZones[i] + "</td>";
-			html = html + "<td>" + rowWorkers[i] + "</td>";
 			html = html + "<td><button class='delete-btn' onclick='doDelete(" + i + ")'>삭제</button></td>";
 			html = html + "</tr>";
 		}
 
 		document.querySelector("#inBody").innerHTML = html;
-		drawPaging("#paging", rowDates.length, nowPage, "goPage");
+		drawPaging("#paging", totalCount, nowPage, "goPage");
 	}
 
 
-	/* 쪽 번호를 눌렀을 때 */
 	function goPage(p) {
 		nowPage = p;
-		drawList();
+		loadData();
 	}
 
 
-	/* 입고 등록 버튼 */
+	/* ============================================================
+	   입고 등록  (POST /api/inbound)
+	   ============================================================ */
 	function doRegister() {
 
-		if (isBlank(["#inDate", "#inName", "#inQty", "#inPrice", "#inWorker"]) == true) {
-			alert("빈 칸을 모두 채워 주세요.");
+		if (isBlank(["#inDate", "#inName", "#inQty"]) == true) {
+			alert("입고일, 품목명, 수량을 채워 주세요.");
 			return;
 		}
 
-		/* 목록에 없는 품목명은 받지 않습니다 */
-		if (findItemByName(document.querySelector("#inName").value) == -1) {
+		let itemId = getItemId(document.querySelector("#inName").value);
+
+		if (itemId == -1) {
 			alert("등록되지 않은 품목입니다.\n후보 목록에서 골라 주세요.");
 			return;
 		}
 
-		let qty = document.querySelector("#inQty").value;
+		let qty = document.querySelector("#inQty").value * 1;
+
 		if (qty <= 0) {
 			alert("수량은 1개 이상이어야 합니다.");
 			return;
 		}
 
+		/* 단위와 구역 이름이 같아야 합니다.
+		   서버(InboundService)도 똑같이 검사해서 다르면 거절합니다. */
 		let unit = document.querySelector("#inUnit").value;
 		let zoneText = getSelectText("#inZone");
 
-		/* 단위와 구역 이름이 같아야 합니다.
-		   서버(InboundService)도 똑같이 검사하기 때문에 미리 막아 둡니다.
-		   예) EA 품목은 EA 구역에만 넣을 수 있습니다. */
 		if (unit != zoneText) {
 			alert("단위(" + unit + ")와 구역(" + zoneText + ")이 다릅니다.\n같은 이름의 구역을 골라 주세요.");
 			return;
 		}
 
-		/* 구역에 넣을 자리가 있는지 확인합니다 (명세서 F-02).
-		   서버도 같은 검사를 하며, 넘치면 입고가 거절됩니다. */
-		let zoneId = getSelectValue("#inZone");
-		let full = checkZoneRoom(zoneId, qty * 1);
+		let body = {
+			itemId: itemId,
+			zoneId: getSelectValue("#inZone") * 1,
+			partnerId: getSelectValue("#inPartner") * 1,
+			quantity: qty,
+			inboundDate: document.querySelector("#inDate").value
+		};
 
-		if (full != "") {
-			alert(full);
-			return;
-		}
-
-		changeZoneUsed(zoneId, qty * 1);
-
-		/* 표 맨 뒤에 한 줄 추가 */
-		let last = rowDates.length;
-
-		rowDates[last]    = document.querySelector("#inDate").value;
-		rowCodes[last]    = document.querySelector("#inCode").value;
-		rowLots[last]     = "LOT-" + lotSeq;
-		rowNames[last]    = document.querySelector("#inName").value;
-		rowQtys[last]     = qty;
-		rowUnits[last]    = unit;
-		rowPrices[last]   = document.querySelector("#inPrice").value;
-		rowExpiries[last] = document.querySelector("#inExpFrom").value + "~" + document.querySelector("#inExpTo").value;
-		rowPartners[last] = getSelectText("#inPartner");
-		rowZones[last]    = getSelectText("#inWarehouse") + " " + zoneText;
-		rowWorkers[last]  = document.querySelector("#inWorker").value;
-
-		lotSeq = lotSeq + 1;
-
-		drawList();
-		clearInput(["#inCode", "#inName", "#inQty", "#inPrice", "#inWorker"]);
-
-		alert("입고가 등록되었습니다. (로트번호 " + rowLots[last] + ")");
+		apiSend("POST", "/api/inbound", body, afterRegister);
 	}
 
 
-	/* 삭제 버튼 - 표에서 그 줄만 지웁니다 */
+	/* 등록이 끝나면 서버가 만든 로트번호와 유통기한을 알려 줍니다 */
+	function afterRegister(data) {
+
+		let msg = "입고가 등록되었습니다. (로트번호 LOT-" + data.lotId + ")";
+
+		if (data.expiryDate != null) {
+			msg = msg + "\n유통기한: " + data.expiryDate;
+		}
+
+		if (data.alertCreated == true) {
+			msg = msg + "\n\n재고초과 알림이 생성되었습니다.";
+		}
+
+		clearInput(["#inQty"]);
+		nowPage = 1;
+		loadData();
+		alert(msg);
+	}
+
+
+	/* ============================================================
+	   삭제  (DELETE /api/stock-lots/{id})
+	   관리자만 할 수 있고, 사유를 함께 보냅니다.
+	   ============================================================ */
 	function doDelete(index) {
 
-		if (confirm("이 입고 내역을 삭제할까요?") == false) {
+		if (confirm("LOT-" + rowLotIds[index] + " 입고 기록을 삭제할까요?") == false) {
 			return;
 		}
 
-		removeAt([rowDates, rowCodes, rowLots, rowNames, rowQtys, rowUnits,
-		          rowPrices, rowExpiries, rowPartners, rowZones, rowWorkers], index);
+		apiSend("DELETE", "/api/stock-lots/" + rowLotIds[index] + "?reason=" + encodeURIComponent("입고 오입력"), null, afterDelete);
+	}
 
-		drawList();
+
+	function afterDelete(data) {
+		loadData();
 	}
 
 
 	/* 화면이 열릴 때 실행 */
-	setupForm();
-	loadData();
+	startUp();
 
 </script>
 

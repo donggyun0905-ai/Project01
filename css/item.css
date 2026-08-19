@@ -96,3 +96,21 @@ td .action-buttons {
 .register-btn:active {
 	background: #1b3aa0;
 }
+
+/* 재고 상세 모달 (로트가 여러 줄이라 조금 넓게) */
+.lot-modal {
+	width: 720px;
+}
+
+.modal-content {
+	padding: 16px 20px;
+	font-size: 14px;
+}
+
+.lot-modal table {
+	width: 100%;
+}
+
+.lot-modal .list-note {
+	padding: 0 20px;
+}

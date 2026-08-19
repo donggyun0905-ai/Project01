@@ -27,13 +27,16 @@
 		<p>DOWN MART</p>
 		</div>
 		<nav class="sidebar-menu">
-				<a href="dashboard.html">메인 대시보드</a>
+				<a href="dashboard.html">메인 화면</a>
 				<a href="item.html">입출고 관리</a>
 				<a href="return.html">반품 및 폐기 관리</a>
 				<a href="alert.html">알림</a>
 				<a href="statistics.html">통계</a>
 				<a class="active" href="setting.html">설정 및 권한 관리</a>
 			</nav>
+			<div class="logout-area">
+			<a href="login.html" onclick="logout()">로그아웃</a>
+		</div>
 	</aside>
 		
 	<!-- 오른쪽 위에 뜨는거 -->
@@ -129,6 +132,19 @@
      삭제는 계정을 실제로 지우지 않고 "비활성" 으로 바꿉니다.
      그 사람이 처리한 입고·출고 기록이 계정을 참조하고 있어서,
      실제로 지우면 기록이 깨지기 때문입니다.
+
+     서버 연동
+       loadData()  -> apiGet("/api/users?active=true", ...) 와
+                       apiGet("/api/users?active=false", ...) 를 이어서 불러
+                       사용중/비활성 계정을 모두 모읍니다.
+       saveUser()  -> apiSend("POST", "/api/users", ...)            (등록)
+                       apiSend("PUT",  "/api/users/{id}", ...)      (수정, 이름·비밀번호만)
+                       apiSend("PUT",  "/api/users/{id}/warehouses", ...)  (담당 창고 교체)
+       doDisable() -> apiSend("DELETE", "/api/users/{id}", ...)     (비활성화)
+       doEnable()  -> apiSend("PATCH",  "/api/users/{id}/activate", ...)  (재활성화)
+
+       아이디(username)와 역할(role)은 API 상 수정 경로가 없어
+       수정 화면에서는 잠가 둡니다.
      ============================================================ -->
 <script>
 
@@ -137,26 +153,106 @@
 	let usNames = [];        // 로그인 아이디
 	let usReals = [];        // 이름
 	let usRoles = [];
-	let usWhs = [];          // 담당 창고 이름을 이어붙인 글자
+	let usWhs = [];          // 담당 창고 이름을 이어붙인 글자 (화면 표시용)
+	let usWhIds = [];        // 담당 창고 번호 배열 (수정 모달 체크박스 복원용)
 	let usDates = [];
 	let usActives = [];      // 쓸 수 있는 계정인지
 
 	let editUs = -1;
-	let usSeq = 100;
 
 
-	/* 나중에 : apiGet("/api/users", putUsers) */
+	/* 화면이 열리면 창고 등 기준 데이터부터 받아옵니다 (담당 창고 이름 표시에 필요) */
+	function startUp() {
+		loadMasterFromServer(afterMaster);
+	}
+
+	function afterMaster() {
+		loadData();
+	}
+
+
+	/* ------------------------------------------------------------
+	   사용자 목록 받아오기
+	   서버는 active=true / active=false 중 하나만 걸러 주기 때문에
+	   두 번 나눠 받아서 하나로 모읍니다.
+	   ------------------------------------------------------------ */
 	function loadData() {
+		apiGet("/api/users?active=true&size=200", putActiveUsers);
+	}
 
-		usIds    = [1, 2, 3, 4];
-		usNames  = ["admin", "staff1", "staff2", "staff3"];
-		usReals  = ["관리자", "김민준", "이서연", "박도윤"];
-		usRoles  = ["ADMIN", "STAFF", "STAFF", "STAFF"];
-		usWhs    = ["전체", "대형(0)", "대형(1), 중형(5)", "소형(8)"];
-		usDates  = ["2026-01-24", "2026-02-11", "2026-03-02", "2026-05-19"];
-		usActives = [true, true, true, false];
+	function putActiveUsers(data) {
 
+		usIds = [];
+		usNames = [];
+		usReals = [];
+		usRoles = [];
+		usWhs = [];
+		usWhIds = [];
+		usDates = [];
+		usActives = [];
+
+		addUsers(data.items);
+
+		apiGet("/api/users?active=false&size=200", putInactiveUsers);
+	}
+
+	function putInactiveUsers(data) {
+		addUsers(data.items);
 		drawList();
+	}
+
+	function addUsers(list) {
+
+		for (let i = 0; i < list.length; i++) {
+
+			let last = usIds.length;
+
+			usIds[last] = list[i].userId;
+			usNames[last] = list[i].username;
+			usReals[last] = list[i].name;
+			usRoles[last] = list[i].role;
+			usWhIds[last] = list[i].warehouseIds;
+			usWhs[last] = makeWhText(list[i].role, list[i].warehouseIds);
+			usActives[last] = list[i].isActive;
+
+			/* 서버가 주는 시각은 "2026-01-24T00:00:00" 모양이라 날짜만 잘라 씁니다 */
+			let created = list[i].createdAt;
+
+			if (created == null) {
+				created = "";
+			} else if (created.length > 10) {
+				created = created.substring(0, 10);
+			}
+			usDates[last] = created;
+		}
+	}
+
+
+	/* 담당 창고 번호 배열을 화면에 보여줄 이름으로 바꿉니다 (창고 목록은 common.js) */
+	function makeWhText(role, ids) {
+
+		if (role == "ADMIN") {
+			return "전체";
+		}
+
+		if (ids == null || ids.length == 0) {
+			return "";
+		}
+
+		let text = "";
+
+		for (let i = 0; i < ids.length; i++) {
+			for (let k = 0; k < warehouseIds.length; k++) {
+				if (warehouseIds[k] == ids[i]) {
+					if (text != "") {
+						text = text + ", ";
+					}
+					text = text + warehouseNames[k];
+				}
+			}
+		}
+
+		return text;
 	}
 
 
@@ -203,7 +299,6 @@
 	function openUser(index) {
 
 		editUs = index;
-		loadMaster();
 
 		/* 담당 창고 목록을 체크박스로 만듭니다 */
 		let html = "";
@@ -216,6 +311,8 @@
 			document.querySelector("#usTitle").innerHTML = "사용자 추가";
 			clearInput(["#usName", "#usReal", "#usPw"]);
 			document.querySelector("#usRole").value = "STAFF";
+			document.querySelector("#usName").disabled = false;
+			document.querySelector("#usRole").disabled = false;
 		} else {
 			document.querySelector("#usTitle").innerHTML = "사용자 수정";
 			document.querySelector("#usName").value = usNames[index];
@@ -223,10 +320,18 @@
 			document.querySelector("#usPw").value = "";
 			document.querySelector("#usRole").value = usRoles[index];
 
+			/* 아이디와 역할은 서버에서 고치는 경로가 없어 수정 화면에서는 잠급니다 */
+			document.querySelector("#usName").disabled = true;
+			document.querySelector("#usRole").disabled = true;
+
 			/* 이미 배정된 창고에 표시를 남깁니다 */
-			for (let i = 0; i < warehouseIds.length; i++) {
-				if (usWhs[index].indexOf(warehouseNames[i]) >= 0) {
-					document.querySelector("#wh" + warehouseIds[i]).checked = true;
+			let ids = usWhIds[index];
+			if (ids != null) {
+				for (let i = 0; i < ids.length; i++) {
+					let box = document.querySelector("#wh" + ids[i]);
+					if (box != null) {
+						box.checked = true;
+					}
 				}
 			}
 		}
@@ -258,6 +363,26 @@
 	}
 
 
+	/* 체크된 담당 창고 번호를 모읍니다. ADMIN 이면 빈 배열을 돌려줍니다 */
+	function collectPickedWarehouses(role) {
+
+		let picked = [];
+
+		if (role != "STAFF") {
+			return picked;
+		}
+
+		for (let i = 0; i < warehouseIds.length; i++) {
+			let box = document.querySelector("#wh" + warehouseIds[i]);
+			if (box != null && box.checked == true) {
+				picked[picked.length] = warehouseIds[i];
+			}
+		}
+
+		return picked;
+	}
+
+
 	function saveUser() {
 
 		if (isBlank(["#usName", "#usReal"]) == true) {
@@ -276,54 +401,53 @@
 			return;
 		}
 
-		/* 아이디는 겹치면 안 됩니다 */
-		for (let i = 0; i < usIds.length; i++) {
-			if (i != editUs && usNames[i] == id) {
-				alert("이미 쓰고 있는 아이디입니다.");
-				return;
-			}
-		}
-
-		/* 고른 창고들을 모읍니다 */
-		let picked = "";
-
-		if (role == "ADMIN") {
-			picked = "전체";
-		} else {
-			for (let i = 0; i < warehouseIds.length; i++) {
-				let box = document.querySelector("#wh" + warehouseIds[i]);
-				if (box != null && box.checked == true) {
-					if (picked != "") {
-						picked = picked + ", ";
-					}
-					picked = picked + warehouseNames[i];
+		/* 아이디는 겹치면 안 됩니다 (등록할 때만 확인하면 됩니다) */
+		if (editUs == -1) {
+			for (let i = 0; i < usIds.length; i++) {
+				if (usNames[i] == id) {
+					alert("이미 쓰고 있는 아이디입니다.");
+					return;
 				}
 			}
 		}
 
-		if (role == "STAFF" && picked == "") {
+		let picked = collectPickedWarehouses(role);
+
+		if (role == "STAFF" && picked.length == 0) {
 			alert("담당 창고를 하나 이상 골라 주세요.");
 			return;
 		}
 
 		if (editUs == -1) {
-			let last = usIds.length;
-			usIds[last] = usSeq;
-			usNames[last] = id;
-			usReals[last] = real;
-			usRoles[last] = role;
-			usWhs[last] = picked;
-			usDates[last] = getToday();
-			usActives[last] = true;
-			usSeq = usSeq + 1;
-		} else {
-			usNames[editUs] = id;
-			usReals[editUs] = real;
-			usRoles[editUs] = role;
-			usWhs[editUs] = picked;
-		}
+			apiSend("POST", "/api/users", { username: id, password: pw, name: real, role: role }, function (data) {
 
-		drawList();
+				if (role == "STAFF" && picked.length > 0) {
+					apiSend("PUT", "/api/users/" + data.userId + "/warehouses", { warehouseIds: picked }, afterSaveUser);
+				} else {
+					afterSaveUser();
+				}
+			});
+		} else {
+
+			let body = { name: real };
+			if (pw != "") {
+				body.password = pw;
+			}
+
+			apiSend("PUT", "/api/users/" + usIds[editUs], body, function (data) {
+
+				if (role == "STAFF") {
+					apiSend("PUT", "/api/users/" + usIds[editUs] + "/warehouses", { warehouseIds: picked }, afterSaveUser);
+				} else {
+					afterSaveUser();
+				}
+			});
+		}
+	}
+
+
+	function afterSaveUser() {
+		loadData();
 		closeUser();
 	}
 
@@ -337,7 +461,7 @@
 	function doDisable(index) {
 
 		/* 본인 계정은 스스로 막을 수 없습니다 (명세서 F-19) */
-		if (usNames[index] == sessionStorage.getItem("userName")) {
+		if (usIds[index] == sessionStorage.getItem("userId")) {
 			alert("본인 계정은 비활성으로 바꿀 수 없습니다.");
 			return;
 		}
@@ -362,25 +486,21 @@
 			return;
 		}
 
-		usActives[index] = false;
-		drawList();
+		apiSend("DELETE", "/api/users/" + usIds[index], null, function (data) {
+			loadData();
+		});
 	}
-
 
 	function doEnable(index) {
 
-		usActives[index] = true;
-		drawList();
-		alert(usReals[index] + " 계정을 다시 쓸 수 있습니다.");
+		apiSend("PATCH", "/api/users/" + usIds[index] + "/activate", null, function (data) {
+			loadData();
+			alert(usReals[index] + " 계정을 다시 쓸 수 있습니다.");
+		});
 	}
 
-
 	/* 화면이 열릴 때 실행 */
-	loadData();
-
+	startUp();
 </script>
-
 </body>
-
-
 </html>

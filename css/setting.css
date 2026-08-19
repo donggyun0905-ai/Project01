@@ -126,7 +126,7 @@
 }
 
 .btn-primary {
-	background: rgb(128, 128, 128);
+	background: #5E7FA3;
 	border: none;
 	color: white;
 }
@@ -143,7 +143,7 @@
 
 /* 제일 위에 사용자 추가 버튼 */
 .small-btn{
-	background: #9b9b9b;
+	background: #5E7FA3;
 	color: white;
 	border: none;
 	border-radius: 8px;

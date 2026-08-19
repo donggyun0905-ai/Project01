@@ -27,13 +27,16 @@
 		<p>DOWN MART</p>
 		</div>
 		<nav class="sidebar-menu">
-				<a href="dashboard.html">메인 대시보드</a>
+				<a href="dashboard.html">메인 화면</a>
 				<a href="item.html">입출고 관리</a>
 				<a href="return.html">반품 및 폐기 관리</a>
 				<a href="alert.html">알림</a>
 				<a href="statistics.html">통계</a>
 				<a class="active" href="setting.html">설정 및 권한 관리</a>
 			</nav>
+			<div class="logout-area">
+			<a href="login.html" onclick="logout()">로그아웃</a>
+		</div>
 	</aside>
 		
 	<!-- 오른쪽 위에 뜨는거 -->
@@ -48,7 +51,7 @@
 		<section class="form-box">
 			<div class="form-group">
 				<label>상태</label>
-				<select id="fStatus" onchange="drawList()">
+				<select id="fStatus" onchange="changeFilter()">
 					<option>대기</option>
 					<option>전체</option>
 					<option>승인</option>
@@ -58,12 +61,14 @@
 			
 			<div class="form-group">
 				<label>유형</label>
-				<select id="fType" onchange="drawList()">
+				<select id="fType" onchange="changeFilter()">
 					<option>전체</option>
 					<option>발주</option>
 					<option>출고</option>
 				</select>
 			</div>
+			
+			<button class="register-btn" onclick="openNew()">승인 요청 등록</button>
 		</section>
 
 		<!-- (표)  -->
@@ -84,6 +89,9 @@
 				<tbody id="apBody">
 				</tbody>
 			</table>
+		
+			<!-- 쪽 번호 -->
+			<div class="paging" id="paging"></div>
 		</section>
 		
 	</main>
@@ -149,62 +157,162 @@
 	</div>
 </div>
 
-<!-- ============================================================
-     자동 제안 및 승인 화면 로직
-     ------------------------------------------------------------
-     재고가 임계치 아래로 떨어지면 서버가 발주 요청을 자동으로 만듭니다.
-     그런 건 요청자가 "자동 제안" 으로 표시됩니다.
 
-     승인하면 서버가 입고(발주) 또는 출고를 자동으로 실행합니다.
-     그래서 승인은 관리자(ADMIN)만 할 수 있고, 한 번 처리한 건은
-     다시 바꿀 수 없습니다.
-     ============================================================ -->
+
+
+<!-- 승인 요청 등록 모달 -->
+<div class="modal-overlay" id="newModal">
+	<div class="modal-box">
+	
+		<div class="modal-header">
+			<h3>승인 요청 등록</h3>
+			<button class="modal-close" onclick="closeNew()"> x </button>
+		</div>
+		
+		<section class="form-box">
+			<div class="form-group">
+				<label>요청 유형</label>
+				<select id="nType" onchange="changeNewType()">
+					<option>발주</option>
+					<option>출고</option>
+				</select>
+			</div>
+			
+			<div class="form-group">
+				<label>품목명 (치면 후보가 뜹니다)</label>
+				<input type="text" id="nName" list="itemList" placeholder="예: 두부">
+				<datalist id="itemList"></datalist>
+			</div>
+			
+			<div class="form-group">
+				<label>요청 수량</label>
+				<input type="number" id="nQty">
+			</div>
+			
+			<div class="form-group">
+				<label id="nPartnerLabel">거래처</label>
+				<select id="nPartner">
+				</select>
+			</div>
+		</section>
+		
+		<div class="modal-footer">
+			<button class="btn-cancel" onclick="closeNew()">취소</button>
+			<button class="btn-primary" onclick="saveNew()">요청 등록</button>
+		</div>
+	</div>
+</div>
+
 <script>
 
-	/* 승인 요청 목록 */
-	let apIds = [];
-	let apItems = [];
-	let apTypes = [];        // 발주 / 출고
-	let apQtys = [];
-	let apUnits = [];
-	let apPartners = [];
-	let apWhos = [];         // 요청자
-	let apStatus = [];       // 대기 / 승인 / 반려
-	let apBys = [];          // 승인 처리자
-	let apDates = [];        // 승인 처리일
+	/* ============================================================
+	   자동 제안 및 승인 - 서버 연동
 
+	   재고가 임계치 아래로 떨어지면 서버가 발주 요청을 자동으로 만듭니다.
+	   그런 건 요청자가 비어 있어서 "자동 제안" 으로 보여 줍니다.
+
+	   승인하면 서버가 실제로 입고나 출고를 실행합니다.
+	   그래서 승인·반려는 관리자(ADMIN)만 할 수 있습니다.
+	   ============================================================ */
+
+	let apIds = [];
+	let apItemIds = [];
+	let apTypes = [];
+	let apQtys = [];
+	let apPartnerIds = [];
+	let apRequesters = [];
+	let apStatus = [];
+	let apTimes = [];
+
+	let nowPage = 1;
+	let totalCount = 0;
 	let openIndex = -1;
 
 
-	/* 나중에 : apiGet("/api/approvals?status=대기", putApprovals) */
+	function startUp() {
+		loadMasterFromServer(afterMaster);
+	}
+
+
+	function afterMaster() {
+		fillItemList("#itemList");
+		changeNewType();
+		loadData();
+	}
+
+
+	/* ============================================================
+	   목록 받아오기  (GET /api/approvals)
+	   ============================================================ */
 	function loadData() {
 
-		apIds      = [1, 2, 3, 4];
-		apItems    = ["두부 프리미엄", "어묵 정품", "김치 실속형", "주방세제 대용량"];
-		apTypes    = ["발주", "출고", "발주", "발주"];
-		apQtys     = [100, 230, 60, 40];
-		apUnits    = ["EA", "BOX", "BOX", "EA"];
-		apPartners = ["신선냉장유통(주)", "이마트 성수점", "한아름냉동식품(주)", "생활공감유통(주)"];
-		apWhos     = ["자동 제안", "김민준", "자동 제안", "이서연"];
-		apStatus   = ["대기", "승인", "대기", "반려"];
-		apBys      = ["", "관리자", "", "관리자"];
-		apDates    = ["", "2026-08-10", "", "2026-08-09"];
+		let path = "/api/approvals?page=" + nowPage + "&size=" + pageSize;
+		let status = document.querySelector("#fStatus").value;
+
+		/* 상태는 서버가 걸러 줍니다 */
+		if (status != "전체") {
+			path = path + "&status=" + encodeURIComponent(status);
+		}
+
+		apiGet(path, putApprovals);
+	}
+
+
+	function putApprovals(data) {
+
+		let list = data.items;
+		totalCount = data.total;
+
+		apIds = [];
+		apItemIds = [];
+		apTypes = [];
+		apQtys = [];
+		apPartnerIds = [];
+		apRequesters = [];
+		apStatus = [];
+		apTimes = [];
+
+		for (let i = 0; i < list.length; i++) {
+
+			apIds[i] = list[i].approvalId;
+			apItemIds[i] = list[i].itemId;
+			apTypes[i] = list[i].requestType;
+			apQtys[i] = list[i].requestedQty;
+			apPartnerIds[i] = list[i].partnerId;
+			apStatus[i] = list[i].status;
+
+			/* 요청자가 비어 있으면 서버가 자동으로 만든 요청입니다 */
+			if (list[i].requestedBy == null) {
+				apRequesters[i] = "자동 제안";
+			} else {
+				apRequesters[i] = "사용자 " + list[i].requestedBy;
+			}
+
+			let t = list[i].requestedAt;
+
+			if (t == null) {
+				t = "";
+			} else {
+				t = t.replace("T", " ");
+				if (t.length > 16) {
+					t = t.substring(0, 16);
+				}
+			}
+			apTimes[i] = t;
+		}
 
 		drawList();
 	}
 
 
+	/* 유형 거르기는 서버에 없는 조건이라 화면에서 걸러 냅니다 */
 	function getList() {
 
-		let status = document.querySelector("#fStatus").value;
 		let type = document.querySelector("#fType").value;
 		let result = [];
 
 		for (let i = 0; i < apIds.length; i++) {
 
-			if (status != "전체" && apStatus[i] != status) {
-				continue;
-			}
 			if (type != "전체" && apTypes[i] != type) {
 				continue;
 			}
@@ -223,6 +331,7 @@
 
 		if (list.length == 0) {
 			document.querySelector("#apBody").innerHTML = "<tr><td colspan='6'>조건에 맞는 요청이 없습니다.</td></tr>";
+			drawPaging("#paging", totalCount, nowPage, "goPage");
 			return;
 		}
 
@@ -231,41 +340,92 @@
 			let i = list[n];
 
 			html = html + "<tr>";
-			html = html + "<td>" + apItems[i] + "</td>";
+			html = html + "<td>" + findItemName(apItemIds[i]) + "</td>";
 			html = html + "<td>" + apTypes[i] + "</td>";
-			html = html + "<td>" + addComma(apQtys[i]) + apUnits[i] + "</td>";
-			html = html + "<td>" + apWhos[i] + "</td>";
+			html = html + "<td>" + addComma(apQtys[i]) + findItemUnit(apItemIds[i]) + "</td>";
+			html = html + "<td>" + apRequesters[i] + "</td>";
 			html = html + "<td>" + apStatus[i] + "</td>";
 			html = html + "<td><button class='approval-btn' onclick='openDetail(" + i + ")'>상세보기</button></td>";
 			html = html + "</tr>";
 		}
 
 		document.querySelector("#apBody").innerHTML = html;
+		drawPaging("#paging", totalCount, nowPage, "goPage");
 	}
 
 
-	/* ---------- 상세보기 모달 ---------- */
+	function goPage(p) {
+		nowPage = p;
+		loadData();
+	}
 
+
+	/* 거르기를 바꾸면 1쪽부터 다시 봅니다 */
+	function changeFilter() {
+		nowPage = 1;
+		loadData();
+	}
+
+
+	/* 번호로 이름을 찾습니다 */
+	function findItemName(itemId) {
+
+		for (let i = 0; i < itemCodes.length; i++) {
+			if (itemCodes[i] == "ITEM-" + itemId) {
+				return itemNameList[i];
+			}
+		}
+		return "품목 " + itemId;
+	}
+
+
+	function findItemUnit(itemId) {
+
+		for (let i = 0; i < itemCodes.length; i++) {
+			if (itemCodes[i] == "ITEM-" + itemId) {
+				return itemUnitList[i];
+			}
+		}
+		return "";
+	}
+
+
+	function findPartnerName(partnerId) {
+
+		if (partnerId == null) {
+			return "-";
+		}
+
+		for (let i = 0; i < supplierIds.length; i++) {
+			if (supplierIds[i] == partnerId) {
+				return supplierNames[i];
+			}
+		}
+		for (let i = 0; i < customerIds.length; i++) {
+			if (customerIds[i] == partnerId) {
+				return customerNames[i];
+			}
+		}
+		return "거래처 " + partnerId;
+	}
+
+
+	/* ============================================================
+	   상세보기
+	   ============================================================ */
 	function openDetail(i) {
 
 		openIndex = i;
 
 		document.querySelector("#apTitle").innerHTML = apTypes[i] + " 승인 요청";
-		document.querySelector("#apItem").innerHTML = apItems[i];
+		document.querySelector("#apItem").innerHTML = findItemName(apItemIds[i]);
 		document.querySelector("#apType").innerHTML = apTypes[i];
-		document.querySelector("#apQty").innerHTML = addComma(apQtys[i]) + apUnits[i];
-		document.querySelector("#apPartner").innerHTML = apPartners[i];
-		document.querySelector("#apWho").innerHTML = apWhos[i];
+		document.querySelector("#apQty").innerHTML = addComma(apQtys[i]) + findItemUnit(apItemIds[i]);
+		document.querySelector("#apPartner").innerHTML = findPartnerName(apPartnerIds[i]);
+		document.querySelector("#apWho").innerHTML = apRequesters[i];
 		document.querySelector("#apStatus").innerHTML = apStatus[i];
-
-		/* 아직 처리 전이면 처리자·처리일이 비어 있습니다 */
-		if (apBys[i] == "") {
-			document.querySelector("#apBy").innerHTML = "-";
-			document.querySelector("#apDate").innerHTML = "-";
-		} else {
-			document.querySelector("#apBy").innerHTML = apBys[i];
-			document.querySelector("#apDate").innerHTML = apDates[i];
-		}
+		document.querySelector("#apBy").innerHTML = "-";
+		document.querySelector("#apDate").innerHTML = apTimes[i];
 
 		/* 이미 처리된 건은 버튼을 막습니다 */
 		if (apStatus[i] == "대기") {
@@ -286,25 +446,21 @@
 	}
 
 
-	/* 승인 / 반려 처리
-	   나중에 : apiSend("PATCH", "/api/approvals/" + apIds[openIndex], { status: pick }, loadData) */
+	/* ============================================================
+	   승인 / 반려  (PATCH /api/approvals/{id})
+
+	   승인하면 서버가 입고나 출고를 실제로 실행합니다.
+	   ============================================================ */
 	function doDecide(pick) {
 
 		if (openIndex == -1) {
 			return;
 		}
 
-		/* 승인은 관리자만 할 수 있습니다 */
-		if (sessionStorage.getItem("userRole") == "STAFF") {
-			alert("승인과 반려는 관리자만 할 수 있습니다.");
-			return;
-		}
-
-		/* 승인하면 서버가 실제로 입고나 출고를 실행하기 때문에 한 번 더 묻습니다 */
 		let ask = "";
 
 		if (pick == "승인") {
-			ask = apItems[openIndex] + " " + addComma(apQtys[openIndex]) + apUnits[openIndex];
+			ask = findItemName(apItemIds[openIndex]) + " " + addComma(apQtys[openIndex]) + findItemUnit(apItemIds[openIndex]);
 			ask = ask + " 을 승인할까요?\n\n승인하면 " + apTypes[openIndex] + " 가 바로 처리됩니다.";
 		} else {
 			ask = "이 요청을 반려할까요?";
@@ -314,27 +470,122 @@
 			return;
 		}
 
-		apStatus[openIndex] = pick;
-		apBys[openIndex] = "관리자";
-		apDates[openIndex] = getToday();
+		apiSend("PATCH", "/api/approvals/" + apIds[openIndex], { status: pick }, afterDecide);
+	}
+
+
+	/* 서버가 자동 실행 결과까지 알려 줍니다 */
+	function afterDecide(data) {
+
+		let msg = "";
+
+		if (data.status == "반려") {
+
+			msg = "반려했습니다.";
+
+		} else {
+
+			msg = "승인했습니다.";
+
+			if (data.executionFailed == true) {
+
+				/* 승인은 됐는데 자동 실행이 안 된 경우입니다 */
+				msg = msg + "\n\n다만 자동 실행에 실패했습니다.\n" + data.executionError;
+
+			} else if (data.executedService == "inbound") {
+
+				msg = msg + "\n입고가 자동으로 처리되었습니다.";
+
+				if (data.resultLotIds != null) {
+					msg = msg + " (로트 " + data.resultLotIds.length + "건)";
+				}
+
+			} else if (data.executedService == "outbound") {
+
+				msg = msg + "\n출고가 자동으로 처리되었습니다.";
+				msg = msg + "\n요청 " + data.requestedQty + " 중 " + data.fulfilledQty + " 처리됨";
+			}
+		}
 
 		closeDetail();
-		drawList();
+		loadData();
+		alert(msg);
+	}
 
-		if (pick == "승인") {
-			alert("승인했습니다. " + apTypes[openIndex] + " 가 처리되었습니다.");
+
+	/* ============================================================
+	   승인 요청 직접 등록  (POST /api/approvals)
+	   ============================================================ */
+	function openNew() {
+		clearInput(["#nName", "#nQty"]);
+		changeNewType();
+		openModal("#newModal");
+	}
+
+
+	function closeNew() {
+		closeModal("#newModal");
+	}
+
+
+	/* 발주는 공급처, 출고는 고객을 고릅니다 */
+	function changeNewType() {
+
+		let type = document.querySelector("#nType").value;
+
+		if (type == "발주") {
+			fillPartner("#nPartner", "SUPPLIER");
+			document.querySelector("#nPartnerLabel").innerHTML = "공급처 (비워두면 서버가 정합니다)";
 		} else {
-			alert("반려했습니다.");
+			fillPartner("#nPartner", "CUSTOMER");
+			document.querySelector("#nPartnerLabel").innerHTML = "목적지 거래처 (출고는 필수)";
 		}
 	}
 
 
+	function saveNew() {
+
+		if (isBlank(["#nName", "#nQty"]) == true) {
+			alert("품목명과 요청 수량을 채워 주세요.");
+			return;
+		}
+
+		let itemId = getItemId(document.querySelector("#nName").value);
+
+		if (itemId == -1) {
+			alert("등록되지 않은 품목입니다.\n후보 목록에서 골라 주세요.");
+			return;
+		}
+
+		let qty = document.querySelector("#nQty").value * 1;
+
+		if (qty <= 0) {
+			alert("요청 수량은 1개 이상이어야 합니다.");
+			return;
+		}
+
+		let body = {
+			itemId: itemId,
+			requestType: document.querySelector("#nType").value,
+			requestedQty: qty,
+			partnerId: getSelectValue("#nPartner") * 1
+		};
+
+		apiSend("POST", "/api/approvals", body, afterNew);
+	}
+
+
+	function afterNew(data) {
+		closeNew();
+		nowPage = 1;
+		loadData();
+		alert("승인 요청이 등록되었습니다. (요청번호 " + data.approvalId + ")");
+	}
+
+
 	/* 화면이 열릴 때 실행 */
-	loadData();
+	startUp();
 
 </script>
-
 </body>
-
-
 </html>

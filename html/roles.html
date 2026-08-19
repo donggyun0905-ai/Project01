@@ -25,13 +25,16 @@
 		<p>DOWN MART</p>
 		</div>
 		<nav class="sidebar-menu">
-				<a href="dashboard.html">메인 대시보드</a>
+				<a href="dashboard.html">메인 화면</a>
 				<a href="item.html">입출고 관리</a>
 				<a href="return.html">반품 및 폐기 관리</a>
 				<a href="alert.html">알림</a>
 				<a href="statistics.html">통계</a>
 				<a class="active" href="setting.html">설정 및 권한 관리</a>
 			</nav>
+			<div class="logout-area">
+			<a href="login.html" onclick="logout()">로그아웃</a>
+		</div>
 	</aside>
 		
 	<!-- 오른쪽 위에 뜨는거 -->
@@ -88,10 +91,10 @@
 
 		fnNames = ["입출고 관리", "반품 및 폐기 관리", "창고 간 재고 이동", "알림 확인",
 		           "통계 및 보고서", "자동 제안 및 승인", "재고 직접 수정 · 삭제",
-		           "감사로그 조회 · 되돌리기", "창고 및 구역 관리", "사용자 관리", "권한 관리"];
+		           "감사로그 조회 · 되돌리기", "창고 및 구역 관리", "사용자 관리"];
 
-		adminOk = [true, true, true, true, true, true, true, true, true, true, true];
-		staffOk = [true, true, true, true, true, false, false, false, false, false, false];
+		adminOk = [true, true, true, true, true, true, true, true, true, true];
+		staffOk = [true, true, true, true, true, false, false, false, false, false];
 
 		fnNotes = [
 			"담당 창고의 품목만 처리할 수 있습니다",
@@ -103,8 +106,7 @@
 			"정상 업무 흐름이 아닌 직접 수정이라 관리자만 가능합니다",
 			"되돌리기는 재고를 바꾸는 일이라 관리자만 가능합니다",
 			"창고 구조를 바꾸는 일이라 관리자만 가능합니다",
-			"계정 등록·수정·비활성 처리",
-			"이 화면"
+			"계정 등록·수정·비활성 처리"
 		];
 
 		drawList();

@@ -20,7 +20,7 @@ let API_HOST = "http://localhost:8080";
 /* 컨텍스트 경로 (4번 담당자 확정 후 수정)
    - 확정 전에는 빈 문자열 ""  ->  http://localhost:8080/api/items
    - "/Project01" 이 붙는 경우 ->  http://localhost:8080/Project01/api/items */
-let API_CONTEXT = "";
+let API_CONTEXT = "/dmart";
 
 
 /* 경로 하나를 완전한 주소로 만들어 준다.
