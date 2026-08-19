@@ -1,0 +1,512 @@
+<!DOCTYPE html> <!-- 08.13 반품 및 폐기 관리-->
+<!-- FIFO/FEFO 모달이 추가되었습니다 모달을 보려면 outbound.css에서 210번줄을 찾아가세요 -->
+<!-- 모달 2개 있는데 지금은 첫번째 페이지만 뜹니다 2번째 보려면 맨 밑으로 가서 주석 해제하시면 2번째 페이지가 뜹니다 -->
+<html lang = "ko">
+<head> 
+	<meta charset="UTF-8">
+	<title>반품 및 폐기 관리</title>
+	
+	<!-- 공통 css -->
+	<link rel="stylesheet" href="../css/common.css">
+	<!--inbound css -->
+	<link rel="stylesheet" href="../css/return.css">
+	
+	<!-- 서버 통신 공통 함수 -->
+	<script src="../js/api.js"></script>
+	<script src="../js/common.js"></script>
+</head>
+
+<!-- 바디  -->
+<body>
+	<!-- 전체 화면 -->
+	<div class="container">
+	
+	<!--  사이드바-->	
+	<aside class="sidebar">
+		<div class="logo" onclick="location.href='dashboard.html'">
+			<img src="../images/logo.png" alt="DOWN MART">
+		<p>DOWN MART</p>
+		</div>
+		<nav class="sidebar-menu">
+				<a href="dashboard.html">메인 대시보드</a>
+				<a href="item.html">입출고 관리</a>
+				<a class="active" href="return.html">반품 및 폐기 관리</a>
+				<a href="alert.html">알림</a>
+				<a href="statistics.html">통계</a>
+				<a href="setting.html">설정 및 권한 관리</a>
+			</nav>
+	</aside>
+	
+	<!-- 오른쪽 위에 뜨는거 -->
+	<main class="content">
+	
+
+	<div class="top-bar">
+		<h4 class= "page-title">반품 및 폐기 관리</h4>
+	</div>
+		
+		<!-- 입력폼 -->
+		<section class="form-box">
+				<div class="form-group">
+					<label>구분</label>
+					<select id="fType" onchange="drawList()">
+						<option>전체</option>
+						<option>반품</option>
+						<option>폐기</option>
+					</select>
+				</div>
+				
+				<div class="form-group expiration-group">
+					<label>처리일</label>
+					<div class="date-range">
+						<input type="date" id="fFrom" onchange="drawList()">
+						<span>~</span>
+						<input type="date" id="fTo" onchange="drawList()">
+					</div>
+				</div>
+				
+				<div class="form-group">
+					<label>품목명</label>
+					<input type="text" id="fName" placeholder="검색" onkeyup="drawList()">
+				</div>
+				
+				<div class="form-group">
+					<label>카테고리</label>
+					<select id="fCategory" onchange="drawList()">
+					</select>
+				</div>
+					
+				<!-- 기존 반품 등록/ 폐기 등록을 하나로 합쳤습니다-->
+				<button class="register-btn" onclick="openRegister()">반품/폐기 등록하기</button>
+			</section>
+		
+		<!-- 출고 입력(표)  -->
+		
+		<section class= "table-box">
+		<h4 class="table-title">반품/폐기 내역</h4>
+			<table>
+				<thead>
+					<tr>
+						<th>NO</th>
+						<th>구분</th> <!-- 반품/폐기 중 하나-->
+						<th>처리 유형</th> <!-- 고객 반품, 공급처 반품, 폐기 등등-->
+						<th>품목명</th>
+						<th>품목 코드</th>
+						<th>로트 번호</th>
+						<th>구역</th>
+						<th>수량</th>
+						<th>사유</th> <!-- 배송 실수, 고객 변심 등등 -->
+						<th>처리일</th>
+						<th>담당자</th>
+						<th>상태</th>
+							<th>삭제</th> <!-- 처리 중인지, 완료 되었는지, 대기 중인/  이 부분은 구현하기 어려우면 빼도 좋을 것 같습니다-->
+					</tr>				
+				</thead>
+				
+				<!-- 표 내용은 drawList()가 채웁니다 -->
+					<tbody id="rdBody">
+					</tbody>
+			</table>
+		</section>
+		
+	</main>
+	
+	</div>
+
+<!-- 반품/폐기 등록 페이지 모달-->
+<div class="modal-overlay" id="registerModal">
+	<div class="modal-box">
+	
+		<div class="modal-header">
+			<h3>반품/폐기 등록</h3>
+			<button class="modal-close" onclick="closeRegister()"> x </button>
+		</div>
+		
+		<section class="form-box">
+			<div class="form-group">
+				<label>구분</label>
+				<select id="rdType" onchange="changeType()">
+					<option>반품</option>
+					<option>폐기</option>
+				</select>
+			</div>
+				
+			<div class="form-group">
+				<label>처리 유형</label>
+				<select id="rdReason">
+				</select>
+			</div>
+			
+			<div class="form-group">
+				<label>로트 번호</label>
+				<select id="rdLot" onchange="changeLot()">
+				</select>
+			</div>
+			
+			<div class="form-group">
+				<label>품목명</label>
+				<input type="text" id="rdName" readonly>
+			</div>
+			
+			<div class="form-group">
+				<label>품목 번호</label>
+				<input type="text" id="rdCode" readonly>
+			</div>
+			
+			<div class="form-group">
+				<label>구역</label>
+				<input type="text" id="rdZone" readonly>
+			</div>
+		
+			<div class="form-group">
+				<label>수량 (남은 수량 이하)</label>
+				<input type="number" id="rdQty">
+			</div>
+			
+			<div class="form-group">
+				<label>사유</label>
+				<input type="text" id="rdNote" placeholder="배송 실수, 고객 변심 등">
+			</div>
+			
+			<div class="form-group">
+				<label>처리일</label>
+				<div class="date-range">
+					<input type="date" id="rdDate">
+				</div>
+			</div>
+				
+			<div class="form-group">
+				<label>담당자</label>
+				<input type="text" id="rdWorker">
+			</div>
+
+		</section>
+			<div class="modal-footer">
+				<button class="btn-cancel" onclick="closeRegister()">취소</button>
+				<button class="btn-primary" onclick="doRegister()">등록</button>
+			</div>
+	</div>
+</div>
+
+<!-- ============================================================
+     반품 / 폐기 화면 로직
+     ------------------------------------------------------------
+     서버(ReturnDisposalService)와 같은 규칙을 씁니다.
+       - 로트에 남은 수량보다 많이 처리할 수 없음
+       - 남은 수량 전체를 처리하면 그 로트는 더 이상 정상 재고가 아님
+         (반품이면 RETURNED, 폐기면 DISPOSED 상태가 됨)
+       - 일부만 처리하면 원본은 수량만 줄고, 처리된 만큼만 새 로트로 분리됨
+     ============================================================ -->
+<script>
+
+	/* ---------- 창고에 있는 재고 로트 ----------
+	   나중에 : apiGet("/api/stock-lots?status=NORMAL", putLots) */
+
+	let lotNos = [];
+	let lotCodes = [];
+	let lotNames = [];
+	let lotCategories = [];
+	let lotQtys = [];
+	let lotZones = [];
+
+	let lotSeq = 200;   // 분할될 때 붙일 새 로트 번호
+
+
+	/* ---------- 반품/폐기 내역 표 ---------- */
+
+	let rowTypes = [];       // 반품 / 폐기
+	let rowKinds = [];       // 처리 유형 (고객반품 등)
+	let rowNames = [];
+	let rowCodes = [];
+	let rowLots = [];
+	let rowCategories = [];
+	let rowZones = [];
+	let rowQtys = [];
+	let rowNotes = [];       // 사유
+	let rowDates = [];
+	let rowWorkers = [];
+
+
+	function setupForm() {
+
+		loadMaster();
+		fillCategory("#fCategory");
+
+		/* 거르기용 드롭다운에는 "전체"를 맨 앞에 넣어 줍니다 */
+		let box = document.querySelector("#fCategory");
+		box.innerHTML = "<option>전체</option>" + box.innerHTML;
+
+		changeType();
+	}
+
+
+	/* 구분(반품/폐기)에 따라 처리 유형이 달라집니다 */
+	function changeType() {
+
+		let type = document.querySelector("#rdType").value;
+		let html = "";
+
+		if (type == "반품") {
+			html = "<option>고객반품</option><option>공급처반품</option>";
+		} else {
+			html = "<option>파손</option><option>유통기한만료</option><option>기타폐기</option>";
+		}
+
+		document.querySelector("#rdReason").innerHTML = html;
+	}
+
+
+	function loadLots() {
+
+		lotNos        = ["LOT-1", "LOT-2", "LOT-3", "LOT-4", "LOT-5"];
+		lotCodes      = ["ITEM-1", "ITEM-1", "ITEM-2", "ITEM-2", "ITEM-201"];
+		lotNames      = ["두부 프리미엄", "두부 프리미엄", "어묵 정품", "어묵 정품", "주방세제 대용량"];
+		lotCategories = ["냉장식품", "냉장식품", "냉동식품", "냉동식품", "청소용품"];
+		lotQtys       = [40, 20, 8, 4, 50];
+		lotZones      = ["대형(0) EA", "대형(0) EA", "대형(0) BOX", "중형(5) BOX", "대형(1) EA"];
+
+		drawLotSelect();
+	}
+
+
+	/* 로트 드롭다운은 남은 수량이 있는 것만 보여 줍니다 */
+	function drawLotSelect() {
+
+		let html = "";
+
+		for (let i = 0; i < lotNos.length; i++) {
+			if (lotQtys[i] > 0) {
+				html = html + "<option>" + lotNos[i] + "</option>";
+			}
+		}
+
+		document.querySelector("#rdLot").innerHTML = html;
+		changeLot();
+	}
+
+
+	/* 로트를 고르면 품목명·코드·구역이 자동으로 채워집니다 */
+	function changeLot() {
+
+		let i = findLot(document.querySelector("#rdLot").value);
+
+		if (i == -1) {
+			return;
+		}
+
+		document.querySelector("#rdName").value = lotNames[i];
+		document.querySelector("#rdCode").value = lotCodes[i];
+		document.querySelector("#rdZone").value = lotZones[i];
+	}
+
+
+	function findLot(no) {
+
+		for (let i = 0; i < lotNos.length; i++) {
+			if (lotNos[i] == no) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+
+	/* ---------- 내역 표 ---------- */
+
+	function loadData() {
+
+		rowTypes      = ["반품", "폐기"];
+		rowKinds      = ["고객반품", "유통기한만료"];
+		rowNames      = ["두부 프리미엄", "어묵 정품"];
+		rowCodes      = ["ITEM-1", "ITEM-2"];
+		rowLots       = ["LOT-1", "LOT-3"];
+		rowCategories = ["냉장식품", "냉동식품"];
+		rowZones      = ["대형(0) EA", "대형(0) BOX"];
+		rowQtys       = [10, 4];
+		rowNotes      = ["고객 변심", "유통기한 지남"];
+		rowDates      = ["2026-08-09", "2026-08-11"];
+		rowWorkers    = ["김민준", "이서연"];
+
+		drawList();
+	}
+
+
+	/* 거르기 조건에 맞는 줄 번호만 골라냅니다 */
+	function getList() {
+
+		let type = document.querySelector("#fType").value;
+		let category = document.querySelector("#fCategory").value;
+		let from = document.querySelector("#fFrom").value;
+		let to = document.querySelector("#fTo").value;
+		let result = [];
+
+		for (let i = 0; i < rowTypes.length; i++) {
+
+			if (type != "전체" && rowTypes[i] != type) {
+				continue;
+			}
+			if (category != "전체" && rowCategories[i] != category) {
+				continue;
+			}
+
+			/* 품목명으로도 거를 수 있습니다 (명세서 S-05) */
+			let word = document.querySelector("#fName").value;
+
+			if (word != "" && rowNames[i].indexOf(word) < 0) {
+				continue;
+			}
+			if (from != "" && rowDates[i] < from) {
+				continue;
+			}
+			if (to != "" && rowDates[i] > to) {
+				continue;
+			}
+
+			result[result.length] = i;
+		}
+
+		return result;
+	}
+
+
+	function drawList() {
+
+		let list = getList();
+		let html = "";
+
+		if (list.length == 0) {
+			document.querySelector("#rdBody").innerHTML = "<tr><td colspan='13'>조건에 맞는 내역이 없습니다.</td></tr>";
+			return;
+		}
+
+		for (let n = 0; n < list.length; n++) {
+
+			let i = list[n];
+
+			html = html + "<tr>";
+			html = html + "<td>" + (n + 1) + "</td>";
+			html = html + "<td>" + rowTypes[i] + "</td>";
+			html = html + "<td>" + rowKinds[i] + "</td>";
+			html = html + "<td>" + rowNames[i] + "</td>";
+			html = html + "<td>" + rowCodes[i] + "</td>";
+			html = html + "<td>" + rowLots[i] + "</td>";
+			html = html + "<td>" + rowZones[i] + "</td>";
+			html = html + "<td>" + rowQtys[i] + "</td>";
+			html = html + "<td>" + rowNotes[i] + "</td>";
+			html = html + "<td>" + rowDates[i] + "</td>";
+			html = html + "<td>" + rowWorkers[i] + "</td>";
+			html = html + "<td>완료</td>";
+			html = html + "<td><button class='delete-btn' onclick='doDelete(" + i + ")'>삭제</button></td>";
+			html = html + "</tr>";
+		}
+
+		document.querySelector("#rdBody").innerHTML = html;
+	}
+
+
+	/* ---------- 등록 모달 ---------- */
+
+	function openRegister() {
+		document.querySelector("#rdDate").value = getToday();
+		drawLotSelect();
+		openModal("#registerModal");
+	}
+
+
+	function closeRegister() {
+		closeModal("#registerModal");
+	}
+
+
+	function doRegister() {
+
+		if (isBlank(["#rdQty", "#rdNote", "#rdDate", "#rdWorker"]) == true) {
+			alert("수량, 사유, 처리일, 담당자를 채워 주세요.");
+			return;
+		}
+
+		let lotNo = document.querySelector("#rdLot").value;
+		let i = findLot(lotNo);
+
+		if (i == -1) {
+			alert("처리할 로트를 골라 주세요.");
+			return;
+		}
+
+		let qty = document.querySelector("#rdQty").value * 1;
+
+		if (qty <= 0) {
+			alert("수량은 1개 이상이어야 합니다.");
+			return;
+		}
+
+		/* 남은 수량보다 많이 처리할 수 없습니다 */
+		if (qty > lotQtys[i]) {
+			alert("로트(" + lotNo + ")에 남은 수량은 " + lotQtys[i] + "개입니다.\n그보다 많이 처리할 수 없습니다.");
+			return;
+		}
+
+		let whole = false;
+
+		if (qty == lotQtys[i]) {
+			whole = true;
+		}
+
+		/* 창고 재고를 줄입니다.
+		   전체를 처리하면 그 로트는 통째로 빠지고,
+		   일부면 남은 수량만 줄어듭니다. */
+		lotQtys[i] = lotQtys[i] - qty;
+
+		/* 표에 한 줄 추가 */
+		let last = rowTypes.length;
+
+		rowTypes[last]      = document.querySelector("#rdType").value;
+		rowKinds[last]      = document.querySelector("#rdReason").value;
+		rowNames[last]      = lotNames[i];
+		rowCodes[last]      = lotCodes[i];
+		rowLots[last]       = lotNo;
+		rowCategories[last] = lotCategories[i];
+		rowZones[last]      = lotZones[i];
+		rowQtys[last]       = qty;
+		rowNotes[last]      = document.querySelector("#rdNote").value;
+		rowDates[last]      = document.querySelector("#rdDate").value;
+		rowWorkers[last]    = document.querySelector("#rdWorker").value;
+
+		drawLotSelect();
+		drawList();
+		clearInput(["#rdQty", "#rdNote", "#rdWorker"]);
+		closeRegister();
+
+		if (whole == true) {
+			alert("등록되었습니다. 로트 전체가 처리되어 " + lotNo + " 은 정상 재고에서 빠집니다.");
+		} else {
+			alert("등록되었습니다. " + lotNo + " 에 " + lotQtys[i] + "개가 남았습니다.");
+		}
+	}
+
+
+	function doDelete(index) {
+
+		if (confirm("이 내역을 삭제할까요?") == false) {
+			return;
+		}
+
+		removeAt([rowTypes, rowKinds, rowNames, rowCodes, rowLots, rowCategories,
+		          rowZones, rowQtys, rowNotes, rowDates, rowWorkers], index);
+
+		drawList();
+	}
+
+
+	/* 화면이 열릴 때 실행 */
+	setupForm();
+	loadLots();
+	loadData();
+
+</script>
+
+</body>
+
+
+
+</html>

@@ -1,0 +1,390 @@
+/*공통 스타일*/
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+body {
+	font-family: "Malgun Gothic", sans-serif;
+	background-color: #f3f3f3;
+	color: #333;
+}
+
+.container {
+	display:flex;
+	min-height: 100vh;
+}
+
+/* 사이드바 */
+.sidebar{
+	width: 220px;
+	background: #1f2628;
+	color: white;
+	padding: 20px 15px;
+}
+
+.logo{
+	text-align: center;
+	margin-bottom: 40px;
+}
+
+.logo img{
+	width: 80px;
+	margin-bottom: 10px;
+}
+
+.logo p{
+	font-size: 20px;
+	font-weight: bold;
+}
+
+.sidebar-menu a {
+	display: block;
+	padding: 12px 16px;
+	margin-bottom: 18px;
+	color: white;
+	text-decoration: none;
+	border-radius: 20px;
+	font-weight: bold;
+}
+
+.sidebar-menu a:hover{
+	background-color: #3a4143;
+}
+
+.sidebar-menu a.active{
+	background-color: #4a5153;
+}
+
+
+/* 위에 떠있는 애들(품목관리, 입출고 등록, 창고 및 구역관리 등) */
+.content{
+	flex: 1;
+	padding: 30px;
+}
+
+.top-menu{
+	display: flex;
+	gap: 0;
+	margin-bottom: 40px;
+}
+
+.menu-btn{
+	padding: 14px 24px;
+	border: none;
+	background: #d9d9d9;
+	cursor: pointer;
+	font-size: 16px;
+	font-weight: bold;
+}
+
+.menu-btn:first-child{
+    border-radius:8px 0 0 8px;
+}
+
+.menu-btn:last-child{
+    border-radius:0 8px 8px 0;
+}
+
+.menu-btn.active{
+	background: #bfbfbf;
+}
+
+/*페이지 타이틀  */
+.page-title{ 
+	margin: 25px 0;
+	font-size: 26px;
+	font-weight: bold;
+}
+
+.expiration-group{ 
+	grid-column: span 2;
+}
+
+.form-group input, 
+.form-group select{ 
+	width: 100%;
+	height: 42px;
+	padding: 0 12px;
+	border: 1px solid #ddd;
+	border-radius: 8px;
+	box-sizing: border-box;
+	font-size: 15px;
+}
+
+.form-group label{ 
+    font-size:16px;
+    font-weight:600;
+    margin-bottom:6px;
+}
+
+.date-range{
+	display: flex;
+	align-items:center;
+	gap:8px;
+}
+
+.date-range input{ 
+	flex: 1;
+}
+
+.form-row{ 
+	gap: 10px;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.form-box{ 
+	background: white;
+	border-radius: 12px;
+	padding: 20px;
+	margin-bottom: 25px;
+	display: grid;
+	gap: 24px;
+}
+
+/* 품목 테이블(표) */
+.table-box{
+	margin-top: 30px;
+	background: white;
+	padding: 20px;
+	border-radius: 12px;
+} 
+
+table{
+	width: 100%;
+	border-collapse: collapse;
+}
+
+thead{
+	background: #d9d9d9;
+}
+
+thead th:first-child{
+    border-radius:8px 0 0 8px;
+}
+
+thead th:last-child{
+    border-radius:0 8px 8px 0;
+}
+
+th{
+	padding: 14px;
+	font-size: 16px;
+	font-weight: bold;
+	text-align: center;	
+}
+
+td{
+	padding: 18px 10px;
+	text-align: center;
+	border-bottom: 1px solid #eeeeee;
+}
+
+tbody tr:hover{
+    background:#f7f7f7;
+}
+
+/* 버튼 */
+.register-btn{
+	color: white;
+	border: none;
+	padding: 10px 20px;
+	border-radius: 8px;
+	cursor: pointer;
+	width: 260px;
+	height: 42px;
+	align-self: end;
+}
+
+/* ------------------------------------------------------------
+   표·모달 안에서 여러 화면이 함께 쓰는 버튼
+   (alert.css / setting.css / outbound.css 에 있던 것과 같은 모양으로,
+    아직 정의가 없던 화면에서도 똑같이 보이도록 공통으로 옮겨둔 것입니다.
+    화면별 css 가 뒤에 읽히므로 개별 화면에서 덮어쓸 수 있습니다.)
+   ------------------------------------------------------------ */
+
+.edit-btn,
+.delete-btn {
+	min-width: 55px;
+	height: 35px;
+	border: none;
+	border-radius: 6px;
+	background: #e5e5e5;
+	cursor: pointer;
+	font-size: 13px;
+}
+
+.edit-btn:hover,
+.delete-btn:hover {
+	background: #d9d9d9;
+}
+
+.btn-cancel {
+	background: #ffffff;
+	color: #555;
+	border: 1px solid #d9d9d9;
+	cursor: pointer;
+}
+
+.btn-cancel:hover {
+	background: #f5f5f5;
+}
+
+.btn-primary {
+	background: #1d4ed8;
+	color: #ffffff;
+	border: 1px solid #d9d9d9;
+	cursor: pointer;
+}
+
+.btn-primary:hover {
+	background: #1e40af;
+}
+
+.btn-primary:disabled,
+.btn-cancel:disabled {
+	background: #e5e5e5;
+	color: #999;
+	cursor: default;
+}
+
+/* 표 위에 붙는 제목 */
+.table-title {
+	margin: 0 0 12px 0;
+	font-size: 15px;
+}
+
+/* 화면 맨 위 제목 줄 */
+.top-bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+/* 쪽 번호 버튼 */
+.paging {
+	display: flex;
+	gap: 6px;
+	justify-content: center;
+	margin-top: 14px;
+}
+
+.page-btn {
+	min-width: 32px;
+	height: 32px;
+	border: 1px solid #d9d9d9;
+	border-radius: 6px;
+	background: #ffffff;
+	cursor: pointer;
+	font-size: 13px;
+}
+
+.page-btn:hover {
+	background: #f5f5f5;
+}
+
+.page-btn.active {
+	background: #1d4ed8;
+	color: #ffffff;
+	border-color: #1d4ed8;
+}
+
+/* ------------------------------------------------------------
+   모달 (팝업) 기본 모양
+   화면별 css 에 흩어져 있던 것과 같은 값으로, 정의가 없던 화면에서도
+   똑같이 보이도록 공통으로 옮겨둔 것입니다.
+   기본은 숨김이고 active 가 붙을 때만 보입니다.
+   ------------------------------------------------------------ */
+
+.modal-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: rgba(0, 0, 0, 0.35);
+	display: none;
+	justify-content: center;
+	align-items: center;
+	z-index: 1000;
+}
+
+.modal-overlay.active {
+	display: flex;
+}
+
+.modal-box {
+	width: 420px;
+	background: #ffffff;
+	border-radius: 8px;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+	overflow: hidden;
+}
+
+.modal-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 18px 20px;
+	border-bottom: 1px solid #dddddd;
+}
+
+.modal-close {
+	border: none;
+	background: none;
+	font-size: 22px;
+	cursor: pointer;
+}
+
+.modal-footer {
+	display: flex;
+	justify-content: flex-end;
+	gap: 15px;
+	padding: 15px 20px 20px;
+}
+
+.modal-footer button {
+	flex: 1;
+	height: 42px;
+	border-radius: 6px;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+/* ------------------------------------------------------------
+   강조 표시
+   near-expiry : 유통기한이 얼마 안 남은 로트 (명세서 F-05)
+   zone-full   : 구역이 거의 찬 상태     (명세서 F-04)
+   ------------------------------------------------------------ */
+
+.near-expiry {
+	background: #fff2e0;
+	color: #cc8400;
+	font-weight: 600;
+}
+
+.zone-full {
+	color: #d9453b;
+	font-weight: 600;
+}
+
+.zone-warn {
+	color: #cc8400;
+	font-weight: 600;
+}
+
+/* 표에서 지금 고른 줄 (창고 목록 등) */
+.row-picked {
+	background: #e8f0fe;
+}
+
+.row-picked td {
+	font-weight: 600;
+}
+
+tbody tr[onclick] {
+	cursor: pointer;
+}

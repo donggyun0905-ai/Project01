@@ -1,0 +1,16 @@
+/* inbound.css(입고등록) */
+
+.form-group{
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.form-box{
+	grid-template-columns: repeat(4, 1fr);
+}
+
+.register-btn{
+	background: #ff6b57;
+}
+

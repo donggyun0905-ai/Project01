@@ -1,0 +1,420 @@
+<!DOCTYPE html> <!-- 알림 -->
+
+<html lang = "ko">
+<head> 
+	<meta charset="UTF-8">
+	<title>알림</title>
+	
+	<!-- 공통 css -->
+	<link rel="stylesheet" href="../css/common.css">
+	<!--alert css -->
+	<link rel="stylesheet" href="../css/alert.css">
+	
+	<!-- 서버 통신 공통 함수 -->
+	<script src="../js/api.js"></script>
+	<script src="../js/common.js"></script>
+</head>
+
+<!-- 바디  -->
+<body>
+	<!-- 전체 화면 -->
+	<div class="container">
+	
+	<!--  사이드바-->	
+	<aside class="sidebar">
+		<div class="logo" onclick="location.href='dashboard.html'">
+			<img src="../images/logo.png" alt="DOWN MART">
+		<p>DOWN MART</p>
+		</div>
+		<nav class="sidebar-menu">
+				<a href="dashboard.html">메인 대시보드</a>
+				<a href="item.html">입출고 관리</a>
+				<a href="return.html">반품 및 폐기 관리</a>
+				<a class="active" href="alert.html">알림</a>
+				<a href="statistics.html">통계</a>
+				<a href="setting.html">설정 및 권한 관리</a>
+			</nav>
+	</aside>
+
+	<main class="content">
+		<!-- 위에 있는데 -->
+		<section class="search-box">
+				<div class="form-group expiration-group">
+					<div class="date-range">
+						<input type="date" id="fromDate" onchange="changeFilter()">
+						<span>~</span>
+						<input type="date" id="toDate" onchange="changeFilter()">
+					</div>
+				</div>
+				
+				<select class="category-select" id="typeSelect" onchange="changeFilter()">
+					<option>전체</option>
+					<option>재고부족</option>
+					<option>재고초과</option>
+					<option>이상출고</option>
+					<option>예측알림</option>
+				</select>
+				
+				<select class="category-select" id="stateSelect" onchange="changeFilter()">
+					<option>미해결만</option>
+					<option>전체</option>
+				</select>
+			</section>
+
+		<!-- 알림창 -->
+		<section class="alert-box">
+				<div class="mini-box" id="card0" onclick="pickType('재고부족')">
+					<label>재고 부족</label>
+					<h2 id="cnt0">0</h2>
+				</div>
+				
+				<div class="mini-box" id="card1" onclick="pickType('재고초과')">
+					<label>재고 초과</label>
+					<h2 id="cnt1">0</h2>
+				</div>
+				
+				<div class="mini-box" id="card2" onclick="pickType('이상출고')">
+					<label>이상 출고</label>
+					<h2 id="cnt2">0</h2>
+				</div>
+				
+				<div class="mini-box" id="card3" onclick="pickType('예측알림')">
+					<label>소진 예측</label>
+					<h2 id="cnt3">-</h2>
+				</div>
+			</section>
+		
+		<!-- 표  -->
+		<section class= "table-box">
+			<table>
+				<thead>
+					<tr>
+						<th>구분</th>
+						<th>알림 제목</th> 
+						<th>상세 내용</th> 
+						<th>카테고리</th>
+						<th>발생 일시</th>
+						<th>상태</th>
+						<th>조치</th>
+					</tr>				
+				</thead>
+				
+				<!-- 표 내용은 drawList()가 채웁니다 -->
+					<tbody id="listArea">
+					</tbody>
+			</table>
+		</section>
+		
+	</main>
+	
+	</div>
+
+<!-- 알림 상세보기 모달 -->
+<div class="modal-overlay" id="detailModal">
+	<div class="modal-box">
+	
+		<div class="modal-header">
+			<h3 id="modalTitle">알림 상세보기</h3>
+			<button class="modal-close" onclick="closeDetail()"> x </button>
+		</div>
+		
+		<section class="alert-form">
+			<div class="alert-form-group">
+				<label>품목명</label>
+				<span id="modalItem"></span>
+			</div>
+			
+			<div class="alert-form-group">
+				<label>분류</label>
+				<span id="modalCategory"></span>
+			</div>
+			
+			<div class="alert-form-group">
+				<label>현재 재고</label>
+				<span id="modalStock"></span>
+			</div>
+			
+			<div class="alert-form-group">
+				<label>최소 임계치</label>
+				<span id="modalMin"></span>
+			</div>
+			
+			<div class="alert-form-group full-width">
+				<label>알림 내용</label>
+				<div class="alert-message">
+					<span id="modalMsg"></span>
+				</div>
+			</div>
+			
+			<div class="alert-form-group">
+				<label>발생 일시</label>
+				<span id="modalTime"></span>
+			</div>
+		
+			<div class="alert-form-group">
+				<label>상태</label>
+				<span id="modalState"></span>
+			</div>
+		
+		</section>
+		<div class="modal-footer">
+			<button class="btn-cancel" onclick="closeDetail()">취소</button>
+			<button class="btn-primary" id="resolveBtn" onclick="doResolve()">해결 처리</button>
+		</div>
+		
+	</div>
+</div>
+
+<!-- ============================================================
+     알림 센터 화면 로직
+     ------------------------------------------------------------
+     서버 연동 시 바꿀 곳
+       loadData()  -> apiGet("/api/alerts?resolved=false", putAlerts)
+       doResolve() -> apiSend("PATCH", "/api/alerts/" + 번호 + "/resolve", ...)
+     ============================================================ -->
+<script>
+
+	/* 알림 자료. 같은 번호끼리 한 묶음입니다. */
+	let alertNo    = [];
+	let itemNames  = [];
+	let types      = [];
+	let messages   = [];
+	let times      = [];
+	let resolved   = [];
+
+	/* 상세보기에 필요한 품목 정보 */
+	let categories = [];
+	let stocks     = [];
+	let mins       = [];
+	let units      = [];
+
+	/* 화면 상태 */
+	let nowType = "전체";    // 지금 고른 알림 종류
+	let onlyNo = true;       // 미해결만 볼지 여부
+	let openIndex = -1;      // 모달에 띄운 알림 번호 (-1 이면 안 열림)
+
+
+	/* 알림 자료를 가져옵니다.
+	   나중에 : apiGet("/api/alerts?resolved=false", putAlerts) */
+	function loadData() {
+
+		alertNo    = [1, 2, 3, 4, 5, 6];
+		itemNames  = ["두부 프리미엄", "어묵 정품", "만두 프리미엄", "김치 실속형", "샐러드 프리미엄", "베이컨 정품"];
+		types      = ["재고부족", "재고초과", "이상출고", "재고부족", "이상출고", "재고초과"];
+		messages   = [
+			"현재 재고가 임계치(16개) 미만입니다.",
+			"현재 재고가 최대 보유량(23박스)을 초과했습니다.",
+			"출고 수량이 최근 평균 출고량의 3배를 넘었습니다.",
+			"현재 재고가 임계치(3박스) 미만입니다.",
+			"출고 수량이 최근 평균 출고량의 3배를 넘었습니다.",
+			"현재 재고가 최대 보유량(40박스)을 초과했습니다."
+		];
+		times      = ["2026-08-11 09:40", "2026-08-11 08:15", "2026-08-11 07:52",
+		              "2026-08-10 19:03", "2026-08-10 14:47", "2026-08-09 11:20"];
+		resolved   = [false, false, false, true, false, true];
+
+		categories = ["냉장식품", "냉동식품", "냉동식품", "냉장식품", "신선식품", "냉장식품"];
+		stocks     = [12, 235, 88, 2, 44, 45];
+		mins       = [16, 10, 20, 3, 15, 10];
+		units      = ["EA", "BOX", "BOX", "BOX", "EA", "BOX"];
+
+		drawCards();
+		drawList();
+	}
+
+
+	/* 지금 조건에 맞는 알림 번호들을 골라냅니다 */
+	function getList() {
+
+		let from = document.querySelector("#fromDate").value;
+		let to = document.querySelector("#toDate").value;
+		let result = [];
+
+		for (let i = 0; i < alertNo.length; i++) {
+
+			/* 미해결만 보기인데 이미 해결된 것이면 건너뜁니다 */
+			if (onlyNo == true && resolved[i] == true) {
+				continue;
+			}
+
+			/* 종류를 골랐는데 종류가 다르면 건너뜁니다 */
+			if (nowType != "전체" && types[i] != nowType) {
+				continue;
+			}
+
+			/* 날짜 범위를 골랐으면 그 밖의 알림은 건너뜁니다.
+			   times[i] 는 "2026-08-11 09:40" 이라 앞 10글자만 잘라 씁니다. */
+			let day = times[i].substring(0, 10);
+
+			if (from != "" && day < from) {
+				continue;
+			}
+			if (to != "" && day > to) {
+				continue;
+			}
+
+			result[result.length] = i;
+		}
+
+		return result;
+	}
+
+
+	/* 위쪽 요약 카드에 건수를 적습니다 (미해결만 셉니다) */
+	function drawCards() {
+
+		let cnt = [0, 0, 0];
+		let names = ["재고부족", "재고초과", "이상출고", "예측알림"];
+
+		for (let i = 0; i < alertNo.length; i++) {
+			if (resolved[i] == true) {
+				continue;   // 해결된 것은 세지 않습니다
+			}
+			for (let k = 0; k < 3; k++) {
+				if (types[i] == names[k]) {
+					cnt[k] = cnt[k] + 1;
+				}
+			}
+		}
+
+		document.querySelector("#cnt0").innerHTML = cnt[0];
+		document.querySelector("#cnt1").innerHTML = cnt[1];
+		document.querySelector("#cnt2").innerHTML = cnt[2];
+		/* 예측알림은 서버에서 아직 만들지 않아 "-" 로 둡니다 */
+
+		/* 고른 카드에 표시를 남깁니다 */
+		for (let i = 0; i < 4; i++) {
+			if (names[i] == nowType) {
+				document.querySelector("#card" + i).className = "mini-box active";
+			} else {
+				document.querySelector("#card" + i).className = "mini-box";
+			}
+		}
+	}
+
+
+	/* 알림 목록을 표로 그립니다 */
+	function drawList() {
+
+		let list = getList();
+		let html = "";
+
+		if (list.length == 0) {
+			document.querySelector("#listArea").innerHTML = "<tr><td colspan='7'>조건에 맞는 알림이 없습니다.</td></tr>";
+			return;
+		}
+
+		for (let n = 0; n < list.length; n++) {
+
+			let i = list[n];
+
+			let stateText = "미해결";
+			if (resolved[i] == true) {
+				stateText = "해결됨";
+			}
+
+			html = html + "<tr>";
+			html = html + "<td>" + types[i] + "</td>";
+			html = html + "<td>" + itemNames[i] + " " + types[i] + "</td>";
+			html = html + "<td>" + messages[i] + "</td>";
+			html = html + "<td>" + categories[i] + "</td>";
+			html = html + "<td>" + times[i] + "</td>";
+			html = html + "<td>" + stateText + "</td>";
+			html = html + "<td><button class='edit-btn' onclick='openDetail(" + i + ")'>상세보기</button></td>";
+			html = html + "</tr>";
+		}
+
+		document.querySelector("#listArea").innerHTML = html;
+	}
+
+
+	/* 위쪽 요약 카드를 눌렀을 때 (같은 걸 또 누르면 전체로 돌아갑니다) */
+	function pickType(type) {
+
+		if (nowType == type) {
+			nowType = "전체";
+		} else {
+			nowType = type;
+		}
+
+		document.querySelector("#typeSelect").value = nowType;
+		drawCards();
+		drawList();
+	}
+
+
+	/* 드롭다운이나 날짜를 바꿨을 때 */
+	function changeFilter() {
+
+		nowType = document.querySelector("#typeSelect").value;
+
+		if (document.querySelector("#stateSelect").value == "미해결만") {
+			onlyNo = true;
+		} else {
+			onlyNo = false;
+		}
+
+		drawCards();
+		drawList();
+	}
+
+
+	/* 상세보기 모달을 엽니다 */
+	function openDetail(i) {
+
+		openIndex = i;
+
+		document.querySelector("#modalTitle").innerHTML = "[" + types[i] + "] 알림 상세";
+		document.querySelector("#modalItem").innerHTML = itemNames[i];
+		document.querySelector("#modalCategory").innerHTML = categories[i];
+		document.querySelector("#modalStock").innerHTML = stocks[i] + " " + units[i];
+		document.querySelector("#modalMin").innerHTML = mins[i] + " " + units[i];
+		document.querySelector("#modalTime").innerHTML = times[i];
+		document.querySelector("#modalMsg").innerHTML = messages[i];
+
+		if (resolved[i] == true) {
+			document.querySelector("#modalState").innerHTML = "해결됨";
+			document.querySelector("#resolveBtn").innerHTML = "이미 해결됨";
+			document.querySelector("#resolveBtn").disabled = true;
+		} else {
+			document.querySelector("#modalState").innerHTML = "미해결";
+			document.querySelector("#resolveBtn").innerHTML = "해결 처리";
+			document.querySelector("#resolveBtn").disabled = false;
+		}
+
+		openModal("#detailModal");
+	}
+
+
+	function closeDetail() {
+		closeModal("#detailModal");
+		openIndex = -1;
+	}
+
+
+	/* 해결 처리 버튼
+	   나중에 : apiSend("PATCH", "/api/alerts/" + alertNo[openIndex] + "/resolve", null, loadData) */
+	function doResolve() {
+
+		if (openIndex == -1) {
+			return;
+		}
+
+		resolved[openIndex] = true;
+		alert("해결 처리 하였습니다.");
+
+		closeDetail();
+		drawCards();
+		drawList();
+	}
+
+
+	/* 화면이 열릴 때 실행 */
+	loadData();
+
+</script>
+
+</body>
+
+
+</html>

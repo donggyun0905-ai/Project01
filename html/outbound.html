@@ -1,0 +1,666 @@
+<!DOCTYPE html> <!-- 08.12 출고 등록 -->
+<!-- FIFO/FEFO 모달이 추가되었습니다 모달을 보려면 outbound.css에서 210번줄을 찾아가세요 -->
+<!-- 모달 2개 있는데 지금은 첫번째 페이지만 뜹니다 2번째 보려면 맨 밑으로 가서 주석 해제하시면 2번째 페이지가 뜹니다 -->
+<html lang = "ko">
+<head> 
+	<meta charset="UTF-8">
+	<title>출고 등록</title>
+	
+	<!-- 공통 css -->
+	<link rel="stylesheet" href="../css/common.css">
+	<!--inbound css -->
+	<link rel="stylesheet" href="../css/outbound.css">
+	
+	<!-- 서버 통신 공통 함수 -->
+	<script src="../js/api.js"></script>
+	<script src="../js/common.js"></script>
+</head>
+
+<!-- 바디  -->
+<body>
+	<!-- 전체 화면 -->
+	<div class="container">
+	
+	<!--  사이드바-->	
+	<aside class="sidebar">
+		<div class="logo" onclick="location.href='dashboard.html'">
+			<img src="../images/logo.png" alt="DOWN MART">
+		<p>DOWN MART</p>
+		</div>
+		<nav class="sidebar-menu">
+				<a href="dashboard.html">메인 대시보드</a>
+				<a class="active" href="item.html">입출고 관리</a>
+				<a href="return.html">반품 및 폐기 관리</a>
+				<a href="alert.html">알림</a>
+				<a href="statistics.html">통계</a>
+				<a href="setting.html">설정 및 권한 관리</a>
+			</nav>
+	</aside>
+	
+	<!-- 오른쪽 위에 뜨는거 -->
+	<main class="content">
+		<header class="top-menu">
+			<button class="menu-btn" onclick="location.href='item.html'">품목 관리</button> 
+			<button class="menu-btn active" onclick="location.href='inout.html'">입출고 등록</button> <!--현재 화면이 출고 등록이라서 -->
+			<button class="menu-btn" onclick="location.href='warehouse.html'">창고 및 구역 관리</button>
+			<button class="menu-btn" onclick="location.href='movement.html'">창고 간 재고 이동</button>
+			<button class="menu-btn" onclick="location.href='audit.html'">감사로그</button>
+		</header>
+		
+		<h4 class= "page-title">출고 등록</h4>
+		
+		<!-- 입력폼 -->
+		<section class="form-box">
+			<div class="form-group">
+				<label>출고일</label>
+				<input type="date" id="outDate">
+			</div>
+			
+			<div class="form-group">
+				<label>카테고리</label>
+				<select id="outCategory">
+				</select>
+			</div>
+			
+			<div class="form-group">
+				<label>품목명 (치면 후보가 뜹니다)</label>
+				<input type="text" id="outName" list="itemList" onchange="changeItem()" onkeyup="changeItem()" placeholder="예: 두부">
+				<datalist id="itemList"></datalist>
+			</div>
+			
+			<div class="form-group">
+				<label>품목 코드</label>
+				<input type="text" id="outCode" readonly placeholder="품목을 고르면 채워집니다">
+			</div>
+			
+			<div class="form-group">
+				<label>수량</label>
+				<input type="number" id="outQty">
+			</div>
+			
+			<div class="form-group">
+				<label>단위</label>
+				<select id="outUnit">
+					<option>EA</option>
+					<option>BOX</option>
+					<option>PALLET</option>
+				</select>
+			</div>
+		
+			<div class="form-group">
+				<label>단가</label>
+				<input type="number" id="outPrice">
+			</div>
+			
+			<div class="form-group">
+				<label>창고</label>
+				<select id="outWarehouse" onchange="changeWarehouse()">
+				</select>
+			</div>
+			
+			<div class="form-group">
+				<label>구역</label>
+				<select id="outZone">
+				</select>
+			</div>
+			
+			<div class="form-group">
+				<label>목적지</label>
+				<select id="outPartner">
+				</select>
+			</div>
+			
+			<div class="form-group">
+				<label>담당자</label>
+				<input type="text" id="outWorker">
+			</div>
+			
+			<!-- 누르면 FIFO/FEFO 추천 모달이 뜹니다 -->
+			<button class="register-btn" onclick="openRecommend()">자동 추천 및 확인</button>
+		</section>
+		
+		<!-- 출고 입력(표)  -->
+		
+		<section class= "table-box">
+		<h4 class="table-title">출고 이력</h4>
+			<table>
+				<thead>
+					<tr>
+						<th>NO</th>
+						<th>출고 일자</th>
+						<th>품목 코드</th>
+						<th>로트 번호</th>
+						<th>품목명</th>
+						<th>수량</th>
+						<th>단위</th>
+						<th>단가</th>
+						<th>구역</th>
+						<th>목적지</th> <!-- 거래처랑 같습니다  -->
+						<th>담당자</th>
+						<th>삭제</th>
+					</tr>				
+				</thead>
+				
+				<!-- 표 내용은 drawList()가 채웁니다 -->
+				<tbody id="outBody">
+				</tbody>
+			</table>
+		
+			<!-- 쪽 번호 (명세서 S-04) -->
+			<div class="paging" id="paging"></div>
+		</section>
+		
+	</main>
+	
+	</div>
+
+<!-- FIFO/FEFO 추천 (모달) 페이지 -->
+<div class="modal-overlay" id="recommendModal">
+	<div class="modal-box">
+	
+		<div class="modal-header">
+			<h3>출고 방식 자동 추천</h3>
+			<button class="modal-close" onclick="closeAll()"> x </button>
+		</div>
+		<div class="modal-content">
+			<h4>출고 방식 자동 추천 완료</h4>
+			<p id="recommendText"></p>
+			<div class="recommend-box">
+				<span>추천 방식</span>
+				<strong id="recommendWay"></strong>
+			</div>
+		</div>
+		
+		<div class="modal-footer">
+			<button class="btn-cancel" onclick="closeAll()">취소</button>
+			<button class="btn-primary" onclick="openLot()">다음</button>
+		</div>
+	</div>
+</div>
+
+<!-- FIFO/FEFO 모달 2단계 -->
+<div class="modal-overlay" id="lotModal">
+	<div class="modal-box lot-modal">
+	
+		<div class="modal-header">
+			<h3>출고 LOT 자동 선택 결과</h3>
+			<button class="modal-close" onclick="closeAll()"> x </button>
+		</div>
+		
+		<div class="modal-content">
+			아래 로트에서 출고 수량이 차감됩니다.<br>
+			<strong id="lotTotalText"></strong>
+		</div>
+		<table>
+			<thead>
+				<tr>
+					<th>순서</th>
+					<th>로트번호</th>
+					<th>입고일</th>
+					<th>유통기한</th>
+					<th>출고 수량</th>
+				</tr>
+			</thead>
+		<tbody id="lotBody">
+		</tbody>
+		</table>
+		<div class="policy-info"><strong id="lotWayText"></strong></div>
+		
+		<div class="modal-footer">
+			<button class="btn-cancel" onclick="closeAll()">취소</button>
+			<button class="btn-primary" onclick="doRegister()">출고 등록</button>
+		</div>
+	</div>
+</div>
+
+
+<!-- ============================================================
+     출고 등록 화면 로직
+     ------------------------------------------------------------
+     흐름 : 입력 -> [자동 추천 및 확인] -> 모달1(FIFO/FEFO 판정)
+            -> [다음] -> 모달2(어느 로트에서 뺄지) -> [출고 등록] -> 표에 추가
+
+     드롭다운 값과 공통 함수는 common.js 에 있습니다.
+     ============================================================ -->
+<script>
+
+	/* ---------- 창고에 남아있는 재고 로트 ----------
+	   유통기한이 빈 값("")이면 유통기한 없는 품목입니다.
+	   나중에 : apiGet("/api/stock-lots?itemId=" + 번호, putLots) */
+
+	let lotNos = [];
+	let lotCodes = [];       // 어느 품목의 로트인지
+	let lotInDates = [];     // 입고일   (FIFO 기준)
+	let lotExpiries = [];    // 유통기한 (FEFO 기준)
+	let lotQtys = [];        // 남은 수량
+
+
+	/* ---------- 출고 이력 표 ---------- */
+
+	let rowDates = [];
+	let rowCodes = [];
+	let rowLots = [];
+	let rowNames = [];
+	let rowQtys = [];
+	let rowUnits = [];
+	let rowPrices = [];
+	let rowZones = [];
+	let rowPartners = [];
+	let rowWorkers = [];
+
+
+	/* ---------- 모달이 계산해 둔 결과 ---------- */
+
+	let pickedWay = "";        // "FIFO" 또는 "FEFO"
+	let pickedLotNos = [];
+	let pickedLotIn = [];
+	let pickedLotExp = [];
+	let pickedLotQtys = [];    // 그 로트에서 뺄 수량
+
+	/* 지금 보고 있는 쪽 */
+	let nowPage = 1;
+
+
+	function setupForm() {
+
+		loadMaster();
+
+		fillCategory("#outCategory");
+		fillItemList("#itemList");
+		fillPartner("#outPartner", "CUSTOMER");   // 출고는 거래처(고객)만
+		fillWarehouse("#outWarehouse");
+		fillZone("#outWarehouse", "#outZone");
+	}
+
+
+	/* 품목명을 고르면 코드·단위·카테고리가 알아서 채워집니다 */
+	function changeItem() {
+
+		let name = document.querySelector("#outName").value;
+		let i = findItemByName(name);
+
+		if (i == -1) {
+			document.querySelector("#outCode").value = "";
+			return;
+		}
+
+		document.querySelector("#outCode").value = itemCodes[i];
+		document.querySelector("#outUnit").value = itemUnitList[i];
+		document.querySelector("#outCategory").value = itemCategoryList[i];
+	}
+
+
+	function changeWarehouse() {
+		fillZone("#outWarehouse", "#outZone");
+	}
+
+
+	function loadLots() {
+
+		lotNos      = ["LOT-1", "LOT-2", "LOT-3", "LOT-4", "LOT-5", "LOT-6"];
+		lotCodes    = ["ITEM-1", "ITEM-1", "ITEM-2", "ITEM-2", "ITEM-201", "ITEM-201"];
+		lotInDates  = ["2026-07-22", "2026-08-08", "2026-07-22", "2026-08-08", "2026-07-20", "2026-08-05"];
+		lotExpiries = ["2026-07-30", "2026-08-16", "2026-08-02", "2026-08-19", "", ""];
+		lotQtys     = [40, 20, 8, 4, 50, 30];
+	}
+
+
+	function loadData() {
+
+		rowDates    = ["2026-08-06", "2026-08-06"];
+		rowCodes    = ["ITEM-1", "ITEM-2"];
+		rowLots     = ["LOT-1", "LOT-3"];
+		rowNames    = ["두부 프리미엄", "어묵 정품"];
+		rowQtys     = [60, 32];
+		rowUnits    = ["EA", "BOX"];
+		rowPrices   = [1500, 800];
+		rowZones    = ["대형(0) EA", "대형(0) BOX"];
+		rowPartners = ["이마트 성수점", "롯데마트 잠실점"];
+		rowWorkers  = ["김민준", "이서연"];
+
+		drawList();
+	}
+
+
+	function drawList() {
+
+		let all = [];
+		for (let i = 0; i < rowDates.length; i++) {
+			all[i] = i;
+		}
+
+		let list = cutPage(all, nowPage);
+		let html = "";
+
+		if (rowDates.length == 0) {
+			document.querySelector("#outBody").innerHTML = "<tr><td colspan='12'>출고 이력이 없습니다.</td></tr>";
+			drawPaging("#paging", 0, 1, "goPage");
+			return;
+		}
+
+		for (let n = 0; n < list.length; n++) {
+
+			let i = list[n];
+
+			html = html + "<tr>";
+			html = html + "<td>" + (i + 1) + "</td>";
+			html = html + "<td>" + rowDates[i] + "</td>";
+			html = html + "<td>" + rowCodes[i] + "</td>";
+			html = html + "<td>" + rowLots[i] + "</td>";
+			html = html + "<td>" + rowNames[i] + "</td>";
+			html = html + "<td>" + rowQtys[i] + "</td>";
+			html = html + "<td>" + rowUnits[i] + "</td>";
+			html = html + "<td>" + addComma(rowPrices[i]) + "</td>";
+			html = html + "<td>" + rowZones[i] + "</td>";
+			html = html + "<td>" + rowPartners[i] + "</td>";
+			html = html + "<td>" + rowWorkers[i] + "</td>";
+			html = html + "<td><button class='delete-btn' onclick='doDelete(" + i + ")'>삭제</button></td>";
+			html = html + "</tr>";
+		}
+
+		document.querySelector("#outBody").innerHTML = html;
+		drawPaging("#paging", rowDates.length, nowPage, "goPage");
+	}
+
+
+	/* 쪽 번호를 눌렀을 때 */
+	function goPage(p) {
+		nowPage = p;
+		drawList();
+	}
+
+
+	/* ---------- 모달 1 : FIFO / FEFO 판정 ---------- */
+
+	function openRecommend() {
+
+		if (isBlank(["#outDate", "#outName", "#outQty", "#outPrice", "#outWorker"]) == true) {
+			alert("빈 칸을 모두 채워 주세요.");
+			return;
+		}
+
+		/* 목록에 없는 품목명은 받지 않습니다 */
+		if (findItemByName(document.querySelector("#outName").value) == -1) {
+			alert("등록되지 않은 품목입니다.\n후보 목록에서 골라 주세요.");
+			return;
+		}
+
+		let qty = document.querySelector("#outQty").value;
+		if (qty <= 0) {
+			alert("수량은 1개 이상이어야 합니다.");
+			return;
+		}
+
+		let unit = document.querySelector("#outUnit").value;
+		let zoneText = getSelectText("#outZone");
+
+		if (unit != zoneText) {
+			alert("단위(" + unit + ")와 구역(" + zoneText + ")이 다릅니다.");
+			return;
+		}
+
+		/* 그 품목의 로트가 창고에 있는지, 유통기한이 있는지 확인 */
+		let code = document.querySelector("#outCode").value;
+		let found = 0;
+		let hasExpiry = 0;
+
+		for (let i = 0; i < lotNos.length; i++) {
+			if (lotCodes[i] == code) {
+				found = found + 1;
+				if (lotExpiries[i] != "") {
+					hasExpiry = 1;
+				}
+			}
+		}
+
+		if (found == 0) {
+			alert("품목 코드 " + code + " 의 재고가 창고에 없습니다.");
+			return;
+		}
+
+		/* 유통기한이 있는 품목이면 FEFO, 없으면 FIFO */
+		let text = "";
+
+		if (hasExpiry == 1) {
+			pickedWay = "FEFO";
+			text = "해당 품목은 유통기한 관리 대상입니다.<br>따라서 <strong>FEFO(유통기한 기준)</strong> 방식이 자동 추천되었습니다.";
+			document.querySelector("#recommendWay").innerHTML = "FEFO(선유통기한선출)";
+		} else {
+			pickedWay = "FIFO";
+			text = "해당 품목은 유통기한 관리 대상이 아닙니다.<br>따라서 <strong>FIFO(입고일 기준)</strong> 방식이 자동 추천되었습니다.";
+			document.querySelector("#recommendWay").innerHTML = "FIFO(선입선출)";
+		}
+
+		document.querySelector("#recommendText").innerHTML = text;
+		openModal("#recommendModal");
+	}
+
+
+	/* ---------- 모달 2 : 어느 로트에서 얼마씩 뺄지 ---------- */
+
+	function openLot() {
+
+		pickLots();
+
+		if (pickedLotNos.length == 0) {
+			return;
+		}
+
+		let html = "";
+		let total = 0;
+		let nearCount = 0;
+
+		for (let i = 0; i < pickedLotNos.length; i++) {
+
+			let expiry = pickedLotExp[i];
+			let cell = "-";
+
+			if (expiry != "") {
+
+				/* 유통기한이 7일 이내로 남았으면 눈에 띄게 표시합니다 (명세서 F-05) */
+				if (isNearExpiry(expiry) == true) {
+
+					let left = getLeftDays(expiry);
+					let word = "D-" + left;
+
+					if (left < 0) {
+						word = "기한 지남";
+					}
+
+					cell = "<span class='near-expiry'>" + expiry + " (" + word + ")</span>";
+					nearCount = nearCount + 1;
+
+				} else {
+					cell = expiry;
+				}
+			}
+
+			html = html + "<tr>";
+			html = html + "<td>" + (i + 1) + "</td>";
+			html = html + "<td>" + pickedLotNos[i] + "</td>";
+			html = html + "<td>" + pickedLotIn[i] + "</td>";
+			html = html + "<td>" + cell + "</td>";
+			html = html + "<td>" + pickedLotQtys[i] + "</td>";
+			html = html + "</tr>";
+
+			total = total + pickedLotQtys[i];
+		}
+
+		document.querySelector("#lotBody").innerHTML = html;
+		document.querySelector("#lotTotalText").innerHTML = "총 출고 수량: " + total + " " + document.querySelector("#outUnit").value;
+		let wayText = "추천 방식: " + pickedWay;
+
+		/* 임박한 로트가 섞여 있으면 함께 알려 줍니다 */
+		if (nearCount > 0) {
+			wayText = wayText + " / 유통기한 임박 로트 " + nearCount + "건이 포함되어 있습니다";
+		}
+
+		document.querySelector("#lotWayText").innerHTML = wayText;
+
+		closeModal("#recommendModal");
+		openModal("#lotModal");
+	}
+
+
+	/* 오래된 것부터 순서대로 골라서 요청 수량을 채웁니다.
+	   FIFO = 입고일이 빠른 순, FEFO = 유통기한이 빠른 순.
+
+	   이 계산은 원래 3번 담당(백엔드 후처리) 몫입니다.
+	   서버가 준비되면 아래 한 줄로 바뀝니다.
+	     apiGet("/api/outbound/recommend?itemId=..&quantity=..&sortBy=fefo", putPicked); */
+	function pickLots() {
+
+		let code = document.querySelector("#outCode").value;
+		let need = document.querySelector("#outQty").value * 1;
+
+		pickedLotNos = [];
+		pickedLotIn = [];
+		pickedLotExp = [];
+		pickedLotQtys = [];
+
+		/* 그 품목의 로트만 뽑습니다 */
+		let myNos = [];
+		let myIn = [];
+		let myExp = [];
+		let myQty = [];
+
+		for (let i = 0; i < lotNos.length; i++) {
+			if (lotCodes[i] == code && lotQtys[i] > 0) {
+				myNos[myNos.length] = lotNos[i];
+				myIn[myIn.length] = lotInDates[i];
+				myExp[myExp.length] = lotExpiries[i];
+				myQty[myQty.length] = lotQtys[i];
+			}
+		}
+
+		/* 오래된 순으로 줄 세우기 (자리 바꾸기 방식) */
+		for (let i = 0; i < myNos.length; i++) {
+			for (let j = i + 1; j < myNos.length; j++) {
+
+				let left = myIn[i];
+				let right = myIn[j];
+
+				if (pickedWay == "FEFO") {
+					left = myExp[i];
+					right = myExp[j];
+				}
+
+				if (left > right) {
+					let t1 = myNos[i]; myNos[i] = myNos[j]; myNos[j] = t1;
+					let t2 = myIn[i];  myIn[i]  = myIn[j];  myIn[j]  = t2;
+					let t3 = myExp[i]; myExp[i] = myExp[j]; myExp[j] = t3;
+					let t4 = myQty[i]; myQty[i] = myQty[j]; myQty[j] = t4;
+				}
+			}
+		}
+
+		/* 앞에서부터 필요한 만큼 담습니다 */
+		let rest = need;
+
+		for (let i = 0; i < myNos.length; i++) {
+
+			if (rest <= 0) {
+				break;
+			}
+
+			let take = myQty[i];
+			if (take > rest) {
+				take = rest;
+			}
+
+			pickedLotNos[pickedLotNos.length] = myNos[i];
+			pickedLotIn[pickedLotIn.length] = myIn[i];
+			pickedLotExp[pickedLotExp.length] = myExp[i];
+			pickedLotQtys[pickedLotQtys.length] = take;
+
+			rest = rest - take;
+		}
+
+		/* 창고에 있는 수량보다 많이 요청한 경우 */
+		if (rest > 0) {
+			alert("재고가 부족합니다.\n요청 " + need + "개 중 " + (need - rest) + "개만 출고할 수 있습니다.");
+			pickedLotNos = [];
+			closeAll();
+		}
+	}
+
+
+	/* ---------- 출고 등록 / 삭제 / 닫기 ---------- */
+
+	function doRegister() {
+
+		let outDate = document.querySelector("#outDate").value;
+		let code    = document.querySelector("#outCode").value;
+		let name    = document.querySelector("#outName").value;
+		let unit    = document.querySelector("#outUnit").value;
+		let price   = document.querySelector("#outPrice").value;
+		let worker  = document.querySelector("#outWorker").value;
+
+		let partnerText = getSelectText("#outPartner");
+		let zoneFull    = getSelectText("#outWarehouse") + " " + getSelectText("#outZone");
+
+		/* 로트가 여러 개면 줄도 여러 개 생깁니다 (로트마다 한 줄) */
+		for (let i = 0; i < pickedLotNos.length; i++) {
+
+			let last = rowDates.length;
+
+			rowDates[last]    = outDate;
+			rowCodes[last]    = code;
+			rowLots[last]     = pickedLotNos[i];
+			rowNames[last]    = name;
+			rowQtys[last]     = pickedLotQtys[i];
+			rowUnits[last]    = unit;
+			rowPrices[last]   = price;
+			rowZones[last]    = zoneFull;
+			rowPartners[last] = partnerText;
+			rowWorkers[last]  = worker;
+
+			/* 창고에 남은 수량도 줄여 줍니다 */
+			for (let k = 0; k < lotNos.length; k++) {
+				if (lotNos[k] == pickedLotNos[i]) {
+					lotQtys[k] = lotQtys[k] - pickedLotQtys[i];
+				}
+			}
+		}
+
+		let count = pickedLotNos.length;
+
+		drawList();
+		clearInput(["#outCode", "#outName", "#outQty", "#outPrice", "#outWorker"]);
+		closeAll();
+
+		alert("출고가 등록되었습니다. (로트 " + count + "건)");
+	}
+
+
+	function doDelete(index) {
+
+		if (confirm("이 출고 내역을 삭제할까요?") == false) {
+			return;
+		}
+
+		removeAt([rowDates, rowCodes, rowLots, rowNames, rowQtys, rowUnits,
+		          rowPrices, rowZones, rowPartners, rowWorkers], index);
+
+		drawList();
+	}
+
+
+	function closeAll() {
+		closeModal("#recommendModal");
+		closeModal("#lotModal");
+	}
+
+
+	/* 화면이 열릴 때 실행 */
+	setupForm();
+	loadLots();
+	loadData();
+
+</script>
+
+</body>
+
+
+
+</html>

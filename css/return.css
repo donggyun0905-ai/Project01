@@ -1,0 +1,142 @@
+/* return.css(반품 및 폐기 관리) */
+
+.form-box{
+	grid-template-columns: repeat(5, 1fr);
+}
+
+.form-group{
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.register-btn{
+	background: rgb(0, 128, 0);
+}
+
+
+/*반품/폐기 등록 모달  */
+.modal-overlay{
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: rgba(0, 0, 0, 0.35);
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	z-index: 1000;
+}
+
+.modal-box{
+	width: 820px;
+	background: #fff;
+	border-radius: 8px;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+	overflow: hidden;
+}
+
+/*모달 상단 제목  */
+.modal-header{
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 18px 20px;
+	border-bottom: 1px solid #ddd;
+}
+
+.modal-close{
+	border: none;
+	background: none;
+	font-size: 22px;
+	cursor: pointer;
+}
+
+/* 모달 가운데 */
+.modal-content{
+	padding: 30px 25px
+}
+
+.modal-content h4 {
+	margin-bottom: 20px;
+	font-size: 16px;
+}
+
+.modal-content p {
+	font-size: 13px;
+	line-height: 1.7;
+	color: #555;
+}
+
+.recommend-box {
+	margin-top: 25px;
+	padding: 18px;
+	border: 1px solid #b8ccf5;
+	border-radius: 5px;
+	background: #f7f9ff;
+	text-align: left;
+}
+
+.recommend-box span {
+	display: block;
+	font-size: 12px;
+	color: #555;
+	margin-bottom: 8px;
+}
+
+.recommend-box strong {
+	display: block;
+	color: #1455c0;
+	text-align: center;
+}
+
+.modal-footer {
+	display: flex;
+	gap: 15px;
+	padding: 15px 20px 20px;
+}
+
+
+/* 모달을 보려면 display: none -> display: flex로 변경  */
+.modal-overlay{
+	display: flex;
+}
+
+.modal-overlay.active {
+	display: flex;
+}
+
+/* 모달 버튼 */
+.modal-footer button {
+	flex: 1;
+	height: 42px;
+	/* width: 100px; */
+	border: none;
+	border-radius: 6px;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: 0.2s;
+}
+
+.btn-cancel {
+	background: white;
+	border: 1px solid #ccc;
+}
+
+.btn-primary {
+	background: rgb(0, 128, 0);
+	border: none;
+	color: white;
+}
+
+/* 모달은 기본으로 숨기고, active 가 붙을 때만 보이게 합니다.
+   (화면 설계 중 모양을 보려고 display: flex 로 열어둔 것을 되돌린 것입니다) */
+.modal-overlay {
+	display: none;
+}
+
+.modal-overlay.active {
+	display: flex;
+}

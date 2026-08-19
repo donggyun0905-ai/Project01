@@ -1,0 +1,150 @@
+<!DOCTYPE html> <!-- 권한 관리-->
+
+<html lang = "ko">
+<head> 
+	<meta charset="UTF-8">
+	<title>권한 관리</title>
+	
+	<!-- 공통 css -->
+	<link rel="stylesheet" href="../css/common.css">
+	
+	<!-- 서버 통신 공통 함수 -->
+	<script src="../js/api.js"></script>
+	<script src="../js/common.js"></script>
+</head>
+
+<!-- 바디  -->
+<body>
+	<!-- 전체 화면 -->
+	<div class="container">
+	
+	<!--  사이드바-->	
+	<aside class="sidebar">
+		<div class="logo" onclick="location.href='dashboard.html'">
+			<img src="../images/logo.png" alt="DOWN MART">
+		<p>DOWN MART</p>
+		</div>
+		<nav class="sidebar-menu">
+				<a href="dashboard.html">메인 대시보드</a>
+				<a href="item.html">입출고 관리</a>
+				<a href="return.html">반품 및 폐기 관리</a>
+				<a href="alert.html">알림</a>
+				<a href="statistics.html">통계</a>
+				<a class="active" href="setting.html">설정 및 권한 관리</a>
+			</nav>
+	</aside>
+		
+	<!-- 오른쪽 위에 뜨는거 -->
+	<main class="content">
+		<header class="top-menu">
+			<button class="menu-btn" onclick="location.href='setting.html'">사용자 관리</button> 
+			<button class="menu-btn" onclick="location.href='approval.html'">자동 제안 및 승인</button> 
+			<button class="menu-btn active">권한 관리</button>
+		</header>
+		
+		<!-- (표)  -->
+		<section class= "table-box">
+			<table>
+				<thead>
+					<tr>
+						<th>기능</th>
+						<th>관리자</th> 
+						<th>일반 담당자</th>
+						<th>설명</th> 
+					</tr>				
+				</thead>
+				
+				<!-- 표 내용은 drawList()가 채웁니다 -->
+				<tbody id="roBody">
+				</tbody>
+			</table>
+		</section>
+		
+	</main>
+	
+	</div>
+
+<!-- ============================================================
+     권한 관리 화면 로직
+     ------------------------------------------------------------
+     이 표는 사람이 고치는 설정이 아니라, 시스템이 실제로 어떻게
+     동작하는지를 보여 주는 안내표입니다.
+
+     권한은 ADMIN / STAFF 두 가지로 정해져 있고,
+     서버(AuthFilter)가 요청마다 직접 확인합니다.
+     따라서 화면에서 켜고 끄는 것이 아니라,
+     사용자 관리에서 그 사람의 역할을 바꾸는 방식으로 조정합니다.
+     ============================================================ -->
+<script>
+
+	/* 기능별 권한. 같은 번호끼리 한 줄입니다. */
+	let fnNames = [];
+	let adminOk = [];
+	let staffOk = [];
+	let fnNotes = [];
+
+
+	function loadData() {
+
+		fnNames = ["입출고 관리", "반품 및 폐기 관리", "창고 간 재고 이동", "알림 확인",
+		           "통계 및 보고서", "자동 제안 및 승인", "재고 직접 수정 · 삭제",
+		           "감사로그 조회 · 되돌리기", "창고 및 구역 관리", "사용자 관리", "권한 관리"];
+
+		adminOk = [true, true, true, true, true, true, true, true, true, true, true];
+		staffOk = [true, true, true, true, true, false, false, false, false, false, false];
+
+		fnNotes = [
+			"담당 창고의 품목만 처리할 수 있습니다",
+			"담당 창고의 로트만 처리할 수 있습니다",
+			"출발·도착 창고가 모두 담당 창고여야 합니다",
+			"담당 창고의 알림만 보입니다",
+			"조회만 가능합니다",
+			"승인하면 입고·출고가 바로 실행되어 관리자만 가능합니다",
+			"정상 업무 흐름이 아닌 직접 수정이라 관리자만 가능합니다",
+			"되돌리기는 재고를 바꾸는 일이라 관리자만 가능합니다",
+			"창고 구조를 바꾸는 일이라 관리자만 가능합니다",
+			"계정 등록·수정·비활성 처리",
+			"이 화면"
+		];
+
+		drawList();
+	}
+
+
+	function drawList() {
+
+		let html = "";
+
+		for (let i = 0; i < fnNames.length; i++) {
+
+			let admin = "-";
+			let staff = "-";
+
+			if (adminOk[i] == true) {
+				admin = "○";
+			}
+			if (staffOk[i] == true) {
+				staff = "○";
+			}
+
+			html = html + "<tr>";
+			html = html + "<td>" + fnNames[i] + "</td>";
+			html = html + "<td>" + admin + "</td>";
+			html = html + "<td>" + staff + "</td>";
+			html = html + "<td>" + fnNotes[i] + "</td>";
+			html = html + "</tr>";
+		}
+
+		document.querySelector("#roBody").innerHTML = html;
+	}
+
+
+	/* 화면이 열릴 때 실행 */
+	loadData();
+
+</script>
+
+</body>
+
+
+</html>

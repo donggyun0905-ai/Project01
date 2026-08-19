@@ -1,0 +1,368 @@
+<!DOCTYPE html> <!--dashboard 메인 대시보드-->
+
+<html lang = "ko">
+<head>
+	<meta charset="UTF-8">
+	<title>메인 대시보드</title>
+
+	<!-- 공통 css -->
+	<link rel="stylesheet" href="../css/common.css">
+	<!-- dashboard css -->
+	<link rel="stylesheet" href="../css/dashboard.css">
+	<script src="../js/api.js"></script>
+	<script src="../js/common.js"></script>
+</head>
+
+<!-- 바디 -->
+<body>
+	<!-- 전체 화면 -->
+	<div class="container">
+
+	<!-- 사이드바 -->
+	<aside class="sidebar">
+		<div class="logo" onclick="location.href='dashboard.html'">
+			<img src="../images/logo.png" alt="DOWN MART">
+		<p>DOWN MART</p>
+		</div>
+		<nav class="sidebar-menu">
+				<a class="active" href="dashboard.html">메인 대시보드</a>
+				<a href="item.html">입출고 관리</a>
+				<a href="return.html">반품 및 폐기 관리</a>
+				<a href="alert.html">알림</a>
+				<a href="statistics.html">통계</a>
+				<a href="setting.html">설정 및 권한 관리</a>
+			</nav>
+	</aside>
+
+	<!-- 오른쪽 위에 뜨는거 -->
+	<main class="content">
+
+	<div class="top-bar">
+		<h4 class="page-title">메인 대시보드</h4>
+	</div>
+
+		<!-- 조회 조건 -->
+		<section class="form-box">
+			<div class="form-group">
+				<label>창고</label>
+				<select id="warehouse">
+					<option>전체</option>
+					<option>대형 1</option>
+					<option>대형 2</option>
+					<option>대형 3</option>
+					<option>대형 4</option>
+					<option>대형 5</option>
+					<option>중형 1</option>
+					<option>중형 2</option>
+					<option>중형 3</option>
+					<option>소형 1</option>
+					<option>소형 2</option>
+				</select>
+			</div>
+
+			<div class="form-group">
+				<label>기준일</label>
+				<input type="date" id="pickDate" onchange="changeDate()">
+			</div>
+		</section>
+
+		<!-- 요약 카드 5개 -->
+		<section class="summary-wrap" id="cardArea"></section>
+
+		<!-- 입출고 현황 / 창고별 재고 / 실시간 알림 -->
+		<section class="panel-wrap">
+
+			<div class="card">
+				<div class="card-header">
+					<h4>입출고 현황</h4>
+					<span>최근 7일</span>
+				</div>
+				<div class="chart-area">
+					<canvas id="barChart"></canvas>
+				</div>
+			</div>
+
+			<div class="card">
+				<div class="card-header">
+					<h4>창고별 재고 비중</h4>
+				</div>
+				<div class="donut-area">
+					<canvas id="donutChart"></canvas>
+				</div>
+				<div class="donut-total" id="totalNum">-
+					<span>총 재고(EA)</span>
+				</div>
+				<div id="legendArea"></div>
+			</div>
+
+			<div class="card">
+				<div class="card-header">
+					<h4>실시간 알림</h4>
+					<span><a href="alert.html">전체 보기</a></span>
+				</div>
+				<div id="alertArea"></div>
+			</div>
+
+		</section>
+
+	</main>
+
+	</div>
+
+<!-- 그래프를 그려주는 도구 (Chart.js) - 인터넷 없이도 되도록 파일로 받아서 넣어둠 -->
+<script src="../js/chart.js"></script>
+
+<script type="text/javascript">
+	/* =========================================================
+	   화면에 보여줄 값들을 담아둘 배열 (처음에는 비어 있다)
+	   ========================================================= */
+
+	// 위쪽 요약 카드 5개
+	let cardNames = [];
+	let cardNums  = [];
+	let cardUnits = [];
+	let cardDiffs = [];
+
+	// 입출고 현황
+	let days     = [];
+	let inQtys   = [];
+	let outQtys  = [];
+
+	// 창고별 재고
+	let whNames  = [];
+	let whQtys   = [];
+	let whColors = [];
+
+	// 실시간 알림
+	let alertTypes = [];
+	let alertItems = [];
+	let alertMsgs  = [];
+	let alertTimes = [];
+
+	// 그래프를 담아둘 변수 (다시 그릴 때 이전 것을 지우기 위해 필요)
+	let barChart = null;
+	let donutChart = null;
+
+	/* =========================================================
+	   화면에 쓸 자료를 가져온다
+
+	   [서버 연동 방법]
+	   지금은 서버가 없어서 값을 직접 적어두고 쓴다.
+	   나중에 서버가 완성되면 이 함수 안쪽만 아래처럼 바꾸면 되고,
+	   화면을 그리는 코드는 하나도 고칠 필요가 없다.
+
+	     function loadData() {
+	       let xhr = new XMLHttpRequest();
+	       xhr.open("GET", "http://localhost:8080/api/reports/daily", true);
+
+	       // 로그인 세션 쿠키(JSESSIONID)를 같이 보낸다 - 이게 없으면 401이 온다
+	       xhr.withCredentials = true;
+
+	       xhr.onload = function() {
+	         let res = JSON.parse(xhr.responseText);
+
+	         if (res.success == false) {
+	           alert(res.error.message);
+	           return;
+	         }
+
+	         cardNums[0] = res.data.totalItemCount;
+	         cardNums[1] = res.data.totalStockQty;
+	         // ... 나머지도 같은 방식으로 채운다
+
+	         drawAll();
+	       };
+	       xhr.send();
+	     }
+	   ========================================================= */
+	function loadData() {
+		cardNames = ["총 보유 품목", "총 보유 재고 수량", "오늘 입고 수량", "오늘 출고 수량", "재고 부족 품목"];
+		cardNums  = [250, 52350, 1250, 980, 2];
+		cardUnits = ["종", "EA", "EA", "EA", "종"];
+		cardDiffs = [0, 2.4, 8.1, -3.5, 0];
+
+		days     = ["08-05", "08-06", "08-07", "08-08", "08-09", "08-10", "08-11"];
+		inQtys   = [820, 1040, 690, 1250, 900, 760, 1180];
+		outQtys  = [640, 880, 720, 980, 1100, 540, 860];
+
+		// 창고별 재고 (실제 시드 기준: 대형 5개 / 중형 3개 / 소형 2개)
+		whNames  = ["대형 창고 (5개소)", "중형 창고 (3개소)", "소형 창고 (2개소)"];
+		whQtys   = [30350, 14200, 7800];
+		whColors = ["#1f2628", "#5a8f7b", "#9b9b9b"];
+
+		alertTypes = ["재고부족", "재고초과", "이상출고", "예측알림"];
+		alertItems = ["두부 프리미엄", "어묵 정품", "만두 프리미엄", "베이컨 정품"];
+		alertMsgs  = [
+			"현재 재고가 임계치(16개) 미만입니다.",
+			"현재 재고가 최대 보유량(23박스)을 초과했습니다.",
+			"출고 수량이 최근 평균 출고량의 3배를 넘었습니다.",
+			"5일 내 재고 소진이 예상됩니다."
+		];
+		alertTimes = ["09:40", "08:15", "07:52", "어제"];
+
+		// 자료를 다 받은 뒤에 화면을 그린다
+		drawAll();
+	}
+
+	// 화면 전체를 그린다
+	function drawAll() {
+		drawCards();
+		drawBarChart();
+		drawDonutChart();
+		drawAlerts();
+	}
+
+	/* =========================================================
+	   숫자에 쉼표를 넣어준다   52350 -> 52,350
+	   ========================================================= */
+	/* addComma 는 common.js 로 옮겼습니다 */
+
+	/* =========================================================
+	   위쪽 요약 카드 5개를 그린다
+	   ========================================================= */
+	function drawCards() {
+		let html = "";
+
+		for (let i = 0; i < cardNames.length; i++) {
+			html = html + '<div class="summary-card">';
+			html = html + '	<div class="summary-name">' + cardNames[i] + '</div>';
+			html = html + '	<div class="summary-count">' + addComma(cardNums[i]);
+			html = html + '		<span class="summary-unit">' + cardUnits[i] + '</span>';
+			html = html + '	</div>';
+
+			// 전일 대비 증감 표시 (0이면 표시하지 않는다)
+			if (cardDiffs[i] > 0) {
+				html = html + '	<div class="diff diff-up">▲ ' + cardDiffs[i] + '% 전일 대비</div>';
+			} else if (cardDiffs[i] < 0) {
+				html = html + '	<div class="diff diff-down">▼ ' + (cardDiffs[i] * -1) + '% 전일 대비</div>';
+			}
+
+			html = html + '</div>';
+		}
+
+		document.querySelector("#cardArea").innerHTML = html;
+	}
+
+	/* =========================================================
+	   입출고 현황 막대그래프를 그린다
+	   ========================================================= */
+	function drawBarChart() {
+		// 이미 그려둔 그래프가 있으면 먼저 지운다 (안 지우면 겹쳐서 이상해진다)
+		if (barChart != null) {
+			barChart.destroy();
+		}
+
+		let area = document.querySelector("#barChart");
+
+		barChart = new Chart(area, {
+			type: "bar",
+			data: {
+				labels: days,
+				datasets: [
+					{ label: "입고량", data: inQtys, backgroundColor: "#1f2628" },
+					{ label: "출고량", data: outQtys, backgroundColor: "#9b9b9b" }
+				]
+			},
+			options: {
+				responsive: true,
+				maintainAspectRatio: false
+			}
+		});
+	}
+
+	/* =========================================================
+	   창고별 재고 도넛그래프를 그린다
+	   ========================================================= */
+	function drawDonutChart() {
+		if (donutChart != null) {
+			donutChart.destroy();
+		}
+
+		let area = document.querySelector("#donutChart");
+
+		donutChart = new Chart(area, {
+			type: "doughnut",
+			data: {
+				labels: whNames,
+				datasets: [
+					{ data: whQtys, backgroundColor: whColors }
+				]
+			},
+			options: {
+				responsive: true,
+				maintainAspectRatio: false,
+				plugins: {
+					legend: { display: false }
+				}
+			}
+		});
+
+		// 전체 합계를 구해서 도넛 아래에 표시한다
+		let total = 0;
+		for (let i = 0; i < whQtys.length; i++) {
+			total = total + whQtys[i];
+		}
+		document.querySelector("#totalNum").innerHTML = addComma(total) + '<span>총 재고(EA)</span>';
+
+		// 창고 목록을 아래에 적는다
+		let html = "";
+		for (let i = 0; i < whNames.length; i++) {
+			html = html + '<div class="legend-row">';
+			html = html + '	<span class="legend-color" style="background:' + whColors[i] + '"></span>';
+			html = html + '	<span class="legend-name">' + whNames[i] + '</span>';
+			html = html + '	<span class="legend-num">' + addComma(whQtys[i]) + '</span>';
+			html = html + '</div>';
+		}
+		document.querySelector("#legendArea").innerHTML = html;
+	}
+
+	/* =========================================================
+	   실시간 알림 목록을 그린다
+	   ========================================================= */
+	function drawAlerts() {
+		let html = "";
+
+		for (let i = 0; i < alertTypes.length; i++) {
+			html = html + '<div class="alert-row">';
+			html = html + '	<div class="alert-top">';
+			html = html + '		<span class="tag tag-' + alertTypes[i] + '">' + alertTypes[i] + '</span>';
+			html = html + '		<span class="alert-item">' + alertItems[i] + '</span>';
+			html = html + '		<span class="alert-time">' + alertTimes[i] + '</span>';
+			html = html + '	</div>';
+			html = html + '	<div class="alert-msg">' + alertMsgs[i] + '</div>';
+			html = html + '</div>';
+		}
+
+		document.querySelector("#alertArea").innerHTML = html;
+	}
+
+	/* =========================================================
+	   기준일을 바꿨을 때
+	   ========================================================= */
+	function changeDate() {
+		// 나중에 서버가 생기면 여기서 그 날짜의 자료를 다시 받아오면 된다
+		let pick = document.querySelector("#pickDate").value;
+		alert(pick + " 자료를 불러옵니다. (서버 연동 후 동작)");
+	}
+
+	/* =========================================================
+	   페이지가 열릴 때 처음 한 번 실행
+	   ========================================================= */
+
+	// 날짜 칸에 오늘 날짜를 넣어둔다
+	let today = new Date();
+	let yyyy = today.getFullYear();
+	let mm = today.getMonth() + 1;       // 달은 0부터 시작해서 1을 더해준다
+	let dd = today.getDate();
+	if (mm < 10) mm = "0" + mm;          // 한 자리면 앞에 0을 붙인다
+	if (dd < 10) dd = "0" + dd;
+	document.querySelector("#pickDate").value = yyyy + "-" + mm + "-" + dd;
+
+	loadData();
+</script>
+
+</body>
+
+
+
+</html>

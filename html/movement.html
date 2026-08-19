@@ -1,0 +1,475 @@
+<!DOCTYPE html> <!-- 08.13 창고 간 재고 이동 -->
+<html lang = "ko">
+<head> 
+	<meta charset="UTF-8">
+	<title>창고 간 재고 이동</title>
+	
+	<!-- 공통 css -->
+	<link rel="stylesheet" href="../css/common.css">
+	<!--inbound css -->
+	<link rel="stylesheet" href="../css/movement.css">
+	
+	<!-- 서버 통신 공통 함수 -->
+	<script src="../js/api.js"></script>
+	<script src="../js/common.js"></script>
+</head>
+
+<!-- 바디  -->
+<body>
+	<!-- 전체 화면 -->
+	<div class="container">
+	
+	<!--  사이드바-->	
+	<aside class="sidebar">
+		<div class="logo" onclick="location.href='dashboard.html'">
+			<img src="../images/logo.png" alt="DOWN MART">
+		<p>DOWN MART</p>
+		</div>
+		<nav class="sidebar-menu">
+				<a href="dashboard.html">메인 대시보드</a>
+				<a class="active" href="item.html">입출고 관리</a>
+				<a href="return.html">반품 및 폐기 관리</a>
+				<a href="alert.html">알림</a>
+				<a href="statistics.html">통계</a>
+				<a href="setting.html">설정 및 권한 관리</a>
+			</nav>
+	</aside>
+	
+	<!-- 오른쪽 위에 뜨는거 -->
+	<main class="content">
+		<header class="top-menu">
+			<button class="menu-btn" onclick="location.href='item.html'">품목 관리</button> 
+			<button class="menu-btn" onclick="location.href='inout.html'">입출고 등록</button> 
+			<button class="menu-btn" onclick="location.href='warehouse.html'">창고 및 구역 관리</button>
+			<button class="menu-btn active">창고 간 재고 이동</button> <!--현재 화면이 창고 간 재고 이동이라서 -->
+			<button class="menu-btn" onclick="location.href='audit.html'">감사로그</button>
+		</header>
+		
+		<h4 class= "page-title">재고 이동</h4>
+		
+		<!-- 입력폼 -->
+		<section class="form-box">
+				<div class="form-group">
+					<label>이동 일자</label>
+					<input type="date" id="mvDate">
+				</div>
+				
+				<div class="form-group">
+					<label>담당자</label>
+					<input type="text" id="mvWorker">
+				</div>
+				
+				<div class="form-group">
+					<label>로트 번호</label>
+					<select id="mvLot" onchange="changeLot()">
+					</select>
+				</div>
+				
+				<div class="form-group">
+					<label>품목명</label>
+					<input type="text" id="mvName" readonly>
+				</div>
+				
+				<div class="form-group">
+					<label>품목 코드</label>
+					<input type="text" id="mvCode" readonly>
+				</div>
+				
+				<div class="form-group">
+					<label>수량 (남은 수량 이하)</label>
+					<input type="number" id="mvQty">
+				</div>
+				
+				<div class="form-group">
+					<label>출발 구역</label>
+					<input type="text" id="mvFrom" readonly>
+				</div>
+				
+				<div class="form-group">
+					<label>도착 창고</label>
+					<select id="mvToWarehouse" onchange="changeWarehouse()">
+					</select>
+				</div>
+				
+				<div class="form-group">
+					<label>도착 구역</label>
+					<select id="mvToZone">
+					</select>
+				</div>
+					
+				<div class="form-group">
+					<label>비고</label>
+					<input type="text" id="mvNote">
+				</div>
+				
+				<button class="register-btn" onclick="doRegister()">이동 등록</button>
+			</section>
+		
+		<!-- 이동 이력 목록(표)  -->
+		
+		<section class= "table-box">
+		<h4 class="table-title">이동 이력 목록</h4>
+		<!-- 기간으로 거르기 (명세서 S-07) -->
+		<div class="list-filter">
+			<label>기간</label>
+			<input type="date" id="fFrom" onchange="drawList()">
+			<span>~</span>
+			<input type="date" id="fTo" onchange="drawList()">
+		</div>
+			<table>
+				<thead>
+					<tr>
+						<th>이동 일자</th>
+						<th>담당자</th>
+						<th>품목명</th>
+						<th>품목 번호</th>
+						<th>로트 번호</th>
+						<th>수량</th>
+						<th>출발 구역</th>
+						<th>도착 구역</th>
+						<th>비고</th>
+						<th>삭제</th>
+					</tr>				
+				</thead>
+				
+				<!-- 표 내용은 drawList()가 채웁니다 -->
+					<tbody id="mvBody">
+					</tbody>
+			</table>
+		
+			<!-- 쪽 번호 (명세서 S-04) -->
+			<div class="paging" id="paging"></div>
+		</section>
+		
+	</main>
+	
+	</div>
+
+
+<!-- ============================================================
+     재고 이동 화면 로직
+     ------------------------------------------------------------
+     서버(TransferService)가 검사하는 규칙을 화면에서도 미리 막습니다.
+       1) 출발 구역과 도착 구역이 같으면 안 됨
+       2) 품목 단위와 도착 구역 이름이 같아야 함 (EA 로트는 EA 구역으로만)
+       3) 로트에 남은 수량보다 많이 옮길 수 없음
+
+     수량이 로트 전체와 같으면 "전체 이동"(구역만 바뀜),
+     적으면 "분할"(원본은 줄고 새 로트가 생김) 이 됩니다.
+     ============================================================ -->
+<script>
+
+	/* ---------- 창고에 있는 재고 로트 ----------
+	   나중에 : apiGet("/api/stock-lots", putLots) */
+
+	let lotNos = [];
+	let lotCodes = [];
+	let lotNames = [];
+	let lotUnits = [];
+	let lotQtys = [];        // 남은 수량
+	let lotZones = [];       // 지금 있는 구역 (예: "대형(0) EA")
+
+	/* 분할될 때 붙일 새 로트 번호 */
+	let lotSeq = 100;
+
+	/* 지금 보고 있는 쪽 */
+	let nowPage = 1;
+
+
+	/* ---------- 이동 이력 표 ---------- */
+
+	let rowDates = [];
+	let rowWorkers = [];
+	let rowNames = [];
+	let rowCodes = [];
+	let rowLots = [];
+	let rowQtys = [];
+	let rowFroms = [];
+	let rowTos = [];
+	let rowNotes = [];
+
+
+	function setupForm() {
+
+		loadMaster();
+		fillWarehouse("#mvToWarehouse");
+		fillZone("#mvToWarehouse", "#mvToZone");
+	}
+
+
+	function changeWarehouse() {
+		fillZone("#mvToWarehouse", "#mvToZone");
+	}
+
+
+	function loadLots() {
+
+		lotNos   = ["LOT-1", "LOT-2", "LOT-3", "LOT-4", "LOT-5", "LOT-6"];
+		lotCodes = ["ITEM-1", "ITEM-1", "ITEM-2", "ITEM-2", "ITEM-201", "ITEM-201"];
+		lotNames = ["두부 프리미엄", "두부 프리미엄", "어묵 정품", "어묵 정품",
+		            "주방세제 대용량", "주방세제 대용량"];
+		lotUnits = ["EA", "EA", "BOX", "BOX", "EA", "EA"];
+		lotQtys  = [40, 20, 8, 4, 50, 30];
+		lotZones = ["대형(0) EA", "대형(0) EA", "대형(0) BOX", "중형(5) BOX",
+		            "대형(1) EA", "대형(1) EA"];
+
+		drawLotSelect();
+	}
+
+
+	/* 로트 드롭다운을 채웁니다 (남은 수량이 있는 것만) */
+	function drawLotSelect() {
+
+		let html = "";
+
+		for (let i = 0; i < lotNos.length; i++) {
+			if (lotQtys[i] > 0) {
+				html = html + "<option>" + lotNos[i] + "</option>";
+			}
+		}
+
+		document.querySelector("#mvLot").innerHTML = html;
+		changeLot();
+	}
+
+
+	/* 로트를 고르면 품목명·코드·출발 구역이 자동으로 채워집니다 */
+	function changeLot() {
+
+		let picked = document.querySelector("#mvLot").value;
+		let i = findLot(picked);
+
+		if (i == -1) {
+			return;
+		}
+
+		document.querySelector("#mvName").value = lotNames[i];
+		document.querySelector("#mvCode").value = lotCodes[i];
+		document.querySelector("#mvFrom").value = lotZones[i];
+	}
+
+
+	/* 로트 번호로 몇 번째인지 찾습니다. 없으면 -1 */
+	function findLot(no) {
+
+		for (let i = 0; i < lotNos.length; i++) {
+			if (lotNos[i] == no) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+
+	/* ---------- 이동 이력 표 ---------- */
+
+	function loadData() {
+
+		rowDates   = ["2026-08-04"];
+		rowWorkers = ["김민준"];
+		rowNames   = ["두부 프리미엄"];
+		rowCodes   = ["ITEM-1"];
+		rowLots    = ["LOT-1"];
+		rowQtys    = [10];
+		rowFroms   = ["대형(0) EA"];
+		rowTos     = ["중형(5) EA"];
+		rowNotes   = ["구역 정리"];
+
+		drawList();
+	}
+
+
+	/* 기간 조건에 맞는 줄 번호만 골라냅니다 */
+	function getList() {
+
+		let from = document.querySelector("#fFrom").value;
+		let to = document.querySelector("#fTo").value;
+		let result = [];
+
+		for (let i = 0; i < rowDates.length; i++) {
+
+			if (from != "" && rowDates[i] < from) {
+				continue;
+			}
+			if (to != "" && rowDates[i] > to) {
+				continue;
+			}
+
+			result[result.length] = i;
+		}
+
+		return result;
+	}
+
+
+	function drawList() {
+
+		let all = getList();
+		let list = cutPage(all, nowPage);
+		let html = "";
+
+		if (all.length == 0) {
+			document.querySelector("#mvBody").innerHTML = "<tr><td colspan='10'>조건에 맞는 이동 이력이 없습니다.</td></tr>";
+			drawPaging("#paging", 0, 1, "goPage");
+			return;
+		}
+
+		for (let n = 0; n < list.length; n++) {
+
+			let i = list[n];
+
+			html = html + "<tr>";
+			html = html + "<td>" + rowDates[i] + "</td>";
+			html = html + "<td>" + rowWorkers[i] + "</td>";
+			html = html + "<td>" + rowNames[i] + "</td>";
+			html = html + "<td>" + rowCodes[i] + "</td>";
+			html = html + "<td>" + rowLots[i] + "</td>";
+			html = html + "<td>" + rowQtys[i] + "</td>";
+			html = html + "<td>" + rowFroms[i] + "</td>";
+			html = html + "<td>" + rowTos[i] + "</td>";
+			html = html + "<td>" + rowNotes[i] + "</td>";
+			html = html + "<td><button class='delete-btn' onclick='doDelete(" + i + ")'>삭제</button></td>";
+			html = html + "</tr>";
+		}
+
+		document.querySelector("#mvBody").innerHTML = html;
+		drawPaging("#paging", all.length, nowPage, "goPage");
+	}
+
+
+	/* 쪽 번호를 눌렀을 때 */
+	function goPage(p) {
+		nowPage = p;
+		drawList();
+	}
+
+
+	/* ---------- 이동 등록 ---------- */
+
+	function doRegister() {
+
+		if (isBlank(["#mvDate", "#mvWorker", "#mvQty"]) == true) {
+			alert("이동 일자, 담당자, 수량을 채워 주세요.");
+			return;
+		}
+
+		let lotNo = document.querySelector("#mvLot").value;
+		let i = findLot(lotNo);
+
+		if (i == -1) {
+			alert("옮길 로트를 골라 주세요.");
+			return;
+		}
+
+		let qty = document.querySelector("#mvQty").value * 1;
+
+		if (qty <= 0) {
+			alert("수량은 1개 이상이어야 합니다.");
+			return;
+		}
+
+		/* 규칙 3 : 남은 수량보다 많이 옮길 수 없습니다 */
+		if (qty > lotQtys[i]) {
+			alert("로트(" + lotNo + ")에 남은 수량은 " + lotQtys[i] + "개입니다.\n그보다 많이 옮길 수 없습니다.");
+			return;
+		}
+
+		let fromZone = lotZones[i];
+		let toZoneName = getSelectText("#mvToZone");
+		let toZone = getSelectText("#mvToWarehouse") + " " + toZoneName;
+
+		/* 규칙 1 : 출발과 도착이 같으면 옮길 이유가 없습니다 */
+		if (fromZone == toZone) {
+			alert("출발 구역과 도착 구역이 같습니다.");
+			return;
+		}
+
+		/* 규칙 2 : 단위와 도착 구역 이름이 같아야 합니다 */
+		if (lotUnits[i] != toZoneName) {
+			alert("이 로트의 단위(" + lotUnits[i] + ")와 도착 구역(" + toZoneName + ")이 다릅니다.\n같은 이름의 구역으로만 옮길 수 있습니다.");
+			return;
+		}
+
+		/* 도착 구역에 자리가 있는지 확인합니다 (명세서 F-07) */
+		let toZoneId = getSelectValue("#mvToZone");
+		let full = checkZoneRoom(toZoneId, qty);
+
+		if (full != "") {
+			alert(full);
+			return;
+		}
+
+		changeZoneUsed(toZoneId, qty);
+
+		/* 전체를 옮기면 구역만 바뀌고, 일부만 옮기면 로트가 나뉩니다 */
+		let movedLot = lotNo;
+
+		if (qty == lotQtys[i]) {
+			lotZones[i] = toZone;
+		} else {
+			lotQtys[i] = lotQtys[i] - qty;
+
+			/* 옮겨간 만큼을 새 로트로 만듭니다 */
+			let last = lotNos.length;
+			movedLot = "LOT-" + lotSeq;
+
+			lotNos[last]   = movedLot;
+			lotCodes[last] = lotCodes[i];
+			lotNames[last] = lotNames[i];
+			lotUnits[last] = lotUnits[i];
+			lotQtys[last]  = qty;
+			lotZones[last] = toZone;
+
+			lotSeq = lotSeq + 1;
+		}
+
+		/* 표에 한 줄 추가 */
+		let last = rowDates.length;
+
+		rowDates[last]   = document.querySelector("#mvDate").value;
+		rowWorkers[last] = document.querySelector("#mvWorker").value;
+		rowNames[last]   = document.querySelector("#mvName").value;
+		rowCodes[last]   = document.querySelector("#mvCode").value;
+		rowLots[last]    = lotNo;
+		rowQtys[last]    = qty;
+		rowFroms[last]   = fromZone;
+		rowTos[last]     = toZone;
+		rowNotes[last]   = document.querySelector("#mvNote").value;
+
+		drawLotSelect();
+		drawList();
+		clearInput(["#mvQty", "#mvNote"]);
+
+		if (movedLot == lotNo) {
+			alert("이동이 등록되었습니다. (로트 전체 이동)");
+		} else {
+			alert("이동이 등록되었습니다. (일부 이동 - 새 로트 " + movedLot + " 생성)");
+		}
+	}
+
+
+	function doDelete(index) {
+
+		if (confirm("이 이동 내역을 삭제할까요?") == false) {
+			return;
+		}
+
+		removeAt([rowDates, rowWorkers, rowNames, rowCodes, rowLots,
+		          rowQtys, rowFroms, rowTos, rowNotes], index);
+
+		drawList();
+	}
+
+
+	/* 화면이 열릴 때 실행 */
+	setupForm();
+	loadLots();
+	loadData();
+
+</script>
+
+</body>
+
+
+
+</html>

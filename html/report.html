@@ -1,0 +1,341 @@
+<!DOCTYPE html> <!-- 보고서 내보내기 -->
+
+<html lang = "ko">
+<head> 
+	<meta charset="UTF-8">
+	<title>보고서 및 내보내기</title>
+	
+	<!-- 공통 css -->
+	<link rel="stylesheet" href="../css/common.css">
+	<!--report css -->
+	<link rel="stylesheet" href="../css/report.css">
+	
+	<!-- 서버 통신 공통 함수 -->
+	<script src="../js/api.js"></script>
+	<script src="../js/common.js"></script>
+</head>
+
+<!-- 바디  -->
+<body>
+	<!-- 전체 화면 -->
+	<div class="container">
+	
+	<!--  사이드바-->	
+	<aside class="sidebar">
+		<div class="logo" onclick="location.href='dashboard.html'">
+			<img src="../images/logo.png" alt="DOWN MART">
+		<p>DOWN MART</p>
+		</div>
+		<nav class="sidebar-menu">
+				<a href="dashboard.html">메인 대시보드</a>
+				<a href="item.html">입출고 관리</a>
+				<a href="return.html">반품 및 폐기 관리</a>
+				<a href="alert.html">알림</a>
+				<a class="active" href="statistics.html">통계</a>
+				<a href="setting.html">설정 및 권한 관리</a>
+			</nav>
+	</aside>
+		
+	<!-- 오른쪽 위에 뜨는거 -->
+	<main class="content">
+		<header class="top-menu">
+			<button class="menu-btn" onclick="location.href='statistics.html'">통계 대시보드</button> 
+			<button class="menu-btn active">보고서 및 내보내기</button> 
+		</header>
+		
+		<section class="reportbox"> <!-- 일일 보고서 -->
+			<h3>일일 보고서</h3>
+			
+			<div class="form-group">
+				<label>기준일</label>
+				<div class="date-range">
+					<input type="date" id="reportDate">
+				</div>
+			</div>
+			
+			<div class="form-group">
+				<label>전일 대비</label>
+				<div id="sumArea"></div>
+			</div>
+				
+			<div class="form-group">
+				<label>부족 품목</label>
+				<div id="lowArea"></div>
+			</div>
+			
+			<div class="form-group">
+				<label>TOP 출고 품목</label>
+				<div class="top-itemlist" id="topArea"></div>
+			</div>
+			
+			<button class="make" onclick="makeReport()">보고서 생성하기</button>
+		</section>
+		
+		<section class="report"> <!-- 데이터 내보내기 -->
+			<h3>데이터 내보내기</h3>
+			
+			<div class="form-group">
+				<label>데이터</label>
+				<select id="dataType">
+					<option>입고 로그</option>
+					<option>출고 로그</option>
+					<option>재고 이동 로그</option>
+					<option>반품 및 폐기 로그</option>
+				</select>
+			</div>
+			
+			<div class="form-group">
+				<label>기간</label>
+				<div class="date-range">
+					<input type="date" id="fromDate">
+				</div>
+				
+				<div class="date-range">
+					<input type="date" id="toDate">
+				</div>
+			</div>
+			
+			<div class="form-group">
+				<label>형식</label>
+				<div class="radio-group">
+					<label><input type="radio" name="format" value="CSV" checked>CSV</label>
+					<label><input type="radio" name="format" value="Excel">Excel</label>
+				</div>
+			</div>
+			
+			<div id="msgArea"></div>
+			
+			<button class="push" onclick="doExport()">내보내기</button>
+		</section>
+		
+		
+	</main>
+	
+	</div>
+
+<!-- ============================================================
+     보고서 / 내보내기 화면 로직
+     ------------------------------------------------------------
+     addComma / saveFile 은 common.js 에 있습니다.
+     통계·보고서 API 는 아직 명세서 범위 밖이라 경로를 가정한 상태입니다.
+     ============================================================ -->
+<script>
+
+	/* ---------- 일일 보고서 자료 ---------- */
+
+	let inTotal = 0;      // 입고량
+	let inDiff = 0;       // 전일 대비 %
+	let outTotal = 0;     // 출고량
+	let outDiff = 0;
+
+	let lowNames = [];    // 부족 품목
+	let lowStocks = [];
+	let lowMins = [];
+	let lowUnits = [];
+
+	let topNames = [];    // 많이 나간 품목
+	let topQtys = [];
+	let topUnits = [];
+
+
+	/* 기준일의 보고서 자료를 가져옵니다.
+	   나중에 : apiGet("/api/reports/daily?date=" + day, putReport) */
+	function loadReportData(day) {
+
+		inTotal = 1240;
+		inDiff = 12.5;
+		outTotal = 980;
+		outDiff = -3.5;
+
+		lowNames  = ["두부 프리미엄", "김치 실속형"];
+		lowStocks = [12, 2];
+		lowMins   = [16, 3];
+		lowUnits  = ["EA", "BOX"];
+
+		topNames = ["만두 프리미엄", "샐러드 프리미엄", "두부 정품", "어묵 프리미엄", "베이컨 정품"];
+		topQtys  = [320, 280, 215, 190, 145];
+		topUnits = ["BOX", "EA", "EA", "BOX", "BOX"];
+
+		drawReport();
+	}
+
+
+	/* 보고서 생성 버튼 */
+	function makeReport() {
+
+		let day = document.querySelector("#reportDate").value;
+
+		if (day == "") {
+			alert("기준일을 골라 주세요.");
+			return;
+		}
+
+		loadReportData(day);
+	}
+
+
+	/* 가져온 자료로 보고서를 그립니다 */
+	function drawReport() {
+
+		/* ---- 전일 대비 ---- */
+		let html = "";
+		html = html + makeSumRow("입고량", inTotal, inDiff);
+		html = html + makeSumRow("출고량", outTotal, outDiff);
+		document.querySelector("#sumArea").innerHTML = html;
+
+		/* ---- 부족 품목 ---- */
+		html = "";
+
+		if (lowNames.length == 0) {
+			html = "<p>해당 없음</p>";
+		} else {
+			for (let i = 0; i < lowNames.length; i++) {
+				html = html + '<div class="top-item">';
+				html = html + "<span>" + lowNames[i] + "</span>";
+				html = html + "<span>" + lowStocks[i] + lowUnits[i] + " / 최소 " + lowMins[i] + lowUnits[i] + "</span>";
+				html = html + "</div>";
+			}
+		}
+		document.querySelector("#lowArea").innerHTML = html;
+
+		/* ---- 많이 나간 품목 ---- */
+		html = "";
+
+		if (topNames.length == 0) {
+			html = "<p>해당 없음</p>";
+		} else {
+			for (let i = 0; i < topNames.length; i++) {
+				html = html + '<div class="top-item">';
+				html = html + "<span>" + (i + 1) + ". " + topNames[i] + "</span>";
+				html = html + "<span>" + addComma(topQtys[i]) + topUnits[i] + "</span>";
+				html = html + "</div>";
+			}
+		}
+		document.querySelector("#topArea").innerHTML = html;
+	}
+
+
+	/* 전일 대비 한 줄을 만듭니다 */
+	function makeSumRow(name, total, diff) {
+
+		let html = '<div class="top-item">';
+		html = html + "<span>" + name + "</span>";
+		html = html + "<span>" + addComma(total) + "EA</span>";
+
+		if (diff > 0) {
+			html = html + "<span>▲ " + diff + "%</span>";
+		} else if (diff < 0) {
+			html = html + "<span>▼ " + (diff * -1) + "%</span>";
+		} else {
+			html = html + "<span>-</span>";
+		}
+
+		html = html + "</div>";
+		return html;
+	}
+
+
+	/* ---------- 내보내기에 쓸 자료 (종류별로 다릅니다) ---------- */
+
+	let inTitle = "일자,품목명,로트번호,수량,단위,공급처";
+	let inRows = [
+		"2026-08-11,두부 프리미엄,LOT-1,40,EA,신선냉장유통(주)",
+		"2026-08-10,어묵 정품,LOT-3,24,BOX,한아름냉동식품(주)"
+	];
+
+	let outTitle = "일자,품목명,로트번호,수량,단위,목적지";
+	let outRows = [
+		"2026-08-11,만두 프리미엄,LOT-7,320,BOX,쿠팡 풀필먼트",
+		"2026-08-10,샐러드 프리미엄,LOT-9,280,EA,이마트 성수점"
+	];
+
+	let moveTitle = "일시,품목명,로트번호,수량,출발구역,도착구역";
+	let moveRows = [
+		"2026-08-11 14:20,두부 프리미엄,LOT-1,20,대형(0) EA,중형(5) EA"
+	];
+
+	let returnTitle = "일자,구분,품목명,로트번호,수량,사유";
+	let returnRows = [
+		"2026-08-11,폐기,어묵 정품,LOT-3,8,유통기한만료",
+		"2026-08-09,반품,김치 실속형,LOT-4,4,고객반품"
+	];
+
+
+	/* 내보내기 버튼
+	   나중에 서버가 만들어 주면 아래 한 줄로 바뀝니다.
+	     location.href = "http://localhost:8080/api/exports/" + type
+	                   + "?format=csv&from=" + from + "&to=" + to;
+	   주소창으로 이동하는 방식이라 세션 쿠키가 자동으로 따라갑니다. */
+	function doExport() {
+
+		let type = document.querySelector("#dataType").value;
+		let from = document.querySelector("#fromDate").value;
+		let to = document.querySelector("#toDate").value;
+
+		/* 라디오 버튼 중에 고른 값을 찾습니다 */
+		let fileType = "CSV";
+		let radios = document.getElementsByName("format");
+
+		for (let i = 0; i < radios.length; i++) {
+			if (radios[i].checked == true) {
+				fileType = radios[i].value;
+			}
+		}
+
+		if (from == "" || to == "") {
+			alert("기간을 모두 골라 주세요.");
+			return;
+		}
+
+		if (from > to) {
+			alert("시작일이 종료일보다 늦을 수 없습니다.");
+			return;
+		}
+
+		/* Excel 파일은 서버에서 만들어야 해서 지금은 안내만 합니다 */
+		if (fileType == "Excel") {
+			document.querySelector("#msgArea").innerHTML =
+				"<p>Excel 내보내기는 서버에서 만듭니다. 연동 후 사용할 수 있습니다.</p>";
+			return;
+		}
+
+		/* 고른 종류에 맞는 자료를 정합니다 */
+		let title = inTitle;
+		let rows = inRows;
+
+		if (type == "출고 로그") {
+			title = outTitle;
+			rows = outRows;
+		} else if (type == "재고 이동 로그") {
+			title = moveTitle;
+			rows = moveRows;
+		} else if (type == "반품 및 폐기 로그") {
+			title = returnTitle;
+			rows = returnRows;
+		}
+
+		/* 제목 줄과 내용 줄을 줄바꿈으로 이어붙입니다 */
+		let text = title;
+
+		for (let i = 0; i < rows.length; i++) {
+			text = text + "\n" + rows[i];
+		}
+
+		let fileName = type + "_" + from + "_" + to + ".csv";
+		saveFile(fileName, text);
+
+		document.querySelector("#msgArea").innerHTML =
+			"<p>" + fileName + " 내려받기 완료 (" + rows.length + "건)</p>";
+	}
+
+
+	/* 화면이 열릴 때 오늘 날짜를 기준일에 넣어 둡니다 */
+	document.querySelector("#reportDate").value = getToday();
+	loadReportData(getToday());
+
+</script>
+
+</body>
+
+
+</html>

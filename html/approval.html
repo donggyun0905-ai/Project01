@@ -1,0 +1,340 @@
+<!DOCTYPE html> <!-- 자동 제안 및 승인 -->
+
+<html lang = "ko">
+<head> 
+	<meta charset="UTF-8">
+	<title>자동 제안 및 승인</title>
+	
+	<!-- 공통 css -->
+	<link rel="stylesheet" href="../css/common.css">
+	<!--approval css -->
+	<link rel="stylesheet" href="../css/approval.css">
+	
+	<!-- 서버 통신 공통 함수 -->
+	<script src="../js/api.js"></script>
+	<script src="../js/common.js"></script>
+</head>
+
+<!-- 바디  -->
+<body>
+	<!-- 전체 화면 -->
+	<div class="container">
+	
+	<!--  사이드바-->	
+	<aside class="sidebar">
+		<div class="logo" onclick="location.href='dashboard.html'">
+			<img src="../images/logo.png" alt="DOWN MART">
+		<p>DOWN MART</p>
+		</div>
+		<nav class="sidebar-menu">
+				<a href="dashboard.html">메인 대시보드</a>
+				<a href="item.html">입출고 관리</a>
+				<a href="return.html">반품 및 폐기 관리</a>
+				<a href="alert.html">알림</a>
+				<a href="statistics.html">통계</a>
+				<a class="active" href="setting.html">설정 및 권한 관리</a>
+			</nav>
+	</aside>
+		
+	<!-- 오른쪽 위에 뜨는거 -->
+	<main class="content">
+		<header class="top-menu">
+			<button class="menu-btn" onclick="location.href='setting.html'">사용자 관리</button> 
+			<button class="menu-btn active">자동 제안 및 승인</button> 
+			<button class="menu-btn" onclick="location.href='roles.html'">권한 관리</button>
+		</header>
+		
+		<!-- 거르기 -->
+		<section class="form-box">
+			<div class="form-group">
+				<label>상태</label>
+				<select id="fStatus" onchange="drawList()">
+					<option>대기</option>
+					<option>전체</option>
+					<option>승인</option>
+					<option>반려</option>
+				</select>
+			</div>
+			
+			<div class="form-group">
+				<label>유형</label>
+				<select id="fType" onchange="drawList()">
+					<option>전체</option>
+					<option>발주</option>
+					<option>출고</option>
+				</select>
+			</div>
+		</section>
+
+		<!-- (표)  -->
+		<section class= "table-box">
+			<table>
+				<thead>
+					<tr>
+						<th>품목</th>
+						<th>유형</th> 
+						<th>요청 수량</th> 
+						<th>요청자</th>
+						<th>상태</th>
+						<th>관리</th>
+					</tr>				
+				</thead>
+				
+				<!-- 표 내용은 drawList()가 채웁니다 -->
+				<tbody id="apBody">
+				</tbody>
+			</table>
+		</section>
+		
+	</main>
+	
+	</div>
+
+<!-- 상세보기 모달 -->
+<div class="modal-overlay" id="apModal">
+	<div class="modal-box">
+	
+		<div class="modal-header">
+			<h3 id="apTitle">승인 요청</h3>
+			<button class="modal-close" onclick="closeDetail()"> x </button>
+		</div>
+		
+		<section class="alert-form">
+			<div class="alert-form-group">
+				<label>품목명</label>
+				<span id="apItem"></span>
+			</div>
+			
+			<div class="alert-form-group">
+				<label>요청 유형</label>
+				<span id="apType"></span>
+			</div>
+			
+			<div class="alert-form-group">
+				<label>요청 수량</label>
+				<span id="apQty"></span>
+			</div>
+			
+			<div class="alert-form-group">
+				<label>거래처</label>
+				<span id="apPartner"></span>
+			</div>
+			
+			<div class="alert-form-group">
+				<label>요청자</label>
+				<span id="apWho"></span>
+			</div>
+		
+			<div class="alert-form-group">
+				<label>상태</label>
+				<span id="apStatus"></span>
+			</div>
+			
+			<div class="alert-form-group">
+				<label>승인 처리자</label>
+				<span id="apBy"></span>
+			</div>
+			
+			<div class="alert-form-group">
+				<label>승인 처리일</label>
+				<span id="apDate"></span>
+			</div>
+	
+		</section>
+		<div class="modal-footer">
+			<button class="btn-cancel" id="rejectBtn" onclick="doDecide('반려')">반려</button>
+			<button class="btn-primary" id="approveBtn" onclick="doDecide('승인')">승인</button>
+		</div>
+		
+	</div>
+</div>
+
+<!-- ============================================================
+     자동 제안 및 승인 화면 로직
+     ------------------------------------------------------------
+     재고가 임계치 아래로 떨어지면 서버가 발주 요청을 자동으로 만듭니다.
+     그런 건 요청자가 "자동 제안" 으로 표시됩니다.
+
+     승인하면 서버가 입고(발주) 또는 출고를 자동으로 실행합니다.
+     그래서 승인은 관리자(ADMIN)만 할 수 있고, 한 번 처리한 건은
+     다시 바꿀 수 없습니다.
+     ============================================================ -->
+<script>
+
+	/* 승인 요청 목록 */
+	let apIds = [];
+	let apItems = [];
+	let apTypes = [];        // 발주 / 출고
+	let apQtys = [];
+	let apUnits = [];
+	let apPartners = [];
+	let apWhos = [];         // 요청자
+	let apStatus = [];       // 대기 / 승인 / 반려
+	let apBys = [];          // 승인 처리자
+	let apDates = [];        // 승인 처리일
+
+	let openIndex = -1;
+
+
+	/* 나중에 : apiGet("/api/approvals?status=대기", putApprovals) */
+	function loadData() {
+
+		apIds      = [1, 2, 3, 4];
+		apItems    = ["두부 프리미엄", "어묵 정품", "김치 실속형", "주방세제 대용량"];
+		apTypes    = ["발주", "출고", "발주", "발주"];
+		apQtys     = [100, 230, 60, 40];
+		apUnits    = ["EA", "BOX", "BOX", "EA"];
+		apPartners = ["신선냉장유통(주)", "이마트 성수점", "한아름냉동식품(주)", "생활공감유통(주)"];
+		apWhos     = ["자동 제안", "김민준", "자동 제안", "이서연"];
+		apStatus   = ["대기", "승인", "대기", "반려"];
+		apBys      = ["", "관리자", "", "관리자"];
+		apDates    = ["", "2026-08-10", "", "2026-08-09"];
+
+		drawList();
+	}
+
+
+	function getList() {
+
+		let status = document.querySelector("#fStatus").value;
+		let type = document.querySelector("#fType").value;
+		let result = [];
+
+		for (let i = 0; i < apIds.length; i++) {
+
+			if (status != "전체" && apStatus[i] != status) {
+				continue;
+			}
+			if (type != "전체" && apTypes[i] != type) {
+				continue;
+			}
+
+			result[result.length] = i;
+		}
+
+		return result;
+	}
+
+
+	function drawList() {
+
+		let list = getList();
+		let html = "";
+
+		if (list.length == 0) {
+			document.querySelector("#apBody").innerHTML = "<tr><td colspan='6'>조건에 맞는 요청이 없습니다.</td></tr>";
+			return;
+		}
+
+		for (let n = 0; n < list.length; n++) {
+
+			let i = list[n];
+
+			html = html + "<tr>";
+			html = html + "<td>" + apItems[i] + "</td>";
+			html = html + "<td>" + apTypes[i] + "</td>";
+			html = html + "<td>" + addComma(apQtys[i]) + apUnits[i] + "</td>";
+			html = html + "<td>" + apWhos[i] + "</td>";
+			html = html + "<td>" + apStatus[i] + "</td>";
+			html = html + "<td><button class='approval-btn' onclick='openDetail(" + i + ")'>상세보기</button></td>";
+			html = html + "</tr>";
+		}
+
+		document.querySelector("#apBody").innerHTML = html;
+	}
+
+
+	/* ---------- 상세보기 모달 ---------- */
+
+	function openDetail(i) {
+
+		openIndex = i;
+
+		document.querySelector("#apTitle").innerHTML = apTypes[i] + " 승인 요청";
+		document.querySelector("#apItem").innerHTML = apItems[i];
+		document.querySelector("#apType").innerHTML = apTypes[i];
+		document.querySelector("#apQty").innerHTML = addComma(apQtys[i]) + apUnits[i];
+		document.querySelector("#apPartner").innerHTML = apPartners[i];
+		document.querySelector("#apWho").innerHTML = apWhos[i];
+		document.querySelector("#apStatus").innerHTML = apStatus[i];
+
+		/* 아직 처리 전이면 처리자·처리일이 비어 있습니다 */
+		if (apBys[i] == "") {
+			document.querySelector("#apBy").innerHTML = "-";
+			document.querySelector("#apDate").innerHTML = "-";
+		} else {
+			document.querySelector("#apBy").innerHTML = apBys[i];
+			document.querySelector("#apDate").innerHTML = apDates[i];
+		}
+
+		/* 이미 처리된 건은 버튼을 막습니다 */
+		if (apStatus[i] == "대기") {
+			document.querySelector("#approveBtn").disabled = false;
+			document.querySelector("#rejectBtn").disabled = false;
+		} else {
+			document.querySelector("#approveBtn").disabled = true;
+			document.querySelector("#rejectBtn").disabled = true;
+		}
+
+		openModal("#apModal");
+	}
+
+
+	function closeDetail() {
+		closeModal("#apModal");
+		openIndex = -1;
+	}
+
+
+	/* 승인 / 반려 처리
+	   나중에 : apiSend("PATCH", "/api/approvals/" + apIds[openIndex], { status: pick }, loadData) */
+	function doDecide(pick) {
+
+		if (openIndex == -1) {
+			return;
+		}
+
+		/* 승인은 관리자만 할 수 있습니다 */
+		if (sessionStorage.getItem("userRole") == "STAFF") {
+			alert("승인과 반려는 관리자만 할 수 있습니다.");
+			return;
+		}
+
+		/* 승인하면 서버가 실제로 입고나 출고를 실행하기 때문에 한 번 더 묻습니다 */
+		let ask = "";
+
+		if (pick == "승인") {
+			ask = apItems[openIndex] + " " + addComma(apQtys[openIndex]) + apUnits[openIndex];
+			ask = ask + " 을 승인할까요?\n\n승인하면 " + apTypes[openIndex] + " 가 바로 처리됩니다.";
+		} else {
+			ask = "이 요청을 반려할까요?";
+		}
+
+		if (confirm(ask) == false) {
+			return;
+		}
+
+		apStatus[openIndex] = pick;
+		apBys[openIndex] = "관리자";
+		apDates[openIndex] = getToday();
+
+		closeDetail();
+		drawList();
+
+		if (pick == "승인") {
+			alert("승인했습니다. " + apTypes[openIndex] + " 가 처리되었습니다.");
+		} else {
+			alert("반려했습니다.");
+		}
+	}
+
+
+	/* 화면이 열릴 때 실행 */
+	loadData();
+
+</script>
+
+</body>
+
+
+</html>

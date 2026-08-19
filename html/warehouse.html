@@ -1,0 +1,592 @@
+<!DOCTYPE html> <!-- 08.13 반품 및 폐기 관리-->
+<!--  창고 등록, 구역 등록 모달 페이지가 2개 있습니다 warehouse.css 247줄에 가면 됩니다-->
+
+<html lang = "ko">
+<head> 
+	<meta charset="UTF-8">
+	<title>창고 및 구역 관리</title>
+	
+	<!-- 공통 css -->
+	<link rel="stylesheet" href="../css/common.css">
+	<!--inbound css -->
+	<link rel="stylesheet" href="../css/warehouse.css">
+	
+	<!-- 서버 통신 공통 함수 -->
+	<script src="../js/api.js"></script>
+	<script src="../js/common.js"></script>
+</head>
+
+<!-- 바디  -->
+<body>
+	<!-- 전체 화면 -->
+	<div class="container">
+	
+	<!--  사이드바-->	
+	<aside class="sidebar">
+		<div class="logo" onclick="location.href='dashboard.html'">
+			<img src="../images/logo.png" alt="DOWN MART">
+		<p>DOWN MART</p>
+		</div>
+		<nav class="sidebar-menu">
+				<a href="dashboard.html">메인 대시보드</a>
+				<a class="active" href="item.html">입출고 관리</a>
+				<a href="return.html">반품 및 폐기 관리</a>
+				<a href="alert.html">알림</a>
+				<a href="statistics.html">통계</a>
+				<a href="setting.html">설정 및 권한 관리</a>
+			</nav>
+	</aside>
+	
+	<!-- 오른쪽 위에 뜨는거 -->
+	<main class="content">
+		<header class="top-menu">
+			<button class="menu-btn" onclick="location.href='item.html'">품목 관리</button> 
+			<button class="menu-btn" onclick="location.href='inout.html'">입출고 등록</button> 
+			<button class="menu-btn active">창고 및 구역 관리</button>
+			<button class="menu-btn" onclick="location.href='movement.html'">창고 간 재고 이동</button>
+			<button class="menu-btn" onclick="location.href='audit.html'">감사로그</button>
+		</header>
+
+	<div class="top-bar">
+		<h4 class= "page-title">창고 및 구역 관리</h4>
+	</div>
+		
+		<!-- 창고 구역 -->
+		<section class="warehouse-wrap">
+			<div class="card">
+				<div class= "card-header">
+					<h4>창고 목록</h4>
+					<button class="small-btn" onclick="openWarehouse(-1)">창고 등록</button>
+				</div>
+				
+		
+		
+		<!-- 창고 입력(표)  -->
+		<section class= "table-box">
+
+			<table>
+				<thead>
+					<tr>
+						<th>NO</th>
+						<th>창고명</th> 
+						<th>위치</th> 
+						<th>관리</th> 
+					</tr>				
+				</thead>
+				
+				<tbody id="whBody">
+				</tbody>
+			</table>
+			</section>
+		</div>
+		
+		
+		<!-- 구역 목록 -->
+		<div class="card">
+			<div class="card-header">
+				<h4 id="zoneTitle">구역 목록</h4>
+				<button class="small-btn" onclick="openZone(-1)">구역 등록</button>
+			</div>
+			
+			<!-- 포화도가 높은 구역이 있으면 여기에 안내가 뜹니다 (명세서 F-04) -->
+			<div id="zoneNote"></div>
+			
+			<!-- 구역 입력(표)  -->
+		<section class= "table-box">
+			<table>
+				<thead>
+					<tr>
+						<th>NO</th>
+						<th>구역명</th>
+						<th>최대 수용량</th> 
+						<th>현재 사용량</th> 
+						<th>관리</th> 
+					</tr>				
+				</thead>
+				
+				<tbody id="znBody">
+				</tbody>
+			</table>
+			</section>
+		</div>
+		
+		
+		
+		
+		</section>
+	</main>
+	
+	</div>
+
+<!-- 창고 등록/수정 모달-->
+<div class="modal-overlay" id="whModal">
+	<div class="modal-box">
+	
+		<div class="modal-header">
+			<h3 id="whTitle">창고 등록</h3>
+			<button class="modal-close" onclick="closeAll()"> x </button>
+		</div>
+		
+		<section class="modal-content">
+			<div class="modal-fields">
+				<div class="form-group">
+					<label>창고명</label>
+					<input type="text" id="whName">
+				</div>
+				
+				<div class="form-group">
+					<label>위치</label>
+					<input type="text" id="whLocation">
+				</div>
+			</div>
+				<div class="modal-footer">
+					<button class="btn-cancel" onclick="closeAll()">취소</button>
+					<button class="btn-primary" onclick="saveWarehouse()">저장</button>
+				</div>
+
+		</section>
+	</div>
+</div>
+
+<!-- 구역 등록/수정 모달-->
+<!-- 현재 사용량은 재고에서 계산되는 값이라 입력받지 않습니다 -->
+<div class="modal-overlay" id="znModal">
+	<div class="modal-box">
+	
+		<div class="modal-header">
+			<h3 id="znTitle">구역 등록</h3>
+			<button class="modal-close" onclick="closeAll()"> x </button>
+		</div>
+		
+		<section class="modal-content">
+			<div class="modal-fields">
+				<div class="form-group">
+					<label>창고 선택</label>
+					<select id="znWarehouse">
+					</select>
+				</div>
+				
+				<div class="form-group">
+					<label>구역명 (품목 단위와 같아야 합니다)</label>
+					<select id="znName">
+						<option>PALLET</option>
+						<option>BOX</option>
+						<option>EA</option>
+					</select>
+				</div>
+					
+				<div class="form-group">
+					<label>최대 수용량</label>
+					<input type="number" id="znCapacity">
+				</div>
+			</div>
+				<div class="modal-footer">
+					<button class="btn-cancel" onclick="closeAll()">취소</button>
+					<button class="btn-primary" onclick="saveZone()">저장</button>
+				</div>
+
+		</section>
+	</div>
+</div>
+
+
+<!-- ============================================================
+     창고 / 구역 관리 화면 로직
+     ------------------------------------------------------------
+     왼쪽 창고를 고르면 그 창고에 속한 구역만 아래에 보입니다.
+     구역명은 PALLET / BOX / EA 중 하나여야 합니다.
+     품목 단위와 구역 이름이 같아야 입고가 되기 때문입니다.
+     ============================================================ -->
+<script>
+
+	/* ---------- 창고 ---------- */
+	let whIds = [];
+	let whNames = [];
+	let whLocations = [];
+
+	/* ---------- 구역 ---------- */
+	let znIds = [];
+	let znWhIds = [];        // 어느 창고 소속인지
+	let znNames = [];
+	let znCapacities = [];   // 최대 수용량
+	let znUsed = [];         // 현재 사용량 (재고에서 계산되는 값)
+
+	/* 지금 고른 창고와, 수정 중인 줄 번호 */
+	let pickedWh = 1;
+	let editWh = -1;
+	let editZn = -1;
+
+	let whSeq = 11;
+	let znSeq = 31;
+
+
+	/* 창고와 구역 자료를 가져옵니다.
+	   값은 common.js 에 모아 두었습니다 (다른 화면과 같은 자료를 씁니다).
+	   나중에 : apiGet("/api/warehouses", ...) / apiGet("/api/zones", ...) */
+	function loadData() {
+
+		loadMaster();
+
+		/* --- 창고 --- */
+		whIds = [];
+		whNames = [];
+		whLocations = [];
+
+		for (let i = 0; i < warehouseIds.length; i++) {
+			whIds[i] = warehouseIds[i];
+			whNames[i] = warehouseBaseNames[i];
+			whLocations[i] = warehouseLocations[i];
+		}
+
+		/* --- 구역 --- */
+		znIds = [];
+		znWhIds = [];
+		znNames = [];
+		znCapacities = [];
+		znUsed = [];
+
+		for (let i = 0; i < zoneIds.length; i++) {
+			znIds[i] = zoneIds[i];
+			znWhIds[i] = zoneWarehouseIds[i];
+			znNames[i] = zoneNames[i];
+			znCapacities[i] = zoneCapacities[i];
+			znUsed[i] = zoneUsed[i];
+		}
+
+		/* 다음 번호는 지금 있는 것 뒤에서 시작합니다 */
+		whSeq = whIds.length + 1;
+		znSeq = znIds.length + 1;
+
+		drawWarehouse();
+		drawZone();
+	}
+
+
+	/* ---------- 창고 표 ---------- */
+
+	function drawWarehouse() {
+
+		let html = "";
+
+		if (whIds.length == 0) {
+			document.querySelector("#whBody").innerHTML = "<tr><td colspan='4'>등록된 창고가 없습니다.</td></tr>";
+			return;
+		}
+
+		for (let i = 0; i < whIds.length; i++) {
+
+			/* 지금 고른 창고는 줄 전체를 다른 색으로 표시합니다 */
+			let rowClass = "";
+
+			if (whIds[i] == pickedWh) {
+				rowClass = " class='row-picked'";
+			}
+
+			/* 이 창고에 구역이 몇 개인지 함께 보여 줍니다 */
+			let zoneCount = 0;
+
+			for (let k = 0; k < znIds.length; k++) {
+				if (znWhIds[k] == whIds[i]) {
+					zoneCount = zoneCount + 1;
+				}
+			}
+
+			html = html + "<tr" + rowClass + " onclick='pickWarehouse(" + whIds[i] + ")'>";
+			html = html + "<td>" + (i + 1) + "</td>";
+			html = html + "<td>" + whNames[i] + "</td>";
+			html = html + "<td>" + whLocations[i] + " (구역 " + zoneCount + "개)</td>";
+			html = html + "<td>";
+			html = html + "<button class='edit-btn' onclick='openWarehouse(" + i + ")'>수정</button>";
+			html = html + "<button class='delete-btn' onclick='deleteWarehouse(" + i + ")'>삭제</button>";
+			html = html + "</td>";
+			html = html + "</tr>";
+		}
+
+		document.querySelector("#whBody").innerHTML = html;
+	}
+
+
+	/* 창고를 누르면 아래 구역 목록이 그 창고 것으로 바뀝니다 */
+	function pickWarehouse(id) {
+		pickedWh = id;
+		drawWarehouse();
+		drawZone();
+	}
+
+
+	/* ---------- 구역 표 ---------- */
+
+	function drawZone() {
+
+		/* 지금 어느 창고를 보고 있는지 제목에 적어 줍니다 */
+		let whName = "";
+
+		for (let i = 0; i < whIds.length; i++) {
+			if (whIds[i] == pickedWh) {
+				whName = whNames[i] + " " + whLocations[i] + "번 창고";
+			}
+		}
+
+		if (whName == "") {
+			document.querySelector("#zoneTitle").innerHTML = "구역 목록";
+		} else {
+			document.querySelector("#zoneTitle").innerHTML = "구역 목록 — " + whName;
+		}
+
+		let html = "";
+		let count = 0;
+
+		for (let i = 0; i < znIds.length; i++) {
+
+			if (znWhIds[i] != pickedWh) {
+				continue;
+			}
+
+			count = count + 1;
+
+			/* 얼마나 찼는지 함께 보여 줍니다.
+			   90%를 넘으면 곧 자리가 없다는 뜻이라 눈에 띄게 표시합니다 (명세서 F-04).
+			   용량을 정해두지 않은 구역은 포화도를 계산하지 않습니다. */
+			let usedText = addComma(znUsed[i]);
+
+			if (znCapacities[i] > 0) {
+
+				let percent = Math.round(znUsed[i] / znCapacities[i] * 100);
+				usedText = usedText + " (" + percent + "%)";
+
+				if (percent >= 90) {
+					usedText = "<span class='zone-full'>" + usedText + " 포화</span>";
+				} else if (percent >= 70) {
+					usedText = "<span class='zone-warn'>" + usedText + "</span>";
+				}
+
+			} else {
+				usedText = usedText + " (용량 미설정)";
+			}
+
+			html = html + "<tr>";
+			html = html + "<td>" + count + "</td>";
+			/* 구역 이름만으로는 무엇을 담는 곳인지 알기 어려워 설명을 붙입니다 */
+			let zoneText = znNames[i];
+
+			if (znNames[i] == "PALLET") {
+				zoneText = "PALLET (팔레트)";
+			} else if (znNames[i] == "BOX") {
+				zoneText = "BOX (박스)";
+			} else if (znNames[i] == "EA") {
+				zoneText = "EA (낱개)";
+			}
+
+			html = html + "<td>" + zoneText + "</td>";
+			html = html + "<td>" + addComma(znCapacities[i]) + "</td>";
+			html = html + "<td>" + usedText + "</td>";
+			html = html + "<td>";
+			html = html + "<div class='action-buttons'>";
+			html = html + "<button class='edit-btn' onclick='openZone(" + i + ")'>수정</button>";
+			html = html + "<button class='delete-btn' onclick='deleteZone(" + i + ")'>삭제</button>";
+			html = html + "</div>";
+			html = html + "</td>";
+			html = html + "</tr>";
+		}
+
+		if (count == 0) {
+			html = "<tr><td colspan='5'>이 창고에 등록된 구역이 없습니다.</td></tr>";
+		}
+
+		document.querySelector("#znBody").innerHTML = html;
+
+		/* 90%를 넘은 구역이 몇 개인지 표 위에 알려 줍니다 */
+		let full = 0;
+
+		for (let i = 0; i < znIds.length; i++) {
+			if (znWhIds[i] == pickedWh && znCapacities[i] > 0) {
+				if (znUsed[i] / znCapacities[i] * 100 >= 90) {
+					full = full + 1;
+				}
+			}
+		}
+
+		let note = document.querySelector("#zoneNote");
+
+		if (note != null) {
+			if (full > 0) {
+				note.innerHTML = "<span class='zone-full'>포화도 90%를 넘은 구역이 " + full + "곳 있습니다. 재고를 옮기거나 정리해 주세요.</span>";
+			} else {
+				note.innerHTML = "";
+			}
+		}
+	}
+
+
+	/* ---------- 창고 등록 / 수정 ---------- */
+
+	/* index 가 -1 이면 새로 등록, 아니면 그 줄을 고칩니다 */
+	function openWarehouse(index) {
+
+		editWh = index;
+
+		if (index == -1) {
+			document.querySelector("#whTitle").innerHTML = "창고 등록";
+			document.querySelector("#whName").value = "";
+			document.querySelector("#whLocation").value = "";
+		} else {
+			document.querySelector("#whTitle").innerHTML = "창고 수정";
+			document.querySelector("#whName").value = whNames[index];
+			document.querySelector("#whLocation").value = whLocations[index];
+		}
+
+		openModal("#whModal");
+	}
+
+
+	function saveWarehouse() {
+
+		if (isBlank(["#whName", "#whLocation"]) == true) {
+			alert("창고명과 위치를 채워 주세요.");
+			return;
+		}
+
+		let name = document.querySelector("#whName").value;
+		let location = document.querySelector("#whLocation").value;
+
+		if (editWh == -1) {
+			let last = whIds.length;
+			whIds[last] = whSeq;
+			whNames[last] = name;
+			whLocations[last] = location;
+			whSeq = whSeq + 1;
+		} else {
+			whNames[editWh] = name;
+			whLocations[editWh] = location;
+		}
+
+		drawWarehouse();
+		closeAll();
+	}
+
+
+	function deleteWarehouse(index) {
+
+		/* 구역이 남아 있으면 지울 수 없습니다.
+		   구역이 창고를 참조하고 있어서 서버에서도 막힙니다. */
+		for (let i = 0; i < znIds.length; i++) {
+			if (znWhIds[i] == whIds[index]) {
+				alert("이 창고에 구역이 남아 있어 삭제할 수 없습니다.\n구역을 먼저 지워 주세요.");
+				return;
+			}
+		}
+
+		if (confirm("창고 " + whNames[index] + "(" + whLocations[index] + ") 을 삭제할까요?") == false) {
+			return;
+		}
+
+		removeAt([whIds, whNames, whLocations], index);
+		drawWarehouse();
+		drawZone();
+	}
+
+
+	/* ---------- 구역 등록 / 수정 ---------- */
+
+	function openZone(index) {
+
+		editZn = index;
+
+		/* 창고 드롭다운을 지금 목록으로 채웁니다 */
+		let html = "";
+		for (let i = 0; i < whIds.length; i++) {
+			html = html + "<option value='" + whIds[i] + "'>" + whNames[i] + "(" + whLocations[i] + ")</option>";
+		}
+		document.querySelector("#znWarehouse").innerHTML = html;
+
+		if (index == -1) {
+			document.querySelector("#znTitle").innerHTML = "구역 등록";
+			document.querySelector("#znWarehouse").value = pickedWh;
+			document.querySelector("#znCapacity").value = "";
+		} else {
+			document.querySelector("#znTitle").innerHTML = "구역 수정";
+			document.querySelector("#znWarehouse").value = znWhIds[index];
+			document.querySelector("#znName").value = znNames[index];
+			document.querySelector("#znCapacity").value = znCapacities[index];
+		}
+
+		openModal("#znModal");
+	}
+
+
+	function saveZone() {
+
+		if (isBlank(["#znCapacity"]) == true) {
+			alert("최대 수용량을 채워 주세요.");
+			return;
+		}
+
+		let capacity = document.querySelector("#znCapacity").value * 1;
+
+		if (capacity <= 0) {
+			alert("최대 수용량은 1 이상이어야 합니다.");
+			return;
+		}
+
+		let whId = document.querySelector("#znWarehouse").value * 1;
+		let name = document.querySelector("#znName").value;
+
+		/* 같은 창고에 같은 이름의 구역이 두 개 있으면 안 됩니다 */
+		for (let i = 0; i < znIds.length; i++) {
+			if (i != editZn && znWhIds[i] == whId && znNames[i] == name) {
+				alert("이 창고에는 이미 " + name + " 구역이 있습니다.");
+				return;
+			}
+		}
+
+		if (editZn == -1) {
+			let last = znIds.length;
+			znIds[last] = znSeq;
+			znWhIds[last] = whId;
+			znNames[last] = name;
+			znCapacities[last] = capacity;
+			znUsed[last] = 0;
+			znSeq = znSeq + 1;
+		} else {
+			znWhIds[editZn] = whId;
+			znNames[editZn] = name;
+			znCapacities[editZn] = capacity;
+		}
+
+		pickedWh = whId;
+		drawWarehouse();
+		drawZone();
+		closeAll();
+	}
+
+
+	function deleteZone(index) {
+
+		/* 재고가 남아 있는 구역은 지울 수 없습니다 */
+		if (znUsed[index] > 0) {
+			alert("이 구역에 재고가 " + znUsed[index] + "개 남아 있어 삭제할 수 없습니다.\n다른 구역으로 옮기거나 출고한 뒤에 지워 주세요.");
+			return;
+		}
+
+		if (confirm("구역 " + znNames[index] + " 을 삭제할까요?") == false) {
+			return;
+		}
+
+		removeAt([znIds, znWhIds, znNames, znCapacities, znUsed], index);
+		drawZone();
+	}
+
+
+	function closeAll() {
+		closeModal("#whModal");
+		closeModal("#znModal");
+	}
+
+
+	/* 화면이 열릴 때 실행 */
+	loadData();
+
+</script>
+
+</body>
+</html>

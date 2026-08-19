@@ -1,0 +1,40 @@
+/* movement.css(창고 간 재고 이동) */
+
+.form-group{
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.form-box{
+	grid-template-columns: repeat(4, 1fr);
+}
+
+.register-btn{
+	background: rgb(128, 128, 128);
+}
+
+/* 표 위 기간 거르기 줄 — 제목·표와 딱 붙지 않게 여백을 둡니다 */
+.list-filter {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 14px 0 18px 0;
+}
+
+.list-filter label {
+	font-size: 13px;
+	color: #555;
+}
+
+.list-filter input[type="date"] {
+	width: 170px;
+	height: 34px;
+	padding: 0 8px;
+	border: 1px solid #d9d9d9;
+	border-radius: 6px;
+}
+
+.table-title {
+	margin: 0 0 4px 0;
+}

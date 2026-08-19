@@ -1,0 +1,394 @@
+<!DOCTYPE html> <!-- 08.12 입고 등록 -->
+<html lang = "ko">
+<head> 
+	<meta charset="UTF-8">
+	<title>입고 등록</title>
+	
+	<!-- 공통 css -->
+	<link rel="stylesheet" href="../css/common.css">
+	<!--inbound css -->
+	<link rel="stylesheet" href="../css/inbound.css">
+	
+	<!-- 서버 통신 공통 함수 -->
+	<script src="../js/api.js"></script>
+	<script src="../js/common.js"></script>
+</head>
+
+<!-- 바디  -->
+<body>
+	<!-- 전체 화면 -->
+	<div class="container">
+	
+	<!--  사이드바-->	
+	<aside class="sidebar">
+		<div class="logo" onclick="location.href='dashboard.html'">
+			<img src="../images/logo.png" alt="DOWN MART">
+		<p>DOWN MART</p>
+		</div>
+		<nav class="sidebar-menu">
+				<a href="dashboard.html">메인 대시보드</a>
+				<a class="active" href="item.html">입출고 관리</a>
+				<a href="return.html">반품 및 폐기 관리</a>
+				<a href="alert.html">알림</a>
+				<a href="statistics.html">통계</a>
+				<a href="setting.html">설정 및 권한 관리</a>
+			</nav>
+	</aside>
+	
+	<!-- 오른쪽 위에 뜨는거 -->
+	<main class="content">
+		<header class="top-menu">
+			<button class="menu-btn" onclick="location.href='item.html'">품목 관리</button> 
+			<button class="menu-btn active" onclick="location.href='inout.html'">입출고 등록</button> <!--현재 화면이 입고 등록이라서 -->
+			<button class="menu-btn" onclick="location.href='warehouse.html'">창고 및 구역 관리</button>
+			<button class="menu-btn" onclick="location.href='movement.html'">창고 간 재고 이동</button>
+			<button class="menu-btn" onclick="location.href='audit.html'">감사로그</button>
+		</header>
+		
+		<h4 class= "page-title">입고 등록</h4>
+		
+		<!-- 로트번호가 자동으로 생성된다고 생각하여 입력폼에 넣지 않았습니다-->
+		<!-- 입력폼 -->
+		<section class="form-box">
+			<div class="form-group">
+				<label>입고일</label>
+				<input type="date" id="inDate">
+			</div>
+			
+			<div class="form-group">
+				<label>카테고리</label>
+				<select id="inCategory">
+				</select>
+			</div>
+			
+			<div class="form-group">
+				<label>품목명 (치면 후보가 뜹니다)</label>
+				<input type="text" id="inName" list="itemList" onchange="changeItem()" onkeyup="changeItem()" placeholder="예: 두부">
+				<datalist id="itemList"></datalist>
+			</div>
+			
+			<div class="form-group">
+				<label>품목 코드</label>
+				<input type="text" id="inCode" readonly placeholder="품목을 고르면 채워집니다">
+			</div>
+			
+			<div class="form-group">
+				<label>수량</label>
+				<input type="number" id="inQty">
+			</div>
+			
+			<div class="form-group">
+				<label>단위</label>
+				<select id="inUnit">
+					<option>EA</option>
+					<option>BOX</option>
+					<option>PALLET</option>
+				</select>
+			</div>
+		
+			<div class="form-group">
+				<label>단가</label>
+				<input type="number" id="inPrice">
+			</div>
+			
+			<div class="form-group">
+				<label>창고</label>
+				<select id="inWarehouse" onchange="changeWarehouse()">
+				</select>
+			</div>
+			
+			<div class="form-group">
+				<label>구역</label>
+				<select id="inZone">
+				</select>
+			</div>
+			
+			<div class="form-group expiration-group">
+				<label>유통기한</label>
+				<div class="date-range">
+					<input type="date" id="inExpFrom">
+					<span>~</span>
+					<input type="date" id="inExpTo">
+				</div>
+			</div>
+			
+			<div class="form-group">
+				<label>공급처</label>
+				<select id="inPartner">
+				</select>
+			</div>
+			
+			<div class="form-group">
+				<label>담당자</label>
+				<input type="text" id="inWorker">
+			</div>
+			
+			<button class="register-btn" onclick="doRegister()">입고 등록</button>
+		</section>
+		
+		<!-- 입고입력(표)  -->
+		
+		<section class= "table-box">
+		<h4 class="table-title">입고 이력</h4>
+			<table>
+				<thead>
+					<tr>
+						<th>NO</th>
+						<th>입고 일자</th>
+						<th>품목 코드</th>
+						<th>로트 번호</th>
+						<th>품목명</th>
+						<th>수량</th>
+						<th>단위</th>
+						<th>단가</th>
+						<th>유통기한</th>
+						<th>공급처</th>
+						<th>구역</th>
+						<th>담당자</th>
+						<th>삭제</th>
+					</tr>				
+				</thead>
+				
+				<!-- 표 내용은 drawList()가 채웁니다 -->
+				<tbody id="inBody">
+				</tbody>
+			</table>
+		
+			<!-- 쪽 번호 (명세서 S-04) -->
+			<div class="paging" id="paging"></div>
+		</section>
+		
+	</main>
+	
+	</div>
+
+
+<!-- ============================================================
+     입고 등록 화면 로직
+     ------------------------------------------------------------
+     드롭다운 값과 공통 함수는 common.js 에 있습니다.
+     서버가 준비되면 loadData() 안쪽과 doRegister() 의 저장 부분만
+     바꾸면 됩니다.
+     ============================================================ -->
+<script>
+
+	/* 입고 이력 표에 뿌릴 값. 같은 번호끼리 한 줄이 됩니다. */
+	let rowDates = [];
+	let rowCodes = [];
+	let rowLots = [];
+	let rowNames = [];
+	let rowQtys = [];
+	let rowUnits = [];
+	let rowPrices = [];
+	let rowExpiries = [];
+	let rowPartners = [];
+	let rowZones = [];
+	let rowWorkers = [];
+
+	/* 로트 번호는 자동으로 붙입니다 (LOT-1, LOT-2 ...) */
+	let lotSeq = 1;
+
+	/* 지금 보고 있는 쪽 */
+	let nowPage = 1;
+
+
+	/* 화면이 열릴 때 드롭다운을 채웁니다 */
+	function setupForm() {
+
+		loadMaster();
+
+		fillCategory("#inCategory");
+		fillItemList("#itemList");
+		fillPartner("#inPartner", "SUPPLIER");   // 입고는 공급처만
+		fillWarehouse("#inWarehouse");
+		fillZone("#inWarehouse", "#inZone");
+	}
+
+
+	/* 품목명을 고르면 코드·단위·카테고리가 알아서 채워집니다 */
+	function changeItem() {
+
+		let name = document.querySelector("#inName").value;
+		let i = findItemByName(name);
+
+		if (i == -1) {
+			document.querySelector("#inCode").value = "";
+			return;
+		}
+
+		document.querySelector("#inCode").value = itemCodes[i];
+		document.querySelector("#inUnit").value = itemUnitList[i];
+		document.querySelector("#inCategory").value = itemCategoryList[i];
+	}
+
+
+	/* 창고를 바꾸면 그 창고의 구역만 보여 줍니다 */
+	function changeWarehouse() {
+		fillZone("#inWarehouse", "#inZone");
+	}
+
+
+	/* 처음에 보여줄 예시 2줄
+	   나중에 : apiGet("/api/stock-lots", putRows) */
+	function loadData() {
+
+		rowDates    = ["2026-08-06", "2026-08-06"];
+		rowCodes    = ["ITEM-1", "ITEM-2"];
+		rowLots     = ["LOT-1", "LOT-2"];
+		rowNames    = ["두부 프리미엄", "어묵 정품"];
+		rowQtys     = [60, 32];
+		rowUnits    = ["EA", "BOX"];
+		rowPrices   = [1500, 800];
+		rowExpiries = ["2026-08-06~2026-08-14", "2026-08-06~2026-08-17"];
+		rowPartners = ["신선냉장유통(주)", "한아름냉동식품(주)"];
+		rowZones    = ["대형(0) EA", "대형(0) BOX"];
+		rowWorkers  = ["김민준", "이서연"];
+
+		lotSeq = 3;
+
+		drawList();
+	}
+
+
+	function drawList() {
+
+		/* 전체 줄 번호를 만든 뒤, 지금 쪽에 해당하는 것만 잘라 씁니다 */
+		let all = [];
+		for (let i = 0; i < rowDates.length; i++) {
+			all[i] = i;
+		}
+
+		let list = cutPage(all, nowPage);
+		let html = "";
+
+		if (rowDates.length == 0) {
+			document.querySelector("#inBody").innerHTML = "<tr><td colspan='13'>입고 이력이 없습니다.</td></tr>";
+			drawPaging("#paging", 0, 1, "goPage");
+			return;
+		}
+
+		for (let n = 0; n < list.length; n++) {
+
+			let i = list[n];
+
+			html = html + "<tr>";
+			html = html + "<td>" + (i + 1) + "</td>";
+			html = html + "<td>" + rowDates[i] + "</td>";
+			html = html + "<td>" + rowCodes[i] + "</td>";
+			html = html + "<td>" + rowLots[i] + "</td>";
+			html = html + "<td>" + rowNames[i] + "</td>";
+			html = html + "<td>" + rowQtys[i] + "</td>";
+			html = html + "<td>" + rowUnits[i] + "</td>";
+			html = html + "<td>" + addComma(rowPrices[i]) + "</td>";
+			html = html + "<td>" + rowExpiries[i] + "</td>";
+			html = html + "<td>" + rowPartners[i] + "</td>";
+			html = html + "<td>" + rowZones[i] + "</td>";
+			html = html + "<td>" + rowWorkers[i] + "</td>";
+			html = html + "<td><button class='delete-btn' onclick='doDelete(" + i + ")'>삭제</button></td>";
+			html = html + "</tr>";
+		}
+
+		document.querySelector("#inBody").innerHTML = html;
+		drawPaging("#paging", rowDates.length, nowPage, "goPage");
+	}
+
+
+	/* 쪽 번호를 눌렀을 때 */
+	function goPage(p) {
+		nowPage = p;
+		drawList();
+	}
+
+
+	/* 입고 등록 버튼 */
+	function doRegister() {
+
+		if (isBlank(["#inDate", "#inName", "#inQty", "#inPrice", "#inWorker"]) == true) {
+			alert("빈 칸을 모두 채워 주세요.");
+			return;
+		}
+
+		/* 목록에 없는 품목명은 받지 않습니다 */
+		if (findItemByName(document.querySelector("#inName").value) == -1) {
+			alert("등록되지 않은 품목입니다.\n후보 목록에서 골라 주세요.");
+			return;
+		}
+
+		let qty = document.querySelector("#inQty").value;
+		if (qty <= 0) {
+			alert("수량은 1개 이상이어야 합니다.");
+			return;
+		}
+
+		let unit = document.querySelector("#inUnit").value;
+		let zoneText = getSelectText("#inZone");
+
+		/* 단위와 구역 이름이 같아야 합니다.
+		   서버(InboundService)도 똑같이 검사하기 때문에 미리 막아 둡니다.
+		   예) EA 품목은 EA 구역에만 넣을 수 있습니다. */
+		if (unit != zoneText) {
+			alert("단위(" + unit + ")와 구역(" + zoneText + ")이 다릅니다.\n같은 이름의 구역을 골라 주세요.");
+			return;
+		}
+
+		/* 구역에 넣을 자리가 있는지 확인합니다 (명세서 F-02).
+		   서버도 같은 검사를 하며, 넘치면 입고가 거절됩니다. */
+		let zoneId = getSelectValue("#inZone");
+		let full = checkZoneRoom(zoneId, qty * 1);
+
+		if (full != "") {
+			alert(full);
+			return;
+		}
+
+		changeZoneUsed(zoneId, qty * 1);
+
+		/* 표 맨 뒤에 한 줄 추가 */
+		let last = rowDates.length;
+
+		rowDates[last]    = document.querySelector("#inDate").value;
+		rowCodes[last]    = document.querySelector("#inCode").value;
+		rowLots[last]     = "LOT-" + lotSeq;
+		rowNames[last]    = document.querySelector("#inName").value;
+		rowQtys[last]     = qty;
+		rowUnits[last]    = unit;
+		rowPrices[last]   = document.querySelector("#inPrice").value;
+		rowExpiries[last] = document.querySelector("#inExpFrom").value + "~" + document.querySelector("#inExpTo").value;
+		rowPartners[last] = getSelectText("#inPartner");
+		rowZones[last]    = getSelectText("#inWarehouse") + " " + zoneText;
+		rowWorkers[last]  = document.querySelector("#inWorker").value;
+
+		lotSeq = lotSeq + 1;
+
+		drawList();
+		clearInput(["#inCode", "#inName", "#inQty", "#inPrice", "#inWorker"]);
+
+		alert("입고가 등록되었습니다. (로트번호 " + rowLots[last] + ")");
+	}
+
+
+	/* 삭제 버튼 - 표에서 그 줄만 지웁니다 */
+	function doDelete(index) {
+
+		if (confirm("이 입고 내역을 삭제할까요?") == false) {
+			return;
+		}
+
+		removeAt([rowDates, rowCodes, rowLots, rowNames, rowQtys, rowUnits,
+		          rowPrices, rowExpiries, rowPartners, rowZones, rowWorkers], index);
+
+		drawList();
+	}
+
+
+	/* 화면이 열릴 때 실행 */
+	setupForm();
+	loadData();
+
+</script>
+
+</body>
+
+
+
+</html>

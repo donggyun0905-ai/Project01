@@ -1,0 +1,98 @@
+/* item.css(품목관리) */
+/*상단의 검색 상자들*/
+.search-box{
+	display: flex;
+	align-items: center;
+	gap: 20px;
+	width: fit-content;
+	background: white;
+	padding: 18px 28px;
+	margin-bottom: 30px;
+	border-radius: 10px;
+	max-width: 680px;
+	height: 80px; 
+}
+
+ /* 이부분 수정하기 글자 위치 수정*/
+.item-search{
+	gap: 30px;
+	padding: 18px 18px;
+}
+
+.search-box label {
+	font-size: 18px;
+	font-weight: bold;
+	white-space: nowrap;
+}
+
+.search-input-wrap{
+	display: flex;
+	align-items: center;
+	width: 320px;
+	height: 42px;
+	border: 1px solid #d8d8d8;
+	border-radius: 22px;
+	background: white;
+	overflow: hidden;
+}
+
+.search-input-wrap input {
+	flex: 1;
+	height: 100%;
+	border: none;
+	outline: none;
+	padding: 0 16px;
+	font-size: 15px;
+}
+
+.search-btn{
+	width: 48px;
+	height: 100%;
+	border: none;
+	background: white;
+	font-size: 22px;
+	cursor: pointer;
+}
+
+.category-select{
+	width: 110px;
+	height: 42px;
+	border: 1px solid #d8d8d8;
+	border-radius: 8px;
+	padding: 0 12px;
+	background: white;
+	font-size: 15px;
+}
+
+/* 표 안의 수정/삭제 버튼이 서로 붙지 않게 간격을 줍니다 */
+td .edit-btn,
+td .delete-btn {
+	margin: 0 4px;
+}
+
+td .action-buttons {
+	display: flex;
+	gap: 8px;
+	justify-content: center;
+}
+
+/* 품목 등록 버튼
+   common.css 의 .register-btn 에는 배경색이 없어서 회색으로 보였습니다.
+   눌리는 버튼이라는 게 드러나도록 색과 마우스 반응을 넣습니다. */
+.register-btn {
+	width: 120px;
+	height: 42px;
+	background: #1d4ed8;
+	color: #ffffff;
+	font-size: 15px;
+	font-weight: 600;
+	align-self: center;
+}
+
+.register-btn:hover {
+	background: #1e40af;
+}
+
+.register-btn:active {
+	background: #1b3aa0;
+}
