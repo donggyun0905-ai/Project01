@@ -157,6 +157,7 @@ public class StockLotAdjustmentService {
         lot.setZoneId(toLong(map.get("zoneId")));
         lot.setPartnerId(toLong(map.get("partnerId")));
         lot.setQuantity(toInteger(map.get("quantity")));
+        lot.setInitialQuantity(toInteger(map.get("initialQuantity")));
         lot.setInboundDate(LocalDate.parse((String) map.get("inboundDate")));
         Object expiryDate = map.get("expiryDate");
         lot.setExpiryDate(expiryDate != null ? LocalDate.parse((String) expiryDate) : null);

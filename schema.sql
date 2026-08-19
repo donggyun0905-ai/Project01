@@ -58,6 +58,7 @@ CREATE TABLE STOCK_LOT (
     zone_id       BIGINT NOT NULL,
     partner_id    BIGINT NOT NULL,                      -- 입고 공급처 (PARTNER.type = SUPPLIER)
     quantity      INT NOT NULL,
+    initial_quantity INT NOT NULL,                      -- 이 로트가 생성될 때의 최초 수량. quantity와 달리 이후 출고/이동/반품폐기로도 변하지 않음.
     inbound_date  DATE NOT NULL,                        -- FIFO 기준
     expiry_date   DATE,                                 -- FEFO 기준
     status        VARCHAR(20) NOT NULL DEFAULT 'NORMAL', -- NORMAL / DISPOSED / RETURNED / DELETED(소프트 삭제, 8/13 추가)
@@ -69,6 +70,7 @@ CREATE TABLE STOCK_LOT (
     CONSTRAINT fk_lot_created_by FOREIGN KEY (created_by) REFERENCES APP_USER(user_id),
     CONSTRAINT fk_lot_parent FOREIGN KEY (parent_lot_id) REFERENCES STOCK_LOT(lot_id),
     CONSTRAINT chk_lot_quantity CHECK (quantity >= 0),
+    CONSTRAINT chk_lot_initial_quantity CHECK (initial_quantity >= 0),
     CONSTRAINT chk_lot_status CHECK (status IN ('NORMAL', 'DISPOSED', 'RETURNED', 'DELETED'))
 );
 

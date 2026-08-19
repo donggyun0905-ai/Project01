@@ -95,6 +95,7 @@ public class TransferService {
                 newLot.setZoneId(toZoneId);
                 newLot.setPartnerId(lot.getPartnerId());
                 newLot.setQuantity(quantity);
+                newLot.setInitialQuantity(quantity);
                 newLot.setInboundDate(lot.getInboundDate());
                 newLot.setExpiryDate(lot.getExpiryDate());
                 newLot.setStatus("NORMAL");

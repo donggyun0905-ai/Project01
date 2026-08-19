@@ -101,6 +101,7 @@ public class ReturnDisposalService {
                 newLot.setZoneId(lot.getZoneId());
                 newLot.setPartnerId(lot.getPartnerId());
                 newLot.setQuantity(quantity);
+                newLot.setInitialQuantity(quantity);
                 newLot.setInboundDate(lot.getInboundDate());
                 newLot.setExpiryDate(lot.getExpiryDate());
                 newLot.setStatus(targetStatus);

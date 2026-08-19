@@ -61,6 +61,7 @@ public class AuditLogService {
                 + "\"zoneId\":" + lot.getZoneId() + ","
                 + "\"partnerId\":" + lot.getPartnerId() + ","
                 + "\"quantity\":" + lot.getQuantity() + ","
+                + "\"initialQuantity\":" + lot.getInitialQuantity() + ","
                 + "\"inboundDate\":\"" + lot.getInboundDate() + "\","
                 + "\"expiryDate\":" + (lot.getExpiryDate() != null ? "\"" + lot.getExpiryDate() + "\"" : "null") + ","
                 + "\"status\":\"" + lot.getStatus() + "\","

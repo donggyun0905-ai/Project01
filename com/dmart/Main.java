@@ -104,6 +104,7 @@ public class Main {
             lot.setZoneId(ids[1]);
             lot.setPartnerId(ids[3]);
             lot.setQuantity(100);
+            lot.setInitialQuantity(100);
             lot.setInboundDate(LocalDate.now());
             lot.setExpiryDate(LocalDate.now().plusDays(14));
             lot.setStatus("NORMAL");

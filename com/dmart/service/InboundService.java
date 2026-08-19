@@ -87,6 +87,7 @@ public class InboundService {
             lot.setZoneId(zoneId);
             lot.setPartnerId(partnerId);
             lot.setQuantity(quantity);
+            lot.setInitialQuantity(quantity);
             lot.setInboundDate(inboundDate);
             lot.setExpiryDate(expiryDate);
             lot.setStatus("NORMAL");

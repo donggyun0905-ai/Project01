@@ -10,6 +10,7 @@ public class StockLot {
     private Long zoneId;
     private Long partnerId;      // 입고 공급처
     private Integer quantity;
+    private Integer initialQuantity; // 로트 생성 시점의 최초 수량. quantity와 달리 이후 변하지 않음.
     private LocalDate inboundDate; // FIFO 기준
     private LocalDate expiryDate;  // FEFO 기준
     private String status;         // NORMAL / DISPOSED / RETURNED
@@ -73,6 +74,14 @@ public class StockLot {
         this.quantity = quantity;
     }
 
+    public Integer getInitialQuantity() {
+        return initialQuantity;
+    }
+
+    public void setInitialQuantity(Integer initialQuantity) {
+        this.initialQuantity = initialQuantity;
+    }
+
     public LocalDate getInboundDate() {
         return inboundDate;
     }
@@ -121,6 +130,7 @@ public class StockLot {
         c.setZoneId(zoneId);
         c.setPartnerId(partnerId);
         c.setQuantity(quantity);
+        c.setInitialQuantity(initialQuantity);
         c.setInboundDate(inboundDate);
         c.setExpiryDate(expiryDate);
         c.setStatus(status);
@@ -132,7 +142,8 @@ public class StockLot {
     @Override
     public String toString() {
         return "StockLot{lotId=" + lotId + ", itemId=" + itemId + ", zoneId=" + zoneId
-                + ", partnerId=" + partnerId + ", quantity=" + quantity + ", inboundDate=" + inboundDate
+                + ", partnerId=" + partnerId + ", quantity=" + quantity + ", initialQuantity=" + initialQuantity
+                + ", inboundDate=" + inboundDate
                 + ", expiryDate=" + expiryDate + ", status='" + status + "', createdBy=" + createdBy
                 + ", parentLotId=" + parentLotId + "}";
     }

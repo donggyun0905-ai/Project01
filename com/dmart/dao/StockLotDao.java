@@ -9,21 +9,22 @@ import java.util.List;
 public class StockLotDao {
 
     public Long insert(Connection conn, StockLot lot) throws SQLException {
-        String sql = "INSERT INTO STOCK_LOT (item_id, zone_id, partner_id, quantity, inbound_date, "
-                + "expiry_date, status, created_by, parent_lot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO STOCK_LOT (item_id, zone_id, partner_id, quantity, initial_quantity, inbound_date, "
+                + "expiry_date, status, created_by, parent_lot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setLong(1, lot.getItemId());
             ps.setLong(2, lot.getZoneId());
             ps.setLong(3, lot.getPartnerId());
             ps.setInt(4, lot.getQuantity());
-            ps.setDate(5, Date.valueOf(lot.getInboundDate()));
-            ps.setDate(6, lot.getExpiryDate() != null ? Date.valueOf(lot.getExpiryDate()) : null);
-            ps.setString(7, lot.getStatus() != null ? lot.getStatus() : "NORMAL");
-            ps.setLong(8, lot.getCreatedBy());
+            ps.setInt(5, lot.getInitialQuantity());
+            ps.setDate(6, Date.valueOf(lot.getInboundDate()));
+            ps.setDate(7, lot.getExpiryDate() != null ? Date.valueOf(lot.getExpiryDate()) : null);
+            ps.setString(8, lot.getStatus() != null ? lot.getStatus() : "NORMAL");
+            ps.setLong(9, lot.getCreatedBy());
             if (lot.getParentLotId() != null) {
-                ps.setLong(9, lot.getParentLotId());
+                ps.setLong(10, lot.getParentLotId());
             } else {
-                ps.setNull(9, Types.BIGINT);
+                ps.setNull(10, Types.BIGINT);
             }
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
@@ -36,23 +37,24 @@ public class StockLotDao {
     }
 
     public boolean update(Connection conn, StockLot lot) throws SQLException {
-        String sql = "UPDATE STOCK_LOT SET item_id = ?, zone_id = ?, partner_id = ?, quantity = ?, "
+        String sql = "UPDATE STOCK_LOT SET item_id = ?, zone_id = ?, partner_id = ?, quantity = ?, initial_quantity = ?, "
                 + "inbound_date = ?, expiry_date = ?, status = ?, created_by = ?, parent_lot_id = ? WHERE lot_id = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, lot.getItemId());
             ps.setLong(2, lot.getZoneId());
             ps.setLong(3, lot.getPartnerId());
             ps.setInt(4, lot.getQuantity());
-            ps.setDate(5, Date.valueOf(lot.getInboundDate()));
-            ps.setDate(6, lot.getExpiryDate() != null ? Date.valueOf(lot.getExpiryDate()) : null);
-            ps.setString(7, lot.getStatus() != null ? lot.getStatus() : "NORMAL");
-            ps.setLong(8, lot.getCreatedBy());
+            ps.setInt(5, lot.getInitialQuantity());
+            ps.setDate(6, Date.valueOf(lot.getInboundDate()));
+            ps.setDate(7, lot.getExpiryDate() != null ? Date.valueOf(lot.getExpiryDate()) : null);
+            ps.setString(8, lot.getStatus() != null ? lot.getStatus() : "NORMAL");
+            ps.setLong(9, lot.getCreatedBy());
             if (lot.getParentLotId() != null) {
-                ps.setLong(9, lot.getParentLotId());
+                ps.setLong(10, lot.getParentLotId());
             } else {
-                ps.setNull(9, Types.BIGINT);
+                ps.setNull(10, Types.BIGINT);
             }
-            ps.setLong(10, lot.getLotId());
+            ps.setLong(11, lot.getLotId());
             return ps.executeUpdate() > 0;
         }
     }
@@ -265,6 +267,7 @@ public class StockLotDao {
         lot.setZoneId(rs.getLong("zone_id"));
         lot.setPartnerId(rs.getLong("partner_id"));
         lot.setQuantity(rs.getInt("quantity"));
+        lot.setInitialQuantity(rs.getInt("initial_quantity"));
         lot.setInboundDate(rs.getDate("inbound_date").toLocalDate());
         Date expiry = rs.getDate("expiry_date");
         lot.setExpiryDate(expiry != null ? expiry.toLocalDate() : null);
