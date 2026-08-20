@@ -159,6 +159,31 @@ public class StockLotDao {
         return null;
     }
 
+    public static class ItemZoneQuantity {
+        public final Long itemId;
+        public final Long zoneId;
+        public final int quantity;
+
+        public ItemZoneQuantity(Long itemId, Long zoneId, int quantity) {
+            this.itemId = itemId;
+            this.zoneId = zoneId;
+            this.quantity = quantity;
+        }
+    }
+
+    // 창고정리 추천(WarehouseConsolidationService)용: 품목별로 어느 존에 얼마나 나뉘어 있는지 집계.
+    public List<ItemZoneQuantity> sumQuantityGroupedByItemAndZone(Connection conn) throws SQLException {
+        String sql = "SELECT item_id, zone_id, SUM(quantity) AS qty FROM STOCK_LOT "
+                + "WHERE status = 'NORMAL' AND quantity > 0 GROUP BY item_id, zone_id";
+        List<ItemZoneQuantity> result = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                result.add(new ItemZoneQuantity(rs.getLong("item_id"), rs.getLong("zone_id"), rs.getInt("qty")));
+            }
+        }
+        return result;
+    }
+
     // 서버 시작 시 유통기한 자동폐기(ExpiryDisposalService)용 — 만료됐는데 아직 NORMAL로 남아있는 로트 전체 조회.
     public List<StockLot> findExpiredNormalLots(Connection conn, LocalDate today) throws SQLException {
         String sql = "SELECT * FROM STOCK_LOT WHERE status = 'NORMAL' AND expiry_date IS NOT NULL "

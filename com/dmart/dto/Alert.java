@@ -6,7 +6,7 @@ public class Alert {
 
     private Long alertId;
     private Long itemId;
-    private String alertType; // 재고부족 / 재고초과 / 이상출고 / 예측알림
+    private String alertType; // 재고부족 / 재고초과 / 이상출고 / 예측알림 / 창고정리추천
     private String message;
     private Boolean isResolved;
     private LocalDateTime createdAt;
