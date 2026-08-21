@@ -172,7 +172,11 @@
 				<label>상태</label>
 				<span id="modalState"></span>
 			</div>
-		
+
+			<!-- 알림 종류에 맞는 실제 조치 버튼이 openDetail()에서 여기 채워집니다.
+			     (재고부족→승인 검토로 이동 / 재고초과→출고 승인요청 만들기 / 창고정리추천→이동 실행) -->
+			<div class="alert-form-group full-width" id="actionArea"></div>
+
 		</section>
 		<div class="modal-footer">
 			<button class="btn-cancel" onclick="closeDetail()">취소</button>
@@ -555,7 +559,299 @@
 			document.querySelector("#resolveBtn").disabled = false;
 		}
 
+		/* 알림 종류마다 실제로 해야 할 조치가 달라서, 그에 맞는 버튼을 여기서 채웁니다.
+		   (재고부족/재고초과/창고정리추천은 "해결 처리" 버튼을 숨기고 실제 조치 버튼으로 대신합니다 -
+		    문제가 실제로 풀려야(승인 실행/이동 실행) 알림이 없어지게 하려는 것입니다) */
+		drawActionArea(i);
+
 		openModal("#detailModal");
+	}
+
+
+	/* ============================================================
+	   6. 알림 종류별 실제 조치
+	   ------------------------------------------------------------
+	   재고부족   : 이미 자동으로 만들어진 "발주 승인요청"이 있으므로 승인 관리 화면으로 안내
+	   재고초과   : "출고 승인요청"을 새로 만들 수 있게 폼을 보여줌
+	   이상출고   : 사람이 보고 판단만 하면 되므로 그대로 "해결 처리"만 씀
+	   창고정리추천 : 알림 메시지 안의 구역/수량을 읽어서, 누르면 그 이동을 바로 실행함
+	   ============================================================ */
+	function drawActionArea(i) {
+
+		let area = document.querySelector("#actionArea");
+		let type = types[i];
+		let already = resolved[i];
+
+		/* 이전에 열어본 다른 알림의 조치 화면(폼 등)이 남아있지 않게 매번 비우고 시작합니다 */
+		area.innerHTML = "";
+
+		/* 재고부족/재고초과/창고정리추천은 실제 조치가 끝나야 알림이 없어지므로
+		   "해결 처리" 버튼은 숨기고 조치 버튼으로 대신합니다.
+		   이상출고는 원래 사람이 보고 판단만 하는 알림이라 그대로 둡니다. */
+		if (type == "이상출고" || already == true) {
+			document.querySelector("#resolveBtn").style.display = "";
+		} else {
+			document.querySelector("#resolveBtn").style.display = "none";
+		}
+
+		if (already == true) {
+			area.innerHTML = "";
+			return;
+		}
+
+		if (type == "재고부족") {
+			area.innerHTML =
+				"<p class='list-note'>이 알림이 뜨는 순간 시스템이 자동으로 <b>발주 승인요청</b>을 만들어 뒀습니다. " +
+				"승인 관리 화면에서 확인하고 승인하면 그 즉시 입고 처리까지 자동으로 됩니다.</p>" +
+				"<button class='btn-primary' onclick=\"location.href='approval.html'\">승인 관리에서 확인하기</button>";
+			return;
+		}
+
+		if (type == "재고초과") {
+			area.innerHTML =
+				"<p class='list-note'>초과된 만큼 어느 거래처로 출고할지 골라서 승인요청을 만드세요. " +
+				"관리자가 승인하면 그 즉시 출고 처리까지 자동으로 됩니다.</p>" +
+				"<div class='form-group'><label>거래처</label><select id='excessPartner'></select></div>" +
+				"<div class='form-group'><label>출고 수량</label><input type='number' id='excessQty'></div>" +
+				"<button class='btn-primary' onclick='doCreateOutboundApproval()'>출고 승인요청 만들기</button>";
+
+			fillPartner("#excessPartner", "CUSTOMER");
+			return;
+		}
+
+		if (type == "창고정리추천") {
+			let move = parseConsolidationMessage(messages[i]);
+
+			if (move == null) {
+				area.innerHTML = "<p class='list-note'>이동할 구역 정보를 읽지 못했습니다. 창고 간 재고 이동 화면에서 직접 처리해 주세요.</p>";
+				return;
+			}
+
+			area.innerHTML =
+				"<p class='list-note'>" + zoneLabel(move.fromZoneId) + " → " + zoneLabel(move.toZoneId) +
+				"로 " + addComma(move.quantity) + "개를 지금 바로 옮깁니다. 실물도 같이 옮겨야 합니다.</p>" +
+				"<button class='btn-primary' onclick='doExecuteConsolidation(" + i + ")'>지금 이 이동 실행하기</button>";
+			return;
+		}
+	}
+
+
+	/* ============================================================
+	   7. 조치에 필요한 거래처/창고/구역 정보 받아오기
+
+	   품목 목록과는 별도로, 여기서만 쓰는 정보라 따로 받습니다.
+	   fillPartner()/zoneLabel()은 common.js가 쓰는 것과 같은
+	   전역 배열(customerIds, warehouseIds, zoneIds 등)을 그대로 채웁니다.
+	   ============================================================ */
+	function loadExtras() {
+		apiGet("/api/partners?type=CUSTOMER&size=200", putCustomersForAlert);
+	}
+
+	function putCustomersForAlert(data) {
+		customerIds = [];
+		customerNames = [];
+		for (let i = 0; i < data.items.length; i++) {
+			customerIds[i] = data.items[i].partnerId;
+			customerNames[i] = data.items[i].name;
+		}
+		apiGet("/api/warehouses?size=200", putWarehousesForAlert);
+	}
+
+	function putWarehousesForAlert(data) {
+		warehouseIds = [];
+		warehouseNames = [];
+		for (let i = 0; i < data.items.length; i++) {
+			warehouseIds[i] = data.items[i].warehouseId;
+			warehouseNames[i] = data.items[i].name + "(" + data.items[i].location + ")";
+		}
+		apiGet("/api/zones?size=200", putZonesForAlert);
+	}
+
+	function putZonesForAlert(data) {
+		zoneIds = [];
+		zoneWarehouseIds = [];
+		zoneNames = [];
+		for (let i = 0; i < data.items.length; i++) {
+			zoneIds[i] = data.items[i].zoneId;
+			zoneWarehouseIds[i] = data.items[i].warehouseId;
+			zoneNames[i] = data.items[i].zoneName;
+		}
+	}
+
+	/* 구역 번호로 "대형(0) EA" 같은 이름을 만듭니다 (item.html의 findZoneName과 같은 방식) */
+	function zoneLabel(zoneId) {
+		for (let i = 0; i < zoneIds.length; i++) {
+			if (zoneIds[i] == zoneId) {
+				for (let k = 0; k < warehouseIds.length; k++) {
+					if (warehouseIds[k] == zoneWarehouseIds[i]) {
+						return warehouseNames[k] + " " + zoneNames[i];
+					}
+				}
+				return zoneNames[i];
+			}
+		}
+		return "구역 " + zoneId;
+	}
+
+	/* 창고정리추천 알림 메시지 안의 "zoneId=3(수량 12, 점유율 40%)를 zoneId=7로" 부분을 읽어냅니다.
+	   WarehouseConsolidationService가 만드는 메시지 형식이 고정돼 있어서 이 방식이 안전합니다. */
+	function parseConsolidationMessage(msg) {
+		if (msg == null) {
+			return null;
+		}
+		let m = msg.match(/zoneId=(\d+)\(수량 (\d+), 점유율 \d+%\)를 zoneId=(\d+)로/);
+		if (m == null) {
+			return null;
+		}
+		return { fromZoneId: m[1] * 1, quantity: m[2] * 1, toZoneId: m[3] * 1 };
+	}
+
+
+	/* ============================================================
+	   8. 재고초과 - 출고 승인요청 만들기 (POST /api/approvals)
+
+	   여기서 바로 출고를 실행하지 않고 "승인요청"만 만듭니다.
+	   관리자가 승인 관리 화면에서 승인해야 실제 출고가 자동 실행됩니다
+	   (거래처/수량이 맞는지 한 번 더 확인하는 절차입니다).
+	   ============================================================ */
+	function doCreateOutboundApproval() {
+
+		let i = openIndex;
+		let partnerId = document.querySelector("#excessPartner").value;
+		let qty = document.querySelector("#excessQty").value;
+
+		if (partnerId == "" || qty == "" || qty * 1 <= 0) {
+			alert("거래처와 수량을 채워 주세요.");
+			return;
+		}
+
+		let body = {
+			itemId: alertItemIds[i],
+			requestType: "출고",
+			requestedQty: qty * 1,
+			partnerId: partnerId * 1
+		};
+
+		apiSend("POST", "/api/approvals", body, afterCreateApproval);
+	}
+
+	function afterCreateApproval(data) {
+		closeDetail();
+		loadData();
+		alert("출고 승인요청을 만들었습니다. 승인 관리 화면에서 승인하면 자동으로 출고 처리됩니다.");
+	}
+
+
+	/* ============================================================
+	   9. 창고정리추천 - 이동 실행 (POST /api/transfers)
+
+	   추천 구역에 이 품목 로트가 여러 개 나뉘어 있을 수 있어서,
+	   필요한 수량을 채울 때까지 로트를 하나씩 순서대로 옮깁니다
+	   (5번의 "한 건씩 순서대로 보내기"와 같은 방식).
+	   다 옮기고 나면 알림도 같이 해결 처리합니다.
+	   ============================================================ */
+	let moveLotIds = [];
+	let moveLotQtys = [];
+	let moveIndex = 0;
+	let moveRemaining = 0;
+	let moveFromZoneId = null;
+	let moveToZoneId = null;
+	let moveAlertId = null;
+
+	function doExecuteConsolidation(i) {
+
+		let move = parseConsolidationMessage(messages[i]);
+		if (move == null) {
+			return;
+		}
+
+		let ask = zoneLabel(move.fromZoneId) + " → " + zoneLabel(move.toZoneId) + "로 "
+		        + addComma(move.quantity) + "개를 지금 옮길까요?\n\n실물도 같이 옮겨 주세요.";
+
+		if (confirm(ask) == false) {
+			return;
+		}
+
+		moveFromZoneId = move.fromZoneId;
+		moveToZoneId = move.toZoneId;
+		moveRemaining = move.quantity;
+		moveAlertId = alertIds[i];
+
+		apiGet("/api/stock-lots?itemId=" + alertItemIds[i] + "&zoneId=" + move.fromZoneId
+		     + "&status=NORMAL&size=200", putMoveLots);
+	}
+
+	function putMoveLots(data) {
+
+		moveLotIds = [];
+		moveLotQtys = [];
+
+		for (let k = 0; k < data.items.length; k++) {
+			moveLotIds[moveLotIds.length] = data.items[k].lotId;
+			moveLotQtys[moveLotQtys.length] = data.items[k].quantity;
+		}
+
+		/* 그 사이 재고가 이미 다 빠졌으면 옮길 것 없이 알림만 정리합니다 */
+		if (moveLotIds.length == 0) {
+			finishConsolidation();
+			return;
+		}
+
+		moveIndex = 0;
+		sendOneMove();
+	}
+
+	function sendOneMove() {
+
+		/* 필요한 만큼 다 옮겼거나 로트가 더 없으면 마무리합니다 */
+		if (moveRemaining <= 0 || moveIndex >= moveLotIds.length) {
+			finishConsolidation();
+			return;
+		}
+
+		let qty = moveLotQtys[moveIndex];
+		if (qty > moveRemaining) {
+			qty = moveRemaining;
+		}
+
+		let body = {
+			lotId: moveLotIds[moveIndex],
+			fromZoneId: moveFromZoneId,
+			toZoneId: moveToZoneId,
+			quantity: qty,
+			handlerId: sessionStorage.getItem("userId") * 1
+		};
+
+		apiSend("POST", "/api/transfers", body, afterOneMove, failOneMove);
+	}
+
+	function afterOneMove(data) {
+
+		let qty = moveLotQtys[moveIndex];
+		if (qty > moveRemaining) {
+			qty = moveRemaining;
+		}
+
+		moveRemaining = moveRemaining - qty;
+		moveIndex = moveIndex + 1;
+		sendOneMove();
+	}
+
+	/* 한 로트가 실패해도(예: 그 사이 구역이 꽉 참) 나머지는 계속 옮겨 봅니다 */
+	function failOneMove(message) {
+		alert("일부는 옮기지 못했습니다: " + message + "\n나머지는 창고 간 재고 이동 화면에서 직접 처리해 주세요.");
+		moveIndex = moveIndex + 1;
+		sendOneMove();
+	}
+
+	function finishConsolidation() {
+		apiSend("PATCH", "/api/alerts/" + moveAlertId + "/resolve", null, afterConsolidationResolve);
+	}
+
+	function afterConsolidationResolve(data) {
+		closeDetail();
+		loadData();
+		alert("창고 정리 이동을 완료했습니다.");
 	}
 
 
@@ -717,6 +1013,9 @@
 
 	/* 화면이 열릴 때 실행 - 품목을 먼저 받고, 끝나면 알림을 받습니다 */
 	loadItems();
+
+	/* 조치(승인요청 만들기/이동 실행)에 필요한 거래처·창고·구역 정보도 같이 받아 둡니다 */
+	loadExtras();
 
 
 	/* 오른쪽 위에 로그인한 사람을 보여 줍니다 */
