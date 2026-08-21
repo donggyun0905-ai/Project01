@@ -210,6 +210,86 @@ td .action-buttons {
 
 .lot-modal table {
 	width: 100%;
+	border-collapse: collapse;
+}
+
+.lot-modal th {
+	background: #f4f4f2;
+	color: #555555;
+	font-size: 12px;
+	text-align: left;
+	padding: 8px 20px;
+}
+
+.lot-modal td {
+	padding: 10px 20px;
+	border-top: 1px solid #ececec;
+	font-size: 13px;
+}
+
+.lot-modal tbody tr:nth-child(even) {
+	background: #fafaf8;
+}
+
+.lot-modal .lot-qty {
+	text-align: right;
+	font-weight: 600;
+}
+
+/* 로트 번호를 알약 모양 배지로 표시해서 다른 텍스트와 구분되게 합니다 */
+.lot-badge {
+	display: inline-block;
+	background: #eef1e7;
+	color: #5c6b3d;
+	border-radius: 999px;
+	padding: 3px 10px;
+	font-size: 12px;
+	font-weight: 600;
+}
+
+/* 구역 재고 상세 모달 상단 - 사용률 숫자 + 막대바 */
+.zn-stock-summary {
+	padding: 4px 20px 16px;
+}
+
+.zn-stock-numbers {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	margin-bottom: 8px;
+	font-size: 14px;
+}
+
+.zn-stock-numbers strong {
+	font-size: 16px;
+}
+
+.zn-stock-bar {
+	height: 10px;
+	background: #ececec;
+	border-radius: 999px;
+	overflow: hidden;
+}
+
+.zn-stock-bar-fill {
+	height: 100%;
+	background: #7B8F4E;
+	border-radius: 999px;
+	transition: width 0.2s;
+}
+
+.zn-stock-bar-fill.bar-warn {
+	background: #cc8400;
+}
+
+.zn-stock-bar-fill.bar-full {
+	background: #d9453b;
+}
+
+.lot-list-note {
+	padding: 0 20px 8px;
+	font-size: 12px;
+	color: #999999;
 }
 
 /* 재고가 있는 구역은 줄 전체를 눌러서 상세를 볼 수 있습니다.

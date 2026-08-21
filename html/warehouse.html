@@ -133,9 +133,17 @@
 			<button class="modal-close" onclick="closeZoneStock()"> x </button>
 		</div>
 
-		<div class="modal-content">
-			<strong id="znStockTotalText"></strong>
+		<div class="zn-stock-summary">
+			<div class="zn-stock-numbers">
+				<span id="znStockTotalText"></span>
+				<strong id="znStockPercentText"></strong>
+			</div>
+			<div class="zn-stock-bar">
+				<div class="zn-stock-bar-fill" id="znStockBarFill"></div>
+			</div>
 		</div>
+
+		<div class="lot-list-note">최근 입고/이동된 로트부터 순서대로 보여줍니다</div>
 
 		<table>
 			<thead>
@@ -587,9 +595,45 @@
 
 		znStockIndex = index;
 
-		document.querySelector("#znStockTitle").innerHTML = znNames[index] + " 재고 상세";
+		/* 창고명까지 같이 보여줘서 어느 구역인지 헷갈리지 않게 합니다 */
+		let whLabel = "";
+
+		for (let k = 0; k < whIds.length; k++) {
+			if (whIds[k] == znWhIds[index]) {
+				whLabel = whNames[k] + "(" + whLocations[k] + ") ";
+			}
+		}
+
+		document.querySelector("#znStockTitle").innerHTML = whLabel + znNames[index] + " 구역 재고 상세";
 		document.querySelector("#znStockTotalText").innerHTML =
-			"총 " + addComma(znUsed[index]) + " / 최대 " + addComma(znCapacities[index]);
+			addComma(znUsed[index]) + " / " + addComma(znCapacities[index]);
+
+		/* 사용률 막대바 - 90% 이상 빨강, 70% 이상 주황, 그 밑은 초록 */
+		let percentText = document.querySelector("#znStockPercentText");
+		let barFill = document.querySelector("#znStockBarFill");
+
+		if (znCapacities[index] > 0) {
+
+			let percent = Math.round(znUsed[index] / znCapacities[index] * 100);
+			percentText.innerHTML = percent + "%";
+			barFill.style.width = Math.min(percent, 100) + "%";
+
+			barFill.className = "zn-stock-bar-fill";
+			percentText.className = "";
+
+			if (percent >= 90) {
+				barFill.className = barFill.className + " bar-full";
+				percentText.className = "zone-full";
+			} else if (percent >= 70) {
+				barFill.className = barFill.className + " bar-warn";
+				percentText.className = "zone-warn";
+			}
+
+		} else {
+			percentText.innerHTML = "용량 미설정";
+			barFill.style.width = "0%";
+		}
+
 		document.querySelector("#znStockBody").innerHTML = "<tr><td colspan='3'>불러오는 중...</td></tr>";
 
 		openModal("#znStockModal");
@@ -610,9 +654,9 @@
 			}
 
 			html = html + "<tr>";
-			html = html + "<td>LOT-" + list[i].lotId + "</td>";
+			html = html + "<td><span class='lot-badge'>LOT-" + list[i].lotId + "</span></td>";
 			html = html + "<td>" + findItemName(list[i].itemId) + "</td>";
-			html = html + "<td>" + addComma(list[i].quantity) + "</td>";
+			html = html + "<td class='lot-qty'>" + addComma(list[i].quantity) + "</td>";
 			html = html + "</tr>";
 		}
 
