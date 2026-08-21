@@ -91,7 +91,24 @@ public class WarehouseConsolidationService {
                 continue; // 한 구역에만 있으면 정리할 게 없음
             }
 
+            // 이 품목이 가장 많이 쌓여 있는 구역을 "본거지"로 정하고, 항상 그 구역으로만 합친다.
+            // (구역마다 따로 "제일 많은 다른 구역"을 찾으면, 구역이 2개뿐일 때 자기보다 적은 쪽이
+            //  유일한 후보라는 이유만으로 뽑혀서 "많은 쪽이 적은 쪽으로 합쳐지는" 역방향 추천이 나올 수 있음)
+            StockLotDao.ItemZoneQuantity hub = null;
+            for (StockLotDao.ItemZoneQuantity z : zoneQuantities) {
+                if (hub == null || z.quantity > hub.quantity) {
+                    hub = z;
+                }
+            }
+            Zone hubZone = zoneCache.get(hub.zoneId);
+            if (hubZone == null || hubZone.getCapacity() == null) {
+                continue;
+            }
+
             for (StockLotDao.ItemZoneQuantity source : zoneQuantities) {
+                if (source.zoneId.equals(hub.zoneId)) {
+                    continue; // 본거지 자기 자신은 정리 대상이 아님
+                }
                 Zone sourceZone = zoneCache.get(source.zoneId);
                 if (sourceZone == null || sourceZone.getCapacity() == null || sourceZone.getCapacity() == 0) {
                     continue;
@@ -101,31 +118,16 @@ public class WarehouseConsolidationService {
                     continue; // 이미 충분히 차 있으면 정리 대상 아님
                 }
 
-                StockLotDao.ItemZoneQuantity bestTarget = null;
-                for (StockLotDao.ItemZoneQuantity candidate : zoneQuantities) {
-                    if (candidate.zoneId.equals(source.zoneId)) {
-                        continue;
-                    }
-                    Zone targetZone = zoneCache.get(candidate.zoneId);
-                    if (targetZone == null || targetZone.getCapacity() == null) {
-                        continue;
-                    }
-                    // 목적지 구역의 "전체(품목 무관)" 현재 재고 기준으로 용량 체크 —
-                    // InboundService/TransferService와 동일한 공유 물리공간 규칙.
-                    int targetOverallTotal = stockLotDao.sumQuantityByZoneId(conn, candidate.zoneId);
-                    if (targetOverallTotal + source.quantity > targetZone.getCapacity()) {
-                        continue; // 옮기면 목적지 용량 초과
-                    }
-                    if (bestTarget == null || candidate.quantity > bestTarget.quantity) {
-                        bestTarget = candidate; // 이 품목이 이미 제일 많이 있는 구역으로 합치는 걸 우선
-                    }
+                // 목적지(본거지) 구역의 "전체(품목 무관)" 현재 재고 기준으로 용량 체크 —
+                // InboundService/TransferService와 동일한 공유 물리공간 규칙.
+                int hubOverallTotal = stockLotDao.sumQuantityByZoneId(conn, hub.zoneId);
+                if (hubOverallTotal + source.quantity > hubZone.getCapacity()) {
+                    continue; // 옮기면 본거지 용량 초과
                 }
 
-                if (bestTarget != null) {
-                    int occupancyPercent = (int) Math.round(occupancy * 100);
-                    result.add(new Recommendation(entry.getKey(), source.zoneId, bestTarget.zoneId,
-                            source.quantity, occupancyPercent));
-                }
+                int occupancyPercent = (int) Math.round(occupancy * 100);
+                result.add(new Recommendation(entry.getKey(), source.zoneId, hub.zoneId,
+                        source.quantity, occupancyPercent));
             }
         }
         return result;
