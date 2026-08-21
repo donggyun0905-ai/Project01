@@ -73,8 +73,24 @@
 	color: #5c6b3d;
 }
 
-.mini-box-action h2 {
-	font-size: 20px;
+/* 숫자 대신 새로고침 아이콘 - 눌러서 다시 스캔한다는 느낌을 주려고
+   호버하면 살짝 돌아갑니다 */
+.mini-box-action .scan-icon {
+	margin-top: 8px;
+	font-size: 32px;
+	line-height: 1;
+	color: #5c6b3d;
+	transition: transform 0.3s;
+}
+
+.mini-box-action:hover .scan-icon {
+	transform: rotate(180deg);
+}
+
+.mini-box-action .scan-caption {
+	margin-top: 8px;
+	font-size: 12px;
+	font-weight: 600;
 	color: #5c6b3d;
 }
 
