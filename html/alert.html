@@ -58,7 +58,6 @@
 					<option>재고부족</option>
 					<option>재고초과</option>
 					<option>이상출고</option>
-					<option>예측알림</option>
 					<option>창고정리추천</option>
 				</select>
 				
@@ -66,8 +65,6 @@
 					<option>미해결만</option>
 					<option>전체</option>
 				</select>
-
-				<button class="btn-primary" onclick="doScanConsolidation()">창고 정리</button>
 			</section>
 
 		<!-- 알림창 -->
@@ -87,9 +84,9 @@
 					<h2 id="cnt2">0</h2>
 				</div>
 				
-				<div class="mini-box" id="card3" onclick="pickType('예측알림')">
-					<label>소진 예측</label>
-					<h2 id="cnt3">-</h2>
+				<div class="mini-box mini-box-action" id="card3" onclick="doScanConsolidation()">
+					<label>창고 정리</label>
+					<h2>다시 찾기</h2>
 				</div>
 			</section>
 		
@@ -382,13 +379,13 @@
 	function drawCards() {
 
 		let cnt = [0, 0, 0];
-		let names = ["재고부족", "재고초과", "이상출고", "예측알림"];
+		let names = ["재고부족", "재고초과", "이상출고"];
 
 		for (let i = 0; i < alertIds.length; i++) {
 			if (resolved[i] == true) {
 				continue;
 			}
-			for (let k = 0; k < 3; k++) {
+			for (let k = 0; k < names.length; k++) {
 				if (types[i] == names[k]) {
 					cnt[k] = cnt[k] + 1;
 				}
@@ -398,9 +395,9 @@
 		document.querySelector("#cnt0").innerHTML = cnt[0];
 		document.querySelector("#cnt1").innerHTML = cnt[1];
 		document.querySelector("#cnt2").innerHTML = cnt[2];
-		/* 예측알림은 서버에서 아직 만들지 않아 "-" 로 둡니다 */
 
-		for (let i = 0; i < 4; i++) {
+		/* card3(창고 정리)은 종류 필터가 아니라 버튼이라 active 표시 대상에서 뺍니다 */
+		for (let i = 0; i < names.length; i++) {
 			if (names[i] == nowType) {
 				document.querySelector("#card" + i).className = "mini-box active";
 			} else {

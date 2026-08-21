@@ -62,6 +62,26 @@
 	font-size: 35px;
 }
 
+/* 창고 정리 카드 - 숫자를 보여주는 다른 카드들과 달리 눌러서 다시 스캔하는 버튼이라
+   색을 다르게 줘서 구분되게 합니다 */
+.mini-box-action {
+	background: #eef1e7;
+	cursor: pointer;
+}
+
+.mini-box-action label {
+	color: #5c6b3d;
+}
+
+.mini-box-action h2 {
+	font-size: 20px;
+	color: #5c6b3d;
+}
+
+.mini-box-action:hover {
+	background: #e3e9d6;
+}
+
 
 /* 폼 */
 .form-box{
