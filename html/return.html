@@ -90,29 +90,28 @@
 		
 		<section class= "table-box">
 		<h4 class="table-title">반품/폐기 내역</h4>
-			<div id="listNote" class="list-note"></div>
 			<table>
 				<thead>
 					<tr>
 						<th>NO</th>
 						<th>구분</th> <!-- 반품/폐기 중 하나-->
-						<th>처리 유형</th> <!-- 고객 반품, 공급처 반품, 폐기 등등-->
+						<th>처리 유형</th> <!-- 고객 반품, 공급처 반품, 파손, 유통기한만료 등등-->
 						<th>품목명</th>
 						<th>품목 코드</th>
 						<th>로트 번호</th>
 						<th>구역</th>
 						<th>수량</th>
-						<th>사유</th> <!-- 배송 실수, 고객 변심 등등 -->
 						<th>처리일</th>
-						<th>상태</th>
-						<th>삭제</th>
-					</tr>				
+					</tr>
 				</thead>
-				
+
 				<!-- 표 내용은 drawList()가 채웁니다 -->
 					<tbody id="rdBody">
 					</tbody>
 			</table>
+
+			<!-- 쪽 번호 -->
+			<div class="paging" id="paging"></div>
 		</section>
 		
 	</main>
@@ -211,19 +210,18 @@
 	let lotQtys = [];
 	let lotZoneTexts = [];
 
-	/* 반품/폐기 내역 (이 화면에서 등록한 것만) */
+	/* 반품/폐기 내역 (서버에서 받아옴, GET /api/returns) */
+	let rowIds = [];
 	let rowTypes = [];
 	let rowKinds = [];
-	let rowNames = [];
-	let rowCodes = [];
+	let rowItemIds = [];
 	let rowLots = [];
-	let rowCategories = [];
-	let rowZones = [];
+	let rowZoneIds = [];
 	let rowQtys = [];
-	let rowNotes = [];
 	let rowDates = [];
 
 	let nowPage = 1;
+	let totalCount = 0;
 
 
 	function startUp() {
@@ -241,7 +239,7 @@
 
 		fillItemList("#itemList");
 		changeType();
-		drawList();
+		loadHistory();
 	}
 
 
@@ -413,34 +411,12 @@
 
 	function afterRegister(data) {
 
-		let k = document.querySelector("#rdLot").value * 1;
-		let i = findItemByName(document.querySelector("#rdName").value);
-
-		/* 표에 한 줄 추가 */
-		let last = rowTypes.length;
-
-		rowTypes[last] = document.querySelector("#rdType").value;
-		rowKinds[last] = document.querySelector("#rdReason").value;
-		rowNames[last] = document.querySelector("#rdName").value;
-		rowCodes[last] = document.querySelector("#rdCode").value;
-		rowLots[last] = "LOT-" + lotIds[k];
-		rowZones[last] = lotZoneTexts[k];
-		rowQtys[last] = document.querySelector("#rdQty").value;
-		rowNotes[last] = document.querySelector("#rdReason").value;
-		rowDates[last] = document.querySelector("#rdDate").value;
-
-		if (i == -1) {
-			rowCategories[last] = "-";
-		} else {
-			rowCategories[last] = itemCategoryList[i];
-		}
-
 		let msg = "";
 
 		/* 전체를 처리하면 그 로트가 통째로 빠지고,
 		   일부면 처리한 만큼만 새 로트로 나뉩니다 */
 		if (data.splitOccurred == true) {
-			msg = "등록되었습니다. 처리한 " + rowQtys[last] + "개가 LOT-" + data.disposedLotId + " 로 분리되었습니다.";
+			msg = "등록되었습니다. 처리한 만큼이 LOT-" + data.disposedLotId + " 로 분리되었습니다.";
 		} else {
 			msg = "등록되었습니다. LOT-" + data.disposedLotId + " 전체가 처리되어 정상 재고에서 빠집니다.";
 		}
@@ -453,8 +429,11 @@
 		}
 
 		clearInput(["#rdQty"]);
-		drawList();
 		closeRegister();
+
+		/* 방금 등록한 내역이 바로 보이게 다시 받아옵니다 */
+		nowPage = 1;
+		loadHistory();
 
 		/* 로트 수량이 바뀌었으니 목록을 다시 받아옵니다 */
 		changeItem();
@@ -464,12 +443,65 @@
 
 
 	/* ============================================================
-	   내역 표
-
-	   서버에 반품/폐기 목록을 조회하는 API가 아직 없어서,
-	   이 화면에서 등록한 건만 보여 줍니다.
-	   (GET /api/returns 가 생기면 여기서 받아오면 됩니다)
+	   내역 표  (GET /api/returns)
 	   ============================================================ */
+	function loadHistory() {
+		apiGet("/api/returns?page=" + nowPage + "&size=" + pageSize, putHistory);
+	}
+
+
+	function putHistory(data) {
+
+		let list = data.items;
+		totalCount = data.total;
+
+		rowIds = [];
+		rowTypes = [];
+		rowKinds = [];
+		rowItemIds = [];
+		rowLots = [];
+		rowZoneIds = [];
+		rowQtys = [];
+		rowDates = [];
+
+		for (let i = 0; i < list.length; i++) {
+			rowIds[i] = list[i].recordId;
+			rowTypes[i] = list[i].type;
+			rowKinds[i] = list[i].reason;
+			rowItemIds[i] = list[i].itemId;
+			rowLots[i] = list[i].lotId;
+			rowZoneIds[i] = list[i].zoneId;
+			rowQtys[i] = list[i].quantity;
+			rowDates[i] = list[i].processedDate;
+		}
+
+		drawList();
+	}
+
+
+	/* 품목 번호로 이름/카테고리를 찾습니다 (common.js가 받아 둔 품목 목록에서) */
+	function findItemName(itemId) {
+
+		for (let i = 0; i < itemCodes.length; i++) {
+			if (itemCodes[i] == "ITEM-" + itemId) {
+				return itemNameList[i];
+			}
+		}
+		return "품목 " + itemId;
+	}
+
+	function findItemCategory(itemId) {
+
+		for (let i = 0; i < itemCodes.length; i++) {
+			if (itemCodes[i] == "ITEM-" + itemId) {
+				return itemCategoryList[i];
+			}
+		}
+		return null;
+	}
+
+
+	/* 유형/카테고리/품목명/기간 거르기는 서버에 없는 조건이라 화면에서 처리합니다 */
 	function getList() {
 
 		let type = document.querySelector("#fType").value;
@@ -484,10 +516,10 @@
 			if (type != "전체" && rowTypes[i] != type) {
 				continue;
 			}
-			if (category != "전체" && rowCategories[i] != category) {
+			if (category != "전체" && findItemCategory(rowItemIds[i]) != category) {
 				continue;
 			}
-			if (word != "" && rowNames[i].indexOf(word) < 0) {
+			if (word != "" && findItemName(rowItemIds[i]).indexOf(word) < 0) {
 				continue;
 			}
 			if (from != "" && rowDates[i] < from) {
@@ -506,18 +538,11 @@
 
 	function drawList() {
 
-		let note = document.querySelector("#listNote");
-
-		if (note != null) {
-			note.innerHTML = "반품/폐기 목록 조회 기능이 서버에 아직 없어, 이 화면에서 등록한 건만 표시됩니다.";
-		}
-
-		let all = getList();
-		let list = cutPage(all, nowPage);
+		let list = getList();
 		let html = "";
 
-		if (all.length == 0) {
-			document.querySelector("#rdBody").innerHTML = "<tr><td colspan='12'>이 화면에서 등록한 내역이 없습니다.</td></tr>";
+		if (list.length == 0) {
+			document.querySelector("#rdBody").innerHTML = "<tr><td colspan='9'>반품/폐기 내역이 없습니다.</td></tr>";
 			drawPaging("#paging", 0, 1, "goPage");
 			return;
 		}
@@ -530,40 +555,25 @@
 			html = html + "<td>" + (n + 1) + "</td>";
 			html = html + "<td>" + rowTypes[i] + "</td>";
 			html = html + "<td>" + rowKinds[i] + "</td>";
-			html = html + "<td>" + rowNames[i] + "</td>";
-			html = html + "<td>" + rowCodes[i] + "</td>";
-			html = html + "<td>" + rowLots[i] + "</td>";
-			html = html + "<td>" + rowZones[i] + "</td>";
-			html = html + "<td>" + rowQtys[i] + "</td>";
-			html = html + "<td>" + rowNotes[i] + "</td>";
+			html = html + "<td>" + findItemName(rowItemIds[i]) + "</td>";
+			html = html + "<td>ITEM-" + rowItemIds[i] + "</td>";
+			html = html + "<td>LOT-" + rowLots[i] + "</td>";
+			html = html + "<td>" + findZoneName(rowZoneIds[i]) + "</td>";
+			html = html + "<td>" + addComma(rowQtys[i]) + "</td>";
 			html = html + "<td>" + rowDates[i] + "</td>";
-			html = html + "<td>완료</td>";
-			html = html + "<td><button class='delete-btn' onclick='doDelete(" + i + ")'>지우기</button></td>";
 			html = html + "</tr>";
 		}
 
 		document.querySelector("#rdBody").innerHTML = html;
-		drawPaging("#paging", all.length, nowPage, "goPage");
+
+		/* 쪽 번호는 서버가 준 전체 건수 기준입니다 (유형/카테고리/기간 거르기는 화면 안에서만 적용) */
+		drawPaging("#paging", totalCount, nowPage, "goPage");
 	}
 
 
 	function goPage(p) {
 		nowPage = p;
-		drawList();
-	}
-
-
-	/* 표에서만 지웁니다. 실제 처리는 되돌아가지 않습니다. */
-	function doDelete(index) {
-
-		if (confirm("이 줄을 목록에서 지울까요?\n(실제 반품/폐기는 취소되지 않습니다)") == false) {
-			return;
-		}
-
-		removeAt([rowTypes, rowKinds, rowNames, rowCodes, rowLots,
-		          rowCategories, rowZones, rowQtys, rowNotes, rowDates], index);
-
-		drawList();
+		loadHistory();
 	}
 
 

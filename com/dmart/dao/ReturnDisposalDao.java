@@ -75,6 +75,42 @@ public class ReturnDisposalDao {
         return result;
     }
 
+    // 반품/폐기 이력 화면용. RETURN_DISPOSAL엔 item_id가 없어서 STOCK_LOT을 조인해 거른다.
+    public List<ReturnDisposal> findPage(Connection conn, Long itemId, int offset, int limit) throws SQLException {
+        String sql = "SELECT rd.* FROM RETURN_DISPOSAL rd JOIN STOCK_LOT sl ON rd.lot_id = sl.lot_id"
+                + (itemId != null ? " WHERE sl.item_id = ?" : "")
+                + " ORDER BY rd.record_id DESC LIMIT ? OFFSET ?";
+        List<ReturnDisposal> result = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = 1;
+            if (itemId != null) {
+                ps.setLong(idx++, itemId);
+            }
+            ps.setInt(idx++, limit);
+            ps.setInt(idx, offset);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(mapRow(rs));
+                }
+            }
+        }
+        return result;
+    }
+
+    public int count(Connection conn, Long itemId) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM RETURN_DISPOSAL rd JOIN STOCK_LOT sl ON rd.lot_id = sl.lot_id"
+                + (itemId != null ? " WHERE sl.item_id = ?" : "");
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            if (itemId != null) {
+                ps.setLong(1, itemId);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
     private ReturnDisposal mapRow(ResultSet rs) throws SQLException {
         ReturnDisposal disposalRecord = new ReturnDisposal();
         disposalRecord.setRecordId(rs.getLong("record_id"));
