@@ -202,3 +202,12 @@ td .action-buttons {
 .btn-primary {
 	background: #7B8F4E;
 }
+
+/* 구역 재고 상세 모달 - 로트/품목명/수량 3칸 표가 편하게 들어가도록 조금 넓힘 */
+.lot-modal {
+	width: 480px;
+}
+
+.lot-modal table {
+	width: 100%;
+}

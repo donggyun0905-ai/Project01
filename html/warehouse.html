@@ -121,8 +121,39 @@
 		
 		</section>
 	</main>
-	
+
 	</div>
+
+<!-- 구역 재고 상세 모달: 이 구역에 지금 뭐가 얼마나 들어있는지 -->
+<div class="modal-overlay" id="znStockModal">
+	<div class="modal-box lot-modal">
+
+		<div class="modal-header">
+			<h3 id="znStockTitle">구역 재고 상세</h3>
+			<button class="modal-close" onclick="closeZoneStock()"> x </button>
+		</div>
+
+		<div class="modal-content">
+			<strong id="znStockTotalText"></strong>
+		</div>
+
+		<table>
+			<thead>
+				<tr>
+					<th>로트 번호</th>
+					<th>품목명</th>
+					<th>수량</th>
+				</tr>
+			</thead>
+			<tbody id="znStockBody">
+			</tbody>
+		</table>
+
+		<div class="modal-footer">
+			<button class="btn-cancel" onclick="closeZoneStock()">닫기</button>
+		</div>
+	</div>
+</div>
 
 <!-- 창고 등록/수정 모달-->
 <div class="modal-overlay" id="whModal">
@@ -233,6 +264,56 @@
 
 	function startUp() {
 		loadData();
+
+		/* 구역 재고 상세 모달에서 품목명을 보여주려고 미리 받아 둡니다 */
+		loadItemsForZoneStock();
+	}
+
+
+	/* ============================================================
+	   구역 재고 상세용 품목 목록 미리 받아오기
+
+	   품목이 250개라 서버가 한 번에 200개까지만 주기 때문에
+	   두 번 나눠서 받습니다 (alert.html의 loadItems와 같은 방식).
+	   ============================================================ */
+	function loadItemsForZoneStock() {
+		apiGet("/api/items?page=1&size=200", putItemsForZoneStock1);
+	}
+
+	function putItemsForZoneStock1(data) {
+
+		itemCodes = [];
+		itemNameList = [];
+
+		addItemsForZoneStock(data.items);
+
+		if (data.total > 200) {
+			apiGet("/api/items?page=2&size=200", putItemsForZoneStock2);
+		}
+	}
+
+	function putItemsForZoneStock2(data) {
+		addItemsForZoneStock(data.items);
+	}
+
+	function addItemsForZoneStock(list) {
+
+		for (let i = 0; i < list.length; i++) {
+			let last = itemCodes.length;
+			itemCodes[last] = "ITEM-" + list[i].itemId;
+			itemNameList[last] = list[i].itemName;
+		}
+	}
+
+	/* 품목 번호로 이름을 찾습니다 */
+	function findItemName(itemId) {
+
+		for (let i = 0; i < itemCodes.length; i++) {
+			if (itemCodes[i] == "ITEM-" + itemId) {
+				return itemNameList[i];
+			}
+		}
+		return "품목 " + itemId;
 	}
 
 
@@ -422,8 +503,10 @@
 
 			/* 얼마나 찼는지 함께 보여 줍니다.
 			   90%를 넘으면 곧 자리가 없다는 뜻이라 눈에 띄게 표시합니다 (명세서 F-04).
-			   용량을 정해두지 않은 구역은 포화도를 계산하지 않습니다. */
+			   용량을 정해두지 않은 구역은 포화도를 계산하지 않습니다.
+			   눌러서 이 구역에 지금 뭐가 들어있는지(로트별 품목·수량) 볼 수 있습니다. */
 			let usedText = addComma(znUsed[i]);
+			let usedClass = "edit-btn";
 
 			if (znCapacities[i] > 0) {
 
@@ -431,20 +514,29 @@
 				usedText = usedText + " (" + percent + "%)";
 
 				if (percent >= 90) {
-					usedText = "<span class='zone-full'>" + usedText + " 포화</span>";
+					usedText = usedText + " 포화";
+					usedClass = usedClass + " zone-full";
 				} else if (percent >= 70) {
-					usedText = "<span class='zone-warn'>" + usedText + "</span>";
+					usedClass = usedClass + " zone-warn";
 				}
 
 			} else {
 				usedText = usedText + " (용량 미설정)";
 			}
 
+			let usedCell;
+
+			if (znUsed[i] > 0) {
+				usedCell = "<button class='" + usedClass + "' onclick='openZoneStock(" + i + ")'>" + usedText + "</button>";
+			} else {
+				usedCell = usedText;
+			}
+
 			html = html + "<tr>";
 			html = html + "<td>" + count + "</td>";
 			html = html + "<td>" + zoneText + "</td>";
 			html = html + "<td>" + addComma(znCapacities[i]) + "</td>";
-			html = html + "<td>" + usedText + "</td>";
+			html = html + "<td>" + usedCell + "</td>";
 			html = html + "<td>";
 			html = html + "<div class='action-buttons'>";
 			html = html + "<button class='edit-btn' onclick='openZone(" + i + ")'>수정</button>";
@@ -480,6 +572,59 @@
 				note.innerHTML = "";
 			}
 		}
+	}
+
+
+	/* ============================================================
+	   구역 재고 상세  (GET /api/stock-lots?zoneId=)
+
+	   이 구역에 지금 어떤 로트가, 얼마나 들어있는지 보여 줍니다.
+	   ============================================================ */
+	let znStockIndex = -1;
+
+	function openZoneStock(index) {
+
+		znStockIndex = index;
+
+		document.querySelector("#znStockTitle").innerHTML = znNames[index] + " 재고 상세";
+		document.querySelector("#znStockTotalText").innerHTML =
+			"총 " + addComma(znUsed[index]) + " / 최대 " + addComma(znCapacities[index]);
+		document.querySelector("#znStockBody").innerHTML = "<tr><td colspan='3'>불러오는 중...</td></tr>";
+
+		openModal("#znStockModal");
+
+		apiGet("/api/stock-lots?zoneId=" + znIds[index] + "&status=NORMAL&size=200", putZoneStock);
+	}
+
+	function putZoneStock(data) {
+
+		let list = data.items;
+		let html = "";
+
+		for (let i = 0; i < list.length; i++) {
+
+			/* 남은 수량이 없는 로트는 보여줄 필요가 없습니다 */
+			if (list[i].quantity <= 0) {
+				continue;
+			}
+
+			html = html + "<tr>";
+			html = html + "<td>LOT-" + list[i].lotId + "</td>";
+			html = html + "<td>" + findItemName(list[i].itemId) + "</td>";
+			html = html + "<td>" + addComma(list[i].quantity) + "</td>";
+			html = html + "</tr>";
+		}
+
+		if (html == "") {
+			html = "<tr><td colspan='3'>남아 있는 재고가 없습니다.</td></tr>";
+		}
+
+		document.querySelector("#znStockBody").innerHTML = html;
+	}
+
+	function closeZoneStock() {
+		closeModal("#znStockModal");
+		znStockIndex = -1;
 	}
 
 
