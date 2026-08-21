@@ -29,7 +29,15 @@ Copy-Item (Join-Path $ProjectRoot "db.properties") $Classes -Force
 Copy-Item (Join-Path $ProjectRoot "lib\mysql-connector-j-26.7.0.jar") $Lib -Force
 Copy-Item (Join-Path $ProjectRoot "WEB-INF\web.xml") (Join-Path $Webapp "WEB-INF\web.xml") -Force
 
-Write-Host "3. Done. Deployed to: $Webapp" -ForegroundColor Green
+Write-Host "3. Copying static files (html/css/js/images)..."
+foreach ($dir in @("html", "css", "js", "images")) {
+    $src = Join-Path $ProjectRoot $dir
+    if (Test-Path $src) {
+        Copy-Item $src $Webapp -Recurse -Force
+    }
+}
+
+Write-Host "4. Done. Deployed to: $Webapp" -ForegroundColor Green
 Write-Host "Restart Tomcat to pick up the change:"
 Write-Host "  `$env:CATALINA_HOME = '$CatalinaHome'; `$env:JAVA_HOME = '$JavaHome'"
 Write-Host "  Invoke-Expression `"$CatalinaHome\bin\shutdown.bat`""
