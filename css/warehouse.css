@@ -208,16 +208,25 @@ td .action-buttons {
 	width: 640px;
 }
 
+/* 로트/품목이 10개를 넘어가면 모달이 한없이 길어지지 않게, 대략 10줄 높이에서
+   잘라 스크롤(드래그)로 나머지를 보게 합니다. 머리글은 스크롤 중에도 안 흔들리게 고정. */
+.lot-table-wrap {
+	max-height: 380px;
+	overflow-y: auto;
+}
+
 .lot-modal table {
 	width: 100%;
 	border-collapse: collapse;
 }
 
 .lot-modal th {
+	position: sticky;
+	top: 0;
 	background: #f4f4f2;
 	color: #555555;
 	font-size: 12px;
-	text-align: left;
+	text-align: center;
 	padding: 8px 20px;
 }
 
@@ -225,6 +234,7 @@ td .action-buttons {
 	padding: 10px 20px;
 	border-top: 1px solid #ececec;
 	font-size: 13px;
+	text-align: center;
 }
 
 .lot-modal tbody tr:nth-child(even) {
@@ -232,7 +242,6 @@ td .action-buttons {
 }
 
 .lot-modal .lot-qty {
-	text-align: right;
 	font-weight: 600;
 }
 
