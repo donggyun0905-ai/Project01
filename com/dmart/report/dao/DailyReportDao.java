@@ -16,13 +16,18 @@ public class DailyReportDao {
 
 	// 전일 대비 입출고 증감량 / 증감률
 	public DailyComparison selectDailyComparison(Connection conn, LocalDate date) throws SQLException{
-		String sql = "SELECT COALESCE(SUM(CASE WHEN inbound_date = ? THEN quantity ELSE 0 END), 0) AS today_inbound, "
-				+ "COALESCE(SUM(CASE WHEN inbound_date = DATE_SUB(?, INTERVAL 1 DAY) THEN quantity ELSE 0 END), 0) AS yesterday_inbound, "
-				+ "( SELECT COALESCE(SUM(quantity), 0) FROM outbound WHERE outbound_date = ? ) AS today_outbound, "
-				+ "( SELECT COALESCE(SUM(quantity), 0) FROM outbound WHERE outbound_date = DATE_SUB(?, INTERVAL 1 DAY)) AS yesterday_outbound "
-				+ "FROM stock_lot " 
+		String sql = "SELECT COALESCE(SUM(CASE WHEN inbound_date = ? "
+				+ "THEN initial_quantity ELSE 0 END), 0) AS today_inbound, "
+				+ "COALESCE(SUM(CASE WHEN inbound_date = DATE_SUB(?, INTERVAL 1 DAY) "
+				+ "THEN initial_quantity ELSE 0 END), 0) AS yesterday_inbound, "
+				+ "(SELECT COALESCE(SUM(quantity), 0) "
+				+ "FROM outbound WHERE outbound_date = ?) AS today_outbound, "
+				+ "(SELECT COALESCE(SUM(quantity), 0) "
+				+ "FROM outbound WHERE outbound_date = DATE_SUB(?, INTERVAL 1 DAY)) "
+				+ "AS yesterday_outbound "
+				+ "FROM stock_lot "
 				+ "WHERE inbound_date IN (?, DATE_SUB(?, INTERVAL 1 DAY))";
-
+		
 		try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
 			pstmt.setObject(1, date);
 			pstmt.setObject(2, date);
@@ -30,18 +35,18 @@ public class DailyReportDao {
 			pstmt.setObject(4, date);
 			pstmt.setObject(5, date);
 			pstmt.setObject(6, date);
-
+			
 			try (ResultSet rs = pstmt.executeQuery()) {
-				if (rs.next()) {
-					int todayInbound = rs.getInt("today_inbound");
-					int yesterdayInbound = rs.getInt("yesterday_inbound");
-					int todayOutbound = rs.getInt("today_outbound");
-					int yesterdayOutbound = rs.getInt("yesterday_outbound");
-
-					return new DailyComparison(todayInbound, yesterdayInbound, todayOutbound, yesterdayOutbound);
+				while(rs.next()) {
+					return new DailyComparison(
+					        rs.getInt("today_inbound"),
+					        rs.getInt("yesterday_inbound"),
+					        rs.getInt("today_outbound"),
+					        rs.getInt("yesterday_outbound")
+					);
 				}
 			}
-		} 
+		}
 		return new DailyComparison(0, 0, 0, 0);
 	}
 
@@ -99,10 +104,11 @@ public class DailyReportDao {
 				int rank = 1;
 
 				while (rs.next()) {
+					long itemId = rs.getLong("item_id");
 					String itemName = rs.getString("item_name");
 					int totalOutbound = rs.getInt("total_outbound");
 
-					TopOutboundItem ranking = new TopOutboundItem(rank++, itemName, totalOutbound);
+					TopOutboundItem ranking = new TopOutboundItem(rank++, itemId, itemName, totalOutbound);
 
 					result.add(ranking);
 				}

@@ -4,22 +4,22 @@ public class LowStockItem {
 	private long itemId;
 	private String itemName;
 	private int currentQty;
-	private int thresholdMin; // 하한선
+	private int minQty; // 재고 부족 판단 기준 수량
 	
 	public LowStockItem() {}
 	
-	public LowStockItem(long itemId, String itemName, int currentQty, int thresholdMin) {
+	public LowStockItem(long itemId, String itemName, int currentQty, int minQty) {
 		this.itemId = itemId;
 		this.itemName = itemName;
 		this.currentQty = currentQty;
-		this.thresholdMin = thresholdMin;
+		this.minQty = minQty;
 	}
 
 	public long getItemId() {
 		return itemId;
 	}
 
-	public void setItemId(int itemId) {
+	public void setItemId(long itemId) {
 		this.itemId = itemId;
 	}
 
@@ -39,19 +39,19 @@ public class LowStockItem {
 		this.currentQty = currentQty;
 	}
 
-	public int getThresholdMin() {
-		return thresholdMin;
+	public int getMinQty() {
+		return minQty;
 	}
 
-	public void setThresholdMin(int thresholdMin) {
-		this.thresholdMin = thresholdMin;
+	public void setMinQty(int minQty) {
+		this.minQty = minQty;
 	}
-	
+
 	@Override
 	public String toString() {
 		return "LowStockItem{" + "itemId=" + itemId +
 				", itemName='" + itemName + '\'' +
 				", currentQty=" + currentQty +
-				", thresholdMin=" + thresholdMin + '}';
+				", minQty=" + minQty + '}';
 	}
 }

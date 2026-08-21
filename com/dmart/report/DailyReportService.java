@@ -6,60 +6,55 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.dmart.dao.AlertDao;
-import com.dmart.dao.ItemDao;
-import com.dmart.dao.StockLotDao;
 import com.dmart.db.DBConnection;
-import com.dmart.dto.Alert;
-import com.dmart.dto.Item;
-import com.dmart.dto.StockLot;
 import com.dmart.report.dao.DailyReportDao;
 import com.dmart.report.dto.DailyComparison;
+import com.dmart.report.dto.DailyReport;
 import com.dmart.report.dto.LowStockItem;
 import com.dmart.report.dto.TopOutboundItem;
 
-
 public class DailyReportService {
-	DailyReportDao dao = new DailyReportDao();
-	
-	AlertDao alertDao = new AlertDao();
-	ItemDao itemDao = new ItemDao();
-	StockLotDao stockLotDao = new StockLotDao();
+	private final DailyReportDao dao = new DailyReportDao();
 
-	// 전일 대비 입출고 증감량 / 증감률
-	public DailyComparison getYesterdayComparison(LocalDate searchDate) {
+	// 조회일과 전일의 입출고량을 비교하여 증감량/증감률 계산
+	public DailyComparison getDailyComparison(LocalDate searchDate) {
+		
+		// 조회일 없으면 오늘 날짜 기본값
 		if (searchDate == null)
 			searchDate = LocalDate.now();
 
 		try (Connection conn = DBConnection.getConnection()) {
 			DailyComparison dailyComp = dao.selectDailyComparison(conn, searchDate);
-			if (dailyComp == null)
-				return null;
 
 			int tdyInbound = dailyComp.getTodayInboundQty();
 			int ydayInbound = dailyComp.getYesterdayInboundQty();
 			int tdyOutbound = dailyComp.getTodayOutboundQty();
 			int ydayOutbound = dailyComp.getYesterdayOutboundQty();
 
+			// 당일 - 전일 기준 증감량 계산
 			int inboundChange = tdyInbound - ydayInbound;
 			int outboundChange = tdyOutbound - ydayOutbound;
 
-			double inboundChangeRate = (ydayInbound != 0) ? (tdyInbound - ydayInbound) / (double) ydayInbound * 100 : 0;
-			double outboundChangeRate = (ydayOutbound != 0) ? (tdyOutbound - ydayOutbound) / (double) ydayOutbound * 100 : 0;
+			// 전일 수량이 0이면 증감률 계산이 불가능 => null 처리
+			// 화면에서 null을 '-'로 표시
+			Double inboundChangeRate = (ydayInbound != 0) ? inboundChange / (double) ydayInbound * 100 : null;
+			Double outboundChangeRate = (ydayOutbound != 0) ? outboundChange / (double) ydayOutbound * 100 : null;
 
+			dailyComp.setDate(searchDate);
 			dailyComp.setInboundQtyChange(inboundChange);
 			dailyComp.setOutboundQtyChange(outboundChange);
 			dailyComp.setInboundQtyChangeRate(inboundChangeRate);
 			dailyComp.setOutboundQtyChangeRate(outboundChangeRate);
 
 			return dailyComp;
+			
 		} catch (SQLException e) {
 			e.printStackTrace();
 			return null;
 		}
 	}
 	
-	// LowStock(재고 부족) 품목 리스트
+	// 현재 재고가 최소 기준 이하인 재고 부족 품목 조회
 	public List<LowStockItem> getLowStockitems() {
 		try (Connection conn = DBConnection.getConnection()) {
 			return dao.selectLowStockItems(conn, "재고부족");
@@ -69,17 +64,29 @@ public class DailyReportService {
 		}
 	}
 	
-	// 금일 Top5 출고량 품목
+	// 조회일 기준 출고량 TOP5 품목 조회
 	public List<TopOutboundItem> getTop5OutboundItems(LocalDate searchDate) {
 	    if (searchDate == null) searchDate = LocalDate.now();
 	    
 	    try (Connection conn = DBConnection.getConnection()) {
-	    	List<TopOutboundItem> topList = dao.selectTop5OutboundItems(conn, searchDate);
-	    	if (topList == null || topList.isEmpty()) return new ArrayList<>();
-	    	return topList;
+	    	return dao.selectTop5OutboundItems(conn, searchDate);
 		} catch (SQLException e) {
 			e.printStackTrace();
-			return null;
+			return new ArrayList<>();
 		}
+	}
+	
+	// 전체 데이터 묶음 => 일일보고서 PDF 내보내기
+	public DailyReport getDailyReport(LocalDate searchDate) {
+		if(searchDate == null) searchDate = LocalDate.now();
+		
+		DailyComparison comparison = getDailyComparison(searchDate);
+
+	    List<LowStockItem> lowStockItems = getLowStockitems();
+
+	    List<TopOutboundItem> topOutboundItems = getTop5OutboundItems(searchDate);
+
+	    return new DailyReport(searchDate, comparison, lowStockItems, topOutboundItems
+	    );
 	}
 }
