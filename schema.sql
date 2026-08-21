@@ -136,7 +136,7 @@ CREATE TABLE RETURN_DISPOSAL (
 CREATE TABLE ALERT (
     alert_id     BIGINT AUTO_INCREMENT PRIMARY KEY,
     item_id      BIGINT NOT NULL,
-    alert_type   VARCHAR(30) NOT NULL,                  -- 재고부족 / 재고초과 / 이상출고 / 예측알림
+    alert_type   VARCHAR(30) NOT NULL,                  -- 재고부족 / 재고초과 / 이상출고 / 예측알림 / 창고정리추천
     message      VARCHAR(255) NOT NULL,
     is_resolved  BOOLEAN NOT NULL DEFAULT FALSE,
     created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

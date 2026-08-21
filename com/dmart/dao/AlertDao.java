@@ -146,6 +146,19 @@ public class AlertDao {
         return idx;
     }
 
+    // WarehouseConsolidationService용 — 같은 품목에 대해 처리 안 된(is_resolved=false) 추천 알림이
+    // 이미 있으면 중복으로 또 만들지 않기 위한 체크.
+    public boolean existsUnresolvedByItemIdAndType(Connection conn, Long itemId, String alertType) throws SQLException {
+        String sql = "SELECT 1 FROM ALERT WHERE item_id = ? AND alert_type = ? AND is_resolved = FALSE LIMIT 1";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, itemId);
+            ps.setString(2, alertType);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
     // 11번 "자동 해결 규칙" 참고. AlertResolutionService에서 재고가 정상 범위로 돌아왔을 때 호출.
     public int resolveUnresolvedByItemIdAndType(Connection conn, Long itemId, String alertType) throws SQLException {
         String sql = "UPDATE ALERT SET is_resolved = TRUE WHERE item_id = ? AND alert_type = ? AND is_resolved = FALSE";
