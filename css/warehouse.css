@@ -212,18 +212,8 @@ td .action-buttons {
 	width: 100%;
 }
 
-/* 현재 사용량 버튼 - 평소엔 그냥 글자처럼 보이다가, 마우스를 올리면 회색 배경이 생겨서
-   누를 수 있다는 걸 알려줍니다 (.edit-btn처럼 항상 회색 박스로 보이지 않게) */
-.zone-used-btn {
-	background: transparent;
-	border: none;
-	padding: 4px 8px;
-	border-radius: 6px;
-	font: inherit;
-	color: inherit;
+/* 재고가 있는 구역은 줄 전체를 눌러서 상세를 볼 수 있습니다.
+   회색 호버 배경은 common.css의 tbody tr:hover가 이미 해주니 커서만 손가락으로 바꿔 줍니다. */
+.row-clickable {
 	cursor: pointer;
-}
-
-.zone-used-btn:hover {
-	background: #e5e5e5;
 }

@@ -503,10 +503,9 @@
 
 			/* 얼마나 찼는지 함께 보여 줍니다.
 			   90%를 넘으면 곧 자리가 없다는 뜻이라 눈에 띄게 표시합니다 (명세서 F-04).
-			   용량을 정해두지 않은 구역은 포화도를 계산하지 않습니다.
-			   눌러서 이 구역에 지금 뭐가 들어있는지(로트별 품목·수량) 볼 수 있습니다. */
+			   용량을 정해두지 않은 구역은 포화도를 계산하지 않습니다. */
 			let usedText = addComma(znUsed[i]);
-			let usedClass = "zone-used-btn";
+			let usedClass = "";
 
 			if (znCapacities[i] > 0) {
 
@@ -515,29 +514,31 @@
 
 				if (percent >= 90) {
 					usedText = usedText + " 포화";
-					usedClass = usedClass + " zone-full";
+					usedClass = " class='zone-full'";
 				} else if (percent >= 70) {
-					usedClass = usedClass + " zone-warn";
+					usedClass = " class='zone-warn'";
 				}
 
 			} else {
 				usedText = usedText + " (용량 미설정)";
 			}
 
-			let usedCell;
+			/* 재고가 있는 구역은 줄 전체를 눌러서 상세(로트별 품목·수량)를 볼 수 있습니다.
+			   안의 수정/삭제 버튼을 누를 때는 상세 모달이 같이 뜨지 않게 막습니다. */
+			let rowOnclick = "";
+			let rowStyle = "";
 
 			if (znUsed[i] > 0) {
-				usedCell = "<button class='" + usedClass + "' onclick='openZoneStock(" + i + ")'>" + usedText + "</button>";
-			} else {
-				usedCell = usedText;
+				rowOnclick = " onclick='openZoneStock(" + i + ")'";
+				rowStyle = " class='row-clickable'";
 			}
 
-			html = html + "<tr>";
+			html = html + "<tr" + rowStyle + rowOnclick + ">";
 			html = html + "<td>" + count + "</td>";
 			html = html + "<td>" + zoneText + "</td>";
 			html = html + "<td>" + addComma(znCapacities[i]) + "</td>";
-			html = html + "<td>" + usedCell + "</td>";
-			html = html + "<td>";
+			html = html + "<td" + usedClass + ">" + usedText + "</td>";
+			html = html + "<td onclick='event.stopPropagation()'>";
 			html = html + "<div class='action-buttons'>";
 			html = html + "<button class='edit-btn' onclick='openZone(" + i + ")'>수정</button>";
 			html = html + "<button class='delete-btn' onclick='deleteZone(" + i + ")'>삭제</button>";
