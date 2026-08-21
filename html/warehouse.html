@@ -143,13 +143,13 @@
 			</div>
 		</div>
 
-		<div class="lot-list-note">최근 입고/이동된 로트부터 순서대로 보여줍니다</div>
+		<div class="lot-list-note">같은 품목의 로트는 합쳐서 보여줍니다 (최근 로트가 있는 품목부터)</div>
 
 		<table>
 			<thead>
 				<tr>
-					<th>로트 번호</th>
 					<th>품목명</th>
+					<th>로트 수</th>
 					<th>수량</th>
 				</tr>
 			</thead>
@@ -641,22 +641,50 @@
 		apiGet("/api/stock-lots?zoneId=" + znIds[index] + "&status=NORMAL&size=200", putZoneStock);
 	}
 
+	/* 로트별로 한 줄씩 보여주면 로트가 쌓일수록 표가 한없이 길어져서,
+	   같은 품목의 로트는 합쳐서 품목당 한 줄(로트 수 + 합계 수량)로 보여줍니다. */
 	function putZoneStock(data) {
 
 		let list = data.items;
-		let html = "";
+
+		let sumItemIds = [];
+		let sumLotCounts = [];
+		let sumQtys = [];
 
 		for (let i = 0; i < list.length; i++) {
 
-			/* 남은 수량이 없는 로트는 보여줄 필요가 없습니다 */
+			/* 남은 수량이 없는 로트는 합칠 필요가 없습니다 */
 			if (list[i].quantity <= 0) {
 				continue;
 			}
 
+			let k = -1;
+
+			for (let n = 0; n < sumItemIds.length; n++) {
+				if (sumItemIds[n] == list[i].itemId) {
+					k = n;
+				}
+			}
+
+			if (k == -1) {
+				k = sumItemIds.length;
+				sumItemIds[k] = list[i].itemId;
+				sumLotCounts[k] = 0;
+				sumQtys[k] = 0;
+			}
+
+			sumLotCounts[k] = sumLotCounts[k] + 1;
+			sumQtys[k] = sumQtys[k] + list[i].quantity;
+		}
+
+		let html = "";
+
+		for (let i = 0; i < sumItemIds.length; i++) {
+
 			html = html + "<tr>";
-			html = html + "<td><span class='lot-badge'>LOT-" + list[i].lotId + "</span></td>";
-			html = html + "<td>" + findItemName(list[i].itemId) + "</td>";
-			html = html + "<td class='lot-qty'>" + addComma(list[i].quantity) + "</td>";
+			html = html + "<td>" + findItemName(sumItemIds[i]) + "</td>";
+			html = html + "<td>" + sumLotCounts[i] + "개 로트</td>";
+			html = html + "<td class='lot-qty'>" + addComma(sumQtys[i]) + "</td>";
 			html = html + "</tr>";
 		}
 

@@ -203,9 +203,9 @@ td .action-buttons {
 	background: #7B8F4E;
 }
 
-/* 구역 재고 상세 모달 - 로트/품목명/수량 3칸 표가 편하게 들어가도록 조금 넓힘 */
+/* 구역 재고 상세 모달 - 로트가 쌓여도 좌우로 여유 있게 넓힘 */
 .lot-modal {
-	width: 480px;
+	width: 640px;
 }
 
 .lot-modal table {
@@ -233,17 +233,6 @@ td .action-buttons {
 
 .lot-modal .lot-qty {
 	text-align: right;
-	font-weight: 600;
-}
-
-/* 로트 번호를 알약 모양 배지로 표시해서 다른 텍스트와 구분되게 합니다 */
-.lot-badge {
-	display: inline-block;
-	background: #eef1e7;
-	color: #5c6b3d;
-	border-radius: 999px;
-	padding: 3px 10px;
-	font-size: 12px;
 	font-weight: 600;
 }
 
