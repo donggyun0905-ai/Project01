@@ -221,7 +221,7 @@ public class StockLotDao {
         }
         String sql = "SELECT sl.* FROM STOCK_LOT sl JOIN ZONE z ON sl.zone_id = z.zone_id"
                 + whereClause(itemId, zoneId, warehouseId, status, allowedWarehouseIds, originOnly)
-                + " ORDER BY sl.lot_id LIMIT ? OFFSET ?";
+                + " ORDER BY sl.lot_id DESC LIMIT ? OFFSET ?";
         List<StockLot> result = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             int idx = bindFilterParams(ps, 1, itemId, zoneId, warehouseId, status, allowedWarehouseIds);
