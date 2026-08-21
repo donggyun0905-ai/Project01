@@ -1,7 +1,7 @@
 /* 로그인 css */
 
 body{
-	background: linear-gradient(135deg, #4c4fc3 0%, #7b7ee0 50%, #4c4fc3 100%);
+	background: radial-gradient(circle at center, #efefef 0%, #b7defb 50%, #7a99ac 100%);
 	margin: 0;
 }
 
@@ -24,7 +24,7 @@ main{
 .form-group label {
 	width: 90px;
 	font-weight: bold;
-	color: #ffffff;
+	color: #042a5c;
 	text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
@@ -57,7 +57,7 @@ main{
 
 .register-btn1{
 	background: rgba(255, 255, 255, 0.9);
-	color: #4c4fc3;
+	color: #042a5c;
 	border: none;
 	padding: 10px 20px;
 	border-radius: 8px;
@@ -74,18 +74,20 @@ main{
 	background: #ffffff;
 }
 
-/* 유리창(글래스모피즘) 카드 - 비 온 버스 창문처럼 반투명하고 뒤가 흐릿하게 비침 */
-.container{
+/* 유리창(글래스모피즘) 카드 - 화면 중앙에 뜨는 실제 로그인 박스.
+   opacity가 있는 흰색 배경(rgba)이 반투명을 만들고, backdrop-filter가
+   그 뒤 배경을 흐릿하게 비쳐 보이게 해서 비 온 버스 창문 같은 느낌을 줍니다. */
+.glass-card{
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	background: rgba(255, 255, 255, 0.16);
+	background: rgba(255, 255, 255, 0.35);
 	backdrop-filter: blur(18px);
 	-webkit-backdrop-filter: blur(18px);
-	border: 1px solid rgba(255, 255, 255, 0.35);
+	border: 1px solid rgba(255, 255, 255, 0.5);
 	border-radius: 28px;
 	padding: 40px 56px 48px;
-	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
 }
 
 /* 로고 */
