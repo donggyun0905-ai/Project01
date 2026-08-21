@@ -40,6 +40,9 @@
 	</aside>
 
 	<main class="content">
+		<!-- 오른쪽 위 로그인 안내 -->
+		<div class="user-bar" id="userBar"></div>
+		
 		<!-- 위에 있는데 -->
 		<section class="search-box">
 				<div class="form-group expiration-group">
@@ -444,7 +447,7 @@
 			html = html + "<td>" + checkBox + "</td>";
 			html = html + "<td>" + types[i] + "</td>";
 			html = html + "<td>" + name + " " + types[i] + "</td>";
-			html = html + "<td>" + messages[i] + "</td>";
+			html = html + "<td>" + plainText(messages[i]) + "</td>";
 			html = html + "<td>" + category + "</td>";
 			html = html + "<td>" + times[i] + "</td>";
 			html = html + "<td>" + stateText + "</td>";
@@ -535,7 +538,7 @@
 		document.querySelector("#modalCategory").innerHTML = category;
 		document.querySelector("#modalMin").innerHTML = min;
 		document.querySelector("#modalTime").innerHTML = times[i];
-		document.querySelector("#modalMsg").innerHTML = messages[i];
+		document.querySelector("#modalMsg").innerHTML = plainText(messages[i]);
 
 		/* 현재 재고는 알림에 없는 값이라 재고 목록에서 따로 받아 더합니다 */
 		document.querySelector("#modalStock").innerHTML = "불러오는 중...";
@@ -713,6 +716,10 @@
 
 	/* 화면이 열릴 때 실행 - 품목을 먼저 받고, 끝나면 알림을 받습니다 */
 	loadItems();
+
+
+	/* 오른쪽 위에 로그인한 사람을 보여 줍니다 */
+	drawUserBar();
 
 </script>
 

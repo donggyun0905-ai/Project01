@@ -634,7 +634,9 @@ function putZoneList(data) {
 		zoneUsed[i] = 0;
 	}
 
-	apiGet("/api/items?page=1&size=200", putItemList1);
+	/* 비활성 품목은 입고·출고·이동·반품에서 고를 수 없어야 하므로
+	   사용 중인 품목만 받아옵니다 */
+	apiGet("/api/items?active=true&page=1&size=200", putItemList1);
 }
 
 
@@ -650,7 +652,7 @@ function putItemList1(data) {
 
 	/* 품목이 200개를 넘으면 다음 쪽도 받아옵니다 */
 	if (data.total > 200) {
-		apiGet("/api/items?page=2&size=200", putItemList2);
+		apiGet("/api/items?active=true&page=2&size=200", putItemList2);
 	} else {
 		finishMaster();
 	}
@@ -741,4 +743,183 @@ function logout() {
 
 function goLogin() {
 	location.href = "login.html";
+}
+
+
+/* ============================================================
+   9. 서버 메시지를 읽기 쉽게 다듬기
+
+   서버가 보내는 알림 내용에는 개발용 표기가 섞여 있습니다.
+     "품목(itemId=2) 재고가 threshold_min(4) 미만입니다 (현재 0, 폐기로 인한 감소)"
+
+   화면에는 사람이 읽을 말만 남깁니다.
+     "재고가 기준 수량 4개 미만입니다 (현재 0, 폐기로 인한 감소)"
+
+   서버 문구가 바뀌어도 그대로 두면 원문이 나오므로 안전합니다.
+   ============================================================ */
+
+
+/* text 안에서 start 로 시작해 ")" 로 끝나는 부분을 통째로 지웁니다.
+   예) "품목(itemId=2) 재고가..." -> "재고가..."                    */
+function cutPart(text, start) {
+
+	let i = text.indexOf(start);
+
+	if (i < 0) {
+		return text;
+	}
+
+	let j = text.indexOf(")", i);
+
+	if (j < 0) {
+		return text;
+	}
+
+	let left = text.substring(0, i);
+	let right = text.substring(j + 1);
+
+	/* 지운 자리 뒤에 빈칸이 남으면 같이 지웁니다 */
+	if (right.charAt(0) == " ") {
+		right = right.substring(1);
+	}
+
+	return left + right;
+}
+
+
+/* "threshold_min(4)" 처럼 적힌 부분을 "기준 수량 4개" 로 바꿉니다 */
+function renameCount(text, word, label) {
+
+	let start = word + "(";
+	let i = text.indexOf(start);
+
+	if (i < 0) {
+		return text;
+	}
+
+	let j = text.indexOf(")", i);
+
+	if (j < 0) {
+		return text;
+	}
+
+	let number = text.substring(i + start.length, j);
+	let left = text.substring(0, i);
+	let right = text.substring(j + 1);
+
+	/* "개" 뒤에는 받침이 없으므로 조사를 맞춰 줍니다.
+	   (200개을 -> 200개를) */
+	let first = right.charAt(0);
+
+	if (first == "을") {
+		right = "를" + right.substring(1);
+	} else if (first == "은") {
+		right = "는" + right.substring(1);
+	} else if (first == "이") {
+		right = "가" + right.substring(1);
+	}
+
+	return left + label + number + "개" + right;
+}
+
+
+/* 알림 내용을 사람이 읽을 말로 다듬습니다 */
+function plainText(text) {
+
+	if (text == null) {
+		return "";
+	}
+
+	let result = text;
+
+	/* 품목 번호는 화면에 품목명이 따로 나오므로 지웁니다 */
+	result = cutPart(result, "품목(itemId=");
+	result = cutPart(result, "(itemId=");
+
+	/* 개발용 컬럼 이름을 우리말로 바꿉니다 */
+	result = renameCount(result, "threshold_min", "기준 수량 ");
+	result = renameCount(result, "capacity_max", "최대 보유량 ");
+
+	return result;
+}
+
+
+/* ============================================================
+   10. 오른쪽 위 로그인 안내
+
+   로그인할 때 sessionStorage 에 담아 둔 이름과 역할을 보여 줍니다.
+   화면마다 <div class="user-bar" id="userBar"></div> 를 두면
+   여기서 채워 줍니다.
+   ============================================================ */
+
+function drawUserBar() {
+
+	let area = document.querySelector("#userBar");
+
+	if (area == null) {
+		return;
+	}
+
+	let name = sessionStorage.getItem("userName");
+	let role = sessionStorage.getItem("userRole");
+
+	/* 로그인 정보가 없으면 안내만 합니다 */
+	if (name == null) {
+		area.innerHTML = "<span>로그인이 필요합니다</span>";
+		return;
+	}
+
+	let roleText = "담당자";
+	let roleClass = "user-role";
+
+	if (role == "ADMIN") {
+		roleText = "관리자";
+		roleClass = "user-role admin";
+	}
+
+	let html = "";
+
+	/* 승인 대기 건수는 관리자만 보면 되므로 자리만 먼저 만들어 둡니다 */
+	html = html + "<span id='waitBadge'></span>";
+	html = html + "<span class='" + roleClass + "'>" + roleText + "</span>";
+	html = html + "<span><b class='user-name'>" + name + "</b> 님 환영합니다</span>";
+
+	area.innerHTML = html;
+
+	/* 관리자일 때만 대기 중인 승인 요청이 몇 건인지 확인합니다.
+	   담당자는 승인 화면 자체를 볼 수 없어서 물어보지 않습니다. */
+	if (role == "ADMIN") {
+		apiGet("/api/approvals?status=대기&page=1&size=1", putWaitCount, hideWaitBadge);
+	}
+}
+
+
+/* 대기 건수를 배지로 보여 줍니다. 누르면 승인 화면으로 갑니다. */
+function putWaitCount(data) {
+
+	let area = document.querySelector("#waitBadge");
+
+	if (area == null) {
+		return;
+	}
+
+	/* 대기 중인 게 없으면 아무것도 안 보여 줍니다 */
+	if (data.total == 0) {
+		area.innerHTML = "";
+		return;
+	}
+
+	area.innerHTML = "<a class='wait-badge' href='approval.html'>승인 대기 "
+	               + data.total + "건</a>";
+}
+
+
+/* 조회에 실패하면 그냥 배지를 숨깁니다 (화면이 멈추면 안 되므로) */
+function hideWaitBadge(message) {
+
+	let area = document.querySelector("#waitBadge");
+
+	if (area != null) {
+		area.innerHTML = "";
+	}
 }

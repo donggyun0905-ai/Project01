@@ -476,3 +476,51 @@ td .delete-btn {
 	height: 16px;
 	cursor: pointer;
 }
+
+/* ------------------------------------------------------------
+   오른쪽 위 로그인 안내 줄
+   화면 맨 위에 붙어서 누가 로그인했는지 보여 줍니다.
+   ------------------------------------------------------------ */
+.user-bar {
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 12px;
+	font-size: 13px;
+	color: #555;
+}
+
+.user-bar .user-name {
+	font-weight: bold;
+	color: #222;
+}
+
+.user-bar .user-role {
+	padding: 2px 8px;
+	border-radius: 10px;
+	background: #e5e5e5;
+	font-size: 12px;
+}
+
+.user-bar .user-role.admin {
+	background: #1d4ed8;
+	color: #ffffff;
+}
+
+/* 승인 대기 건수 배지 (관리자에게만 보입니다) */
+.wait-badge {
+	display: inline-block;
+	padding: 3px 12px;
+	border-radius: 12px;
+	background: #D99A3D;
+	color: #ffffff;
+	font-size: 12px;
+	font-weight: bold;
+	text-decoration: none;
+	margin-right: 4px;
+}
+
+.wait-badge:hover {
+	background: #c2862f;
+}

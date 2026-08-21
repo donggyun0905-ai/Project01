@@ -80,7 +80,8 @@ td .action-buttons {
    common.css 의 .register-btn 에는 배경색이 없어서 회색으로 보였습니다.
    눌리는 버튼이라는 게 드러나도록 색과 마우스 반응을 넣습니다. */
 .register-btn {
-	width: 120px;
+	padding: 0 20px;
+	white-space: nowrap;
 	height: 42px;
 	background: #1d4ed8;
 	color: #ffffff;

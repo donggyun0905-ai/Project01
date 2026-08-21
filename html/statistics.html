@@ -39,6 +39,9 @@
 
 	<!-- 오른쪽 위에 뜨는거 -->
 	<main class="content">
+		<!-- 오른쪽 위 로그인 안내 -->
+		<div class="user-bar" id="userBar"></div>
+		
 
 		<!-- 통계 안의 화면 전환 -->
 		<header class="top-menu">
@@ -390,6 +393,10 @@
 	document.querySelector("#fromDate").value = getDateText(weekAgo);
 
 	loadData();
+
+	/* 오른쪽 위에 로그인한 사람을 보여 줍니다 */
+	drawUserBar();
+
 </script>
 
 </body>

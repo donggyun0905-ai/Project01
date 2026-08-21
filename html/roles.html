@@ -39,6 +39,9 @@
 		
 	<!-- 오른쪽 위에 뜨는거 -->
 	<main class="content">
+		<!-- 오른쪽 위 로그인 안내 -->
+		<div class="user-bar" id="userBar"></div>
+		
 		<header class="top-menu">
 			<button class="menu-btn" onclick="location.href='setting.html'">사용자 관리</button> 
 			<button class="menu-btn" onclick="location.href='approval.html'">자동 제안 및 승인</button> 
@@ -143,6 +146,10 @@
 
 	/* 화면이 열릴 때 실행 */
 	loadData();
+
+
+	/* 오른쪽 위에 로그인한 사람을 보여 줍니다 */
+	drawUserBar();
 
 </script>
 

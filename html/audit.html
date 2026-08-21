@@ -40,6 +40,9 @@
 	
 	<!-- 오른쪽 위에 뜨는거 -->
 	<main class="content">
+		<!-- 오른쪽 위 로그인 안내 -->
+		<div class="user-bar" id="userBar"></div>
+		
 	
 		<header class="top-menu">
 			<button class="menu-btn" onclick="location.href='item.html'">품목 관리</button> 
@@ -208,7 +211,7 @@
 			if (list[i].reason == null) {
 				logReasons[i] = "-";
 			} else {
-				logReasons[i] = list[i].reason;
+				logReasons[i] = plainText(list[i].reason);
 			}
 
 			let t = list[i].changedAt;
@@ -409,6 +412,10 @@
 
 	/* 화면이 열릴 때 실행 */
 	startUp();
+
+
+	/* 오른쪽 위에 로그인한 사람을 보여 줍니다 */
+	drawUserBar();
 
 </script>
 

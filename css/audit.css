@@ -21,3 +21,8 @@ td .action-buttons {
 	gap: 8px;
 	justify-content: center;
 }
+
+.register-btn {
+	background: #4F8A8B;
+	color: white;
+}

@@ -40,6 +40,9 @@
 	
 	<!-- 오른쪽 위에 뜨는거 -->
 	<main class="content">
+		<!-- 오른쪽 위 로그인 안내 -->
+		<div class="user-bar" id="userBar"></div>
+		
 		<header class="top-menu">
 			<button class="menu-btn active">품목 관리</button> <!--현재 화면이 품목 관리라서 -->
 			<button class="menu-btn" onclick="location.href='inout.html'">입출고 등록</button>
@@ -64,6 +67,12 @@
 	       	 	<option>단위</option>
 	    		</select>
 	    	
+			<!-- 활성 / 비활성 골라 보기 -->
+			<select class="category-select" id="activeFilter" onchange="doSearch()">
+				<option value="true">사용 중</option>
+				<option value="false">비활성</option>
+			</select>
+			
 			<!-- 품목 등록 (F-01) -->
 			<button class="register-btn" onclick="openItem(-1)">품목 등록</button>
 		</section>
@@ -103,10 +112,12 @@
      ------------------------------------------------------------
      품목 정보 : 품목코드 / 품목명 / 카테고리 / 단위 / 유통기한 일수
 
-     총 재고는 ITEM 이 아니라 STOCK_LOT 에 있는 값이라 따로 받아옵니다.
-     서버가 품목 목록에 totalStock 을 같이 내려주면 그 값을 쓰고,
-     아직 없으면 화면에서 로트를 받아 품목별로 더합니다.
-     (서버가 만들어지면 아래 loadStock() 만 지우면 됩니다)
+     총 재고(totalQuantity)는 서버가 품목마다 계산해서 같이 보내 줍니다.
+
+     삭제 대신 "비활성" 을 씁니다. 품목을 실제로 지우면 그 품목을 쓰던
+     입출고 기록까지 깨지기 때문입니다. 비활성이 되면 목록에서 빠지고
+     입고·출고·이동·반품에서도 고를 수 없게 됩니다.
+     되살리려면 위쪽에서 "비활성" 을 골라 목록을 보면 됩니다.
      ============================================================ -->
 <script>
 
@@ -127,20 +138,19 @@
 	/* 수정 중인 품목 번호. -1 이면 새로 등록하는 중입니다. */
 	let editId = -1;
 
-	/* 품목별 총 재고. 품목번호로 찾아 씁니다. */
-	let stockItemIds = [];
-	let stockTotals = [];
+	/* 품목별 총 재고. 서버가 품목 목록에 같이 보내 줍니다. */
+	let itemStocks = [];
 
-	/* 재고 로트 하나하나. 재고를 눌렀을 때 상세로 보여 줍니다. */
-	let lotItemIds = [];
+	/* 품목이 지금 쓸 수 있는 상태인지 */
+	let itemActives = [];
+
+	/* 재고 상세(어느 구역에 있는지)는 눌렀을 때만 그 품목의 로트를 받아옵니다 */
 	let lotIds = [];
 	let lotZoneIds = [];
 	let lotQtys = [];
 	let lotInDates = [];
 	let lotExpiries = [];
-
-	/* 재고를 이미 받아왔는지 (한 번만 받으면 됩니다) */
-	let stockLoaded = false;
+	let openItemIndex = -1;
 
 
 	/* ============================================================
@@ -152,6 +162,9 @@
 	function loadData() {
 
 		let path = "/api/items?page=" + nowPage + "&size=" + pageSize;
+
+		/* 사용 중 / 비활성 중 어느 쪽을 볼지 */
+		path = path + "&active=" + document.querySelector("#activeFilter").value;
 
 		/* 검색어가 있으면 조건을 붙입니다.
 		   카테고리를 고르면 category, 그 외에는 keyword(품목명 검색)로 보냅니다. */
@@ -184,8 +197,11 @@
 		itemMins = [];
 		itemMaxs = [];
 		itemShelfs = [];
+		itemStocks = [];
+		itemActives = [];
 
 		for (let i = 0; i < list.length; i++) {
+
 			itemIds[i] = list[i].itemId;
 			itemNames[i] = list[i].itemName;
 			itemCategories[i] = list[i].category;
@@ -194,24 +210,18 @@
 			itemMaxs[i] = list[i].capacityMax;
 			itemShelfs[i] = list[i].shelfLifeDays;
 
-			/* 서버가 총 재고를 같이 내려주면 그 값을 씁니다.
-			   (4번 담당자가 만들어 주면 여기가 자동으로 쓰입니다) */
-			if (list[i].totalStock != null) {
+			/* 총 재고는 서버가 세어서 보내 줍니다 */
+			if (list[i].totalQuantity == null) {
+				itemStocks[i] = 0;
+			} else {
+				itemStocks[i] = list[i].totalQuantity;
+			}
 
-				let found = false;
-
-				for (let k = 0; k < stockItemIds.length; k++) {
-					if (stockItemIds[k] == list[i].itemId) {
-						stockTotals[k] = list[i].totalStock;
-						found = true;
-					}
-				}
-
-				if (found == false) {
-					let n = stockItemIds.length;
-					stockItemIds[n] = list[i].itemId;
-					stockTotals[n] = list[i].totalStock;
-				}
+			/* 값이 없으면 사용 중인 것으로 봅니다 */
+			if (list[i].isActive == null) {
+				itemActives[i] = true;
+			} else {
+				itemActives[i] = list[i].isActive;
 			}
 		}
 
@@ -258,7 +268,14 @@
 			html = html + "<td>" + stockCell(i) + "</td>";
 			html = html + "<td>";
 			html = html + "<button class='edit-btn' onclick='openItem(" + i + ")'>수정</button>";
-			html = html + "<button class='delete-btn' onclick='doDelete(" + i + ")'>삭제</button>";
+
+			/* 사용 중이면 비활성으로, 비활성이면 되살리기로 */
+			if (itemActives[i] == true) {
+				html = html + "<button class='delete-btn' onclick='doDisable(" + i + ")'>비활성</button>";
+			} else {
+				html = html + "<button class='edit-btn' onclick='doEnable(" + i + ")'>되살리기</button>";
+			}
+
 			html = html + "</td>";
 			html = html + "</tr>";
 		}
@@ -290,110 +307,14 @@
 
 
 	/* ============================================================
-	   2-1. 총 재고
+	   2-1. 총 재고 칸
 
-	   재고는 로트마다 흩어져 있어서, 품목 하나의 총 재고를 알려면
-	   그 품목의 로트를 모두 더해야 합니다.
-
-	   서버가 품목 목록에 totalStock 을 넣어 주면 그 값을 그대로 쓰고,
-	   아직 없으면 여기서 로트를 받아 더합니다.
+	   총 재고는 서버가 품목마다 세어서 보내 줍니다(totalQuantity).
+	   누르면 어느 창고 어느 구역에 있는지 볼 수 있습니다.
 	   ============================================================ */
-	function loadStock() {
-
-		/* 한 번만 받으면 됩니다 */
-		if (stockLoaded == true) {
-			loadData();
-			return;
-		}
-
-		stockItemIds = [];
-		stockTotals = [];
-		lotItemIds = [];
-		lotIds = [];
-		lotZoneIds = [];
-		lotQtys = [];
-		lotInDates = [];
-		lotExpiries = [];
-
-		apiGet("/api/stock-lots?status=NORMAL&page=1&size=200", putStock1);
-	}
-
-
-	function putStock1(data) {
-
-		addStock(data.items);
-
-		/* 로트가 200개를 넘으면 다음 쪽도 받아옵니다 */
-		if (data.total > 200) {
-			apiGet("/api/stock-lots?status=NORMAL&page=2&size=200", putStock2);
-		} else {
-			finishStock();
-		}
-	}
-
-
-	function putStock2(data) {
-		addStock(data.items);
-		finishStock();
-	}
-
-
-	function addStock(list) {
-
-		for (let i = 0; i < list.length; i++) {
-
-			/* 로트 하나하나를 따로 보관합니다 (상세보기용) */
-			let last = lotIds.length;
-
-			lotIds[last] = list[i].lotId;
-			lotItemIds[last] = list[i].itemId;
-			lotZoneIds[last] = list[i].zoneId;
-			lotQtys[last] = list[i].quantity;
-			lotInDates[last] = list[i].inboundDate;
-			lotExpiries[last] = list[i].expiryDate;
-
-			/* 품목별로 수량을 더합니다 */
-			let found = false;
-
-			for (let k = 0; k < stockItemIds.length; k++) {
-				if (stockItemIds[k] == list[i].itemId) {
-					stockTotals[k] = stockTotals[k] + list[i].quantity;
-					found = true;
-				}
-			}
-
-			if (found == false) {
-				let n = stockItemIds.length;
-				stockItemIds[n] = list[i].itemId;
-				stockTotals[n] = list[i].quantity;
-			}
-		}
-	}
-
-
-	function finishStock() {
-		stockLoaded = true;
-		loadData();
-	}
-
-
-	/* 품목번호로 총 재고를 찾습니다. 없으면 0 */
-	function findStock(itemId) {
-
-		for (let i = 0; i < stockItemIds.length; i++) {
-			if (stockItemIds[i] == itemId) {
-				return stockTotals[i];
-			}
-		}
-		return 0;
-	}
-
-
-	/* 표의 총 재고 칸을 만듭니다.
-	   누르면 어느 창고 어느 구역에 있는지 볼 수 있습니다. */
 	function stockCell(i) {
 
-		let total = findStock(itemIds[i]);
+		let total = itemStocks[i];
 		let text = addComma(total) + " " + itemUnits[i];
 
 		/* 재고가 아예 없으면 가장 눈에 띄게(빨강) 표시하고,
@@ -413,31 +334,58 @@
 
 	/* ============================================================
 	   2-2. 재고 상세 - 어느 창고 어느 구역에 있는지
+
+	   누른 품목의 로트만 그때 받아옵니다.
 	   ============================================================ */
 	function openStock(i) {
 
-		let itemId = itemIds[i];
-		let total = findStock(itemId);
+		openItemIndex = i;
 
-		document.querySelector("#stockTitle").innerHTML = itemNames[i] + " (ITEM-" + itemId + ") 재고 상세";
+		document.querySelector("#stockTitle").innerHTML = itemNames[i] + " (ITEM-" + itemIds[i] + ") 재고 상세";
 		document.querySelector("#stockTotalText").innerHTML =
-			"총 재고 " + addComma(total) + " " + itemUnits[i] + " / 부족 기준 " + itemMins[i] + " " + itemUnits[i];
+			"총 재고 " + addComma(itemStocks[i]) + " " + itemUnits[i] + " / 부족 기준 " + itemMins[i] + " " + itemUnits[i];
+		document.querySelector("#stockBody").innerHTML = "<tr><td colspan='5'>불러오는 중...</td></tr>";
+		document.querySelector("#stockZoneNote").innerHTML = "";
 
-		/* 이 품목의 로트만 골라서 그립니다.
-		   유통기한이 빠른 순으로 줄을 세웁니다 (먼저 나가야 할 것이 위로). */
-		let pick = [];
+		openModal("#stockModal");
 
-		for (let k = 0; k < lotIds.length; k++) {
-			if (lotItemIds[k] == itemId) {
-				pick[pick.length] = k;
+		apiGet("/api/stock-lots?itemId=" + itemIds[i] + "&status=NORMAL&size=200", putLots);
+	}
+
+
+	function putLots(data) {
+
+		let list = data.items;
+		let i = openItemIndex;
+
+		lotIds = [];
+		lotZoneIds = [];
+		lotQtys = [];
+		lotInDates = [];
+		lotExpiries = [];
+
+		for (let k = 0; k < list.length; k++) {
+
+			/* 남은 수량이 없는 로트는 보여줄 필요가 없습니다 */
+			if (list[k].quantity <= 0) {
+				continue;
 			}
+
+			let last = lotIds.length;
+
+			lotIds[last] = list[k].lotId;
+			lotZoneIds[last] = list[k].zoneId;
+			lotQtys[last] = list[k].quantity;
+			lotInDates[last] = list[k].inboundDate;
+			lotExpiries[last] = list[k].expiryDate;
 		}
 
-		for (let a = 0; a < pick.length; a++) {
-			for (let b = a + 1; b < pick.length; b++) {
+		/* 유통기한이 빠른 순으로 줄을 세웁니다 (먼저 나가야 할 것이 위로) */
+		for (let a = 0; a < lotIds.length; a++) {
+			for (let b = a + 1; b < lotIds.length; b++) {
 
-				let left = lotExpiries[pick[a]];
-				let right = lotExpiries[pick[b]];
+				let left = lotExpiries[a];
+				let right = lotExpiries[b];
 
 				/* 유통기한이 없는 것은 맨 뒤로 보냅니다 */
 				if (left == null) {
@@ -448,9 +396,11 @@
 				}
 
 				if (left > right) {
-					let t = pick[a];
-					pick[a] = pick[b];
-					pick[b] = t;
+					let t1 = lotIds[a];     lotIds[a] = lotIds[b];         lotIds[b] = t1;
+					let t2 = lotZoneIds[a]; lotZoneIds[a] = lotZoneIds[b]; lotZoneIds[b] = t2;
+					let t3 = lotQtys[a];    lotQtys[a] = lotQtys[b];       lotQtys[b] = t3;
+					let t4 = lotInDates[a]; lotInDates[a] = lotInDates[b]; lotInDates[b] = t4;
+					let t5 = lotExpiries[a];lotExpiries[a] = lotExpiries[b];lotExpiries[b] = t5;
 				}
 			}
 		}
@@ -459,10 +409,7 @@
 		let zoneCount = 0;
 		let zoneSeen = [];
 
-		for (let n = 0; n < pick.length; n++) {
-
-			let k = pick[n];
-			let zoneText = findZoneName(lotZoneIds[k]);
+		for (let k = 0; k < lotIds.length; k++) {
 
 			/* 몇 개 구역에 흩어져 있는지 세어 둡니다 */
 			let already = false;
@@ -500,7 +447,7 @@
 
 			html = html + "<tr>";
 			html = html + "<td>LOT-" + lotIds[k] + "</td>";
-			html = html + "<td>" + zoneText + "</td>";
+			html = html + "<td>" + findZoneName(lotZoneIds[k]) + "</td>";
 			html = html + "<td>" + addComma(lotQtys[k]) + " " + itemUnits[i] + "</td>";
 			html = html + "<td>" + lotInDates[k] + "</td>";
 			html = html + "<td>" + expiry + "</td>";
@@ -513,14 +460,13 @@
 
 		document.querySelector("#stockBody").innerHTML = html;
 		document.querySelector("#stockZoneNote").innerHTML =
-			"로트 " + pick.length + "개 / 구역 " + zoneCount + "곳에 나뉘어 보관 중입니다. (유통기한이 빠른 순)";
-
-		openModal("#stockModal");
+			"로트 " + lotIds.length + "개 / 구역 " + zoneCount + "곳에 나뉘어 보관 중입니다. (유통기한이 빠른 순)";
 	}
 
 
 	function closeStock() {
 		closeModal("#stockModal");
+		openItemIndex = -1;
 	}
 
 
@@ -617,13 +563,27 @@
 		}
 
 		/* 서버로 보낼 값 */
+		/* 수정할 때 지금 상태를 그대로 유지합니다.
+		   새로 등록하는 것은 당연히 사용 중으로 시작합니다.
+		   editId 는 품목번호라, 목록에서 몇 번째인지 찾아 씁니다. */
+		let active = true;
+
+		if (editId != -1) {
+			for (let i = 0; i < itemIds.length; i++) {
+				if (itemIds[i] == editId) {
+					active = itemActives[i];
+				}
+			}
+		}
+
 		let body = {
 			itemName: document.querySelector("#mName").value,
 			category: document.querySelector("#mCategory").value,
 			unit: document.querySelector("#mUnit").value,
 			thresholdMin: min,
 			capacityMax: max,
-			shelfLifeDays: shelfValue
+			shelfLifeDays: shelfValue,
+			isActive: active
 		};
 
 		if (editId == -1) {
@@ -642,40 +602,84 @@
 
 
 	/* ============================================================
-	   4. 삭제  (DELETE /api/items/{id})
+	   4. 비활성 / 되살리기  (PUT /api/items/{id})
 
-	   재고나 입출고 이력이 이 품목을 쓰고 있으면
-	   서버가 409로 막고 "다른 데이터에서 참조 중이라 삭제할 수 없습니다"를 보냅니다.
+	   품목을 실제로 지우지 않고 "쓰지 않음" 표시만 바꿉니다.
+	   그 품목을 쓰던 입고·출고 기록이 그대로 남아야 하기 때문입니다.
+
+	   비활성이 되면
+	     - 이 목록에서 빠지고 (위쪽에서 "비활성" 을 골라야 보임)
+	     - 입고·출고·이동·반품의 품목 후보에서도 빠집니다
+
+	   재고가 남아 있으면 비활성으로 바꿀 수 없습니다.
+	   남은 재고를 아무도 처리할 수 없게 되기 때문입니다.
 	   ============================================================ */
-	function doDelete(index) {
+	function doDisable(index) {
 
-		if (confirm(itemNames[index] + " 을 삭제할까요?") == false) {
+		/* 재고가 남아 있으면 막습니다 */
+		if (itemStocks[index] > 0) {
+			alert(itemNames[index] + " 은 재고가 " + addComma(itemStocks[index]) + " " + itemUnits[index] + " 남아 있어 비활성으로 바꿀 수 없습니다.\n\n출고하거나 폐기해서 재고를 0으로 만든 뒤에 다시 시도해 주세요.");
 			return;
 		}
 
-		apiSend("DELETE", "/api/items/" + itemIds[index], null, afterDelete);
+		let ask = itemNames[index] + " 을 비활성으로 바꿀까요?\n\n";
+		ask = ask + "목록과 입고·출고 화면에서 보이지 않게 됩니다.\n";
+		ask = ask + "지난 기록은 그대로 남고, 언제든 되살릴 수 있습니다.";
+
+		if (confirm(ask) == false) {
+			return;
+		}
+
+		sendActive(index, false);
 	}
 
 
-	function afterDelete(data) {
-		loadData();
+	function doEnable(index) {
+
+		if (confirm(itemNames[index] + " 을 다시 사용할까요?") == false) {
+			return;
+		}
+
+		sendActive(index, true);
+	}
+
+
+	/* 수정과 같은 통로(PUT)로 보냅니다.
+	   품목 정보는 그대로 두고 isActive 만 바꿉니다. */
+	function sendActive(index, active) {
+
+		let body = {
+			itemName: itemNames[index],
+			category: itemCategories[index],
+			unit: itemUnits[index],
+			thresholdMin: itemMins[index],
+			capacityMax: itemMaxs[index],
+			shelfLifeDays: itemShelfs[index],
+			isActive: active
+		};
+
+		apiSend("PUT", "/api/items/" + itemIds[index], body, afterSave);
 	}
 
 
 	/* ============================================================
 	   화면이 열릴 때 실행
 
-	   구역 이름을 보여주려면 창고·구역 정보가 먼저 있어야 하고,
-	   총 재고를 보여주려면 로트가 먼저 있어야 해서 순서대로 받습니다.
+	   재고 상세에서 구역 이름을 보여주려면 창고·구역 정보가 먼저 있어야 해서
+	   기준정보를 받은 뒤에 품목 목록을 받습니다.
 
-	     창고·구역·품목 기준정보 → 재고 로트 → 품목 목록
+	     창고·구역 기준정보 → 품목 목록
 	   ============================================================ */
 	function startUp() {
-		loadMasterFromServer(loadStock);
+		loadMasterFromServer(loadData);
 	}
 
 
 	startUp();
+
+
+	/* 오른쪽 위에 로그인한 사람을 보여 줍니다 */
+	drawUserBar();
 
 </script>
 

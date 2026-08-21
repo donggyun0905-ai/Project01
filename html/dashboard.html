@@ -39,6 +39,9 @@
 
 	<!-- 오른쪽 위에 뜨는거 -->
 	<main class="content">
+		<!-- 오른쪽 위 로그인 안내 -->
+		<div class="user-bar" id="userBar"></div>
+		
 
 	<div class="top-bar">
 		<h4 class="page-title">메인 화면</h4>
@@ -362,6 +365,10 @@
 	document.querySelector("#pickDate").value = yyyy + "-" + mm + "-" + dd;
 
 	loadData();
+
+	/* 오른쪽 위에 로그인한 사람을 보여 줍니다 */
+	drawUserBar();
+
 </script>
 
 </body>

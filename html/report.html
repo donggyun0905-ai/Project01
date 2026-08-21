@@ -41,6 +41,9 @@
 		
 	<!-- 오른쪽 위에 뜨는거 -->
 	<main class="content">
+		<!-- 오른쪽 위 로그인 안내 -->
+		<div class="user-bar" id="userBar"></div>
+		
 		<header class="top-menu">
 			<button class="menu-btn" onclick="location.href='statistics.html'">통계 대시보드</button> 
 			<button class="menu-btn active">보고서 및 내보내기</button> 
@@ -335,6 +338,10 @@
 	/* 화면이 열릴 때 오늘 날짜를 기준일에 넣어 둡니다 */
 	document.querySelector("#reportDate").value = getToday();
 	loadReportData(getToday());
+
+
+	/* 오른쪽 위에 로그인한 사람을 보여 줍니다 */
+	drawUserBar();
 
 </script>
 

@@ -42,6 +42,9 @@
 	
 	<!-- 오른쪽 위에 뜨는거 -->
 	<main class="content">
+		<!-- 오른쪽 위 로그인 안내 -->
+		<div class="user-bar" id="userBar"></div>
+		
 		<header class="top-menu">
 			<button class="menu-btn" onclick="location.href='item.html'">품목 관리</button> 
 			<button class="menu-btn active" onclick="location.href='inout.html'">입출고 등록</button> <!--현재 화면이 출고 등록이라서 -->
@@ -66,7 +69,7 @@
 			</div>
 			
 			<div class="form-group">
-				<label>품목명 (치면 후보가 뜹니다)</label>
+				<label>품목명</label>
 				<input type="text" id="outName" list="itemList" onchange="changeItem()" onkeyup="changeItem()" placeholder="예: 두부">
 				<datalist id="itemList"></datalist>
 			</div>
@@ -643,6 +646,10 @@
 
 	/* 화면이 열릴 때 실행 */
 	startUp();
+
+
+	/* 오른쪽 위에 로그인한 사람을 보여 줍니다 */
+	drawUserBar();
 
 </script>
 
