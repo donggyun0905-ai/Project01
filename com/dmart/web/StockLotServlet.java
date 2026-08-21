@@ -43,6 +43,9 @@ public class StockLotServlet extends HttpServlet {
         if (status == null) {
             status = "NORMAL"; // 10.1 기본값
         }
+        // 입고 이력 화면처럼 "실제 새로 입고된 로트만" 보고 싶을 때 씀 - 이동/반품폐기로 원본
+        // 로트에서 분할되어 생긴 로트(parent_lot_id가 있는 로트)는 새 입고가 아니므로 제외.
+        boolean originOnly = "true".equals(req.getParameter("originOnly"));
         Pagination pg = Pagination.from(req);
 
         try (Connection conn = DBConnection.getConnection()) {
@@ -53,8 +56,8 @@ public class StockLotServlet extends HttpServlet {
                         .map(UserWarehouse::getWarehouseId)
                         .collect(Collectors.toList());
             }
-            List<StockLot> lots = stockLotDao.findPage(conn, itemId, zoneId, warehouseId, status, allowedWarehouseIds, pg.offset, pg.size);
-            int total = stockLotDao.count(conn, itemId, zoneId, warehouseId, status, allowedWarehouseIds);
+            List<StockLot> lots = stockLotDao.findPage(conn, itemId, zoneId, warehouseId, status, allowedWarehouseIds, originOnly, pg.offset, pg.size);
+            int total = stockLotDao.count(conn, itemId, zoneId, warehouseId, status, allowedWarehouseIds, originOnly);
             List<Object> data = lots.stream().map(StockLotServlet::toJson).collect(Collectors.toList());
             ApiResponse.success(resp, 200, pg.wrap(data, total));
         } catch (SQLException e) {

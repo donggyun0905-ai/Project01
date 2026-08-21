@@ -249,9 +249,13 @@
 
 	   입고 이력은 따로 있는 게 아니라 재고 로트가 곧 입고 기록입니다.
 	   수량은 남은 수량이 아니라 처음 들어온 수량을 보여 줍니다.
+
+	   originOnly=true를 붙여서, 창고 간 이동이나 반품/폐기로 원본 로트에서
+	   갈라져 나온 로트(parent_lot_id가 있는 로트)는 뺍니다 - 그건 새로 입고된
+	   게 아니라 기존에 입고됐던 게 옮겨진 것뿐이라 여기 섞이면 안 됩니다.
 	   ============================================================ */
 	function loadData() {
-		apiGet("/api/stock-lots?page=" + nowPage + "&size=" + pageSize, putRows);
+		apiGet("/api/stock-lots?page=" + nowPage + "&size=" + pageSize + "&originOnly=true", putRows);
 	}
 
 
