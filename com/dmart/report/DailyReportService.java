@@ -49,8 +49,7 @@ public class DailyReportService {
 			return dailyComp;
 			
 		} catch (SQLException e) {
-			e.printStackTrace();
-			return null;
+			throw new RuntimeException("일일 입출고 비교 조회 중 DB 오류 발생", e);
 		}
 	}
 	
@@ -59,8 +58,7 @@ public class DailyReportService {
 		try (Connection conn = DBConnection.getConnection()) {
 			return dao.selectLowStockItems(conn, "재고부족");
 		} catch (SQLException e) {
-			e.printStackTrace();
-			return new ArrayList<>();
+			throw new RuntimeException("재고 부족 품목 조회 중 DB 오류 발생", e);
 		}
 	}
 	
@@ -71,8 +69,7 @@ public class DailyReportService {
 	    try (Connection conn = DBConnection.getConnection()) {
 	    	return dao.selectTop5OutboundItems(conn, searchDate);
 		} catch (SQLException e) {
-			e.printStackTrace();
-			return new ArrayList<>();
+			throw new RuntimeException("출고 TOP5 조회 중 DB 오류 발생", e);
 		}
 	}
 	

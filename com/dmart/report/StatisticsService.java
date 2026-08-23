@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import com.dmart.db.DBConnection;
 import com.dmart.report.dao.StatisticsDao;
@@ -108,6 +108,11 @@ public class StatisticsService {
 			e.printStackTrace();
 			return Collections.emptyList();
 		}
+	}
+	
+	public List<StockTurnover> getTop6StockTurnover() {
+		List<StockTurnover> list = getStockTurnoverStatistics();
+		return list.stream().limit(6).collect(Collectors.toList());
 	}
 	
 	// Top5 거래처 출고 랭킹 

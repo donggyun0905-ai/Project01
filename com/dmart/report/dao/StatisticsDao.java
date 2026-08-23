@@ -117,7 +117,7 @@ public class StatisticsDao {
 				+ "WHERE o.outbound_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) "
 				+ "GROUP BY s.item_id "
 				+ ") ob ON ob.item_id = i.item_id " // LEFT JOIN: 최근 90일 출고량
-				+ "ORDER BY status ASC, turnover_ratio ASC"; 
+				+ "ORDER BY turnover_ratio DESC"; 
 		
 		List<StockTurnover> result = new ArrayList<>();
 		
