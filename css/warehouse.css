@@ -202,3 +202,96 @@ td .action-buttons {
 .btn-primary {
 	background: #7B8F4E;
 }
+
+/* 구역 재고 상세 모달 - 로트가 쌓여도 좌우로 여유 있게 넓힘 */
+.lot-modal {
+	width: 640px;
+}
+
+/* 로트/품목이 10개를 넘어가면 모달이 한없이 길어지지 않게, 대략 10줄 높이에서
+   잘라 스크롤(드래그)로 나머지를 보게 합니다. 머리글은 스크롤 중에도 안 흔들리게 고정. */
+.lot-table-wrap {
+	max-height: 380px;
+	overflow-y: auto;
+}
+
+.lot-modal table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.lot-modal th {
+	position: sticky;
+	top: 0;
+	background: #f4f4f2;
+	color: #555555;
+	font-size: 12px;
+	text-align: center;
+	padding: 8px 20px;
+}
+
+.lot-modal td {
+	padding: 10px 20px;
+	border-top: 1px solid #ececec;
+	font-size: 13px;
+	text-align: center;
+}
+
+.lot-modal tbody tr:nth-child(even) {
+	background: #fafaf8;
+}
+
+.lot-modal .lot-qty {
+	font-weight: 600;
+}
+
+/* 구역 재고 상세 모달 상단 - 사용률 숫자 + 막대바 */
+.zn-stock-summary {
+	padding: 4px 20px 16px;
+}
+
+.zn-stock-numbers {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	margin-bottom: 8px;
+	font-size: 14px;
+}
+
+.zn-stock-numbers strong {
+	font-size: 16px;
+}
+
+.zn-stock-bar {
+	height: 10px;
+	background: #ececec;
+	border-radius: 999px;
+	overflow: hidden;
+}
+
+.zn-stock-bar-fill {
+	height: 100%;
+	background: #7B8F4E;
+	border-radius: 999px;
+	transition: width 0.2s;
+}
+
+.zn-stock-bar-fill.bar-warn {
+	background: #cc8400;
+}
+
+.zn-stock-bar-fill.bar-full {
+	background: #d9453b;
+}
+
+.lot-list-note {
+	padding: 0 20px 8px;
+	font-size: 12px;
+	color: #999999;
+}
+
+/* 재고가 있는 구역은 줄 전체를 눌러서 상세를 볼 수 있습니다.
+   회색 호버 배경은 common.css의 tbody tr:hover가 이미 해주니 커서만 손가락으로 바꿔 줍니다. */
+.row-clickable {
+	cursor: pointer;
+}

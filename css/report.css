@@ -15,6 +15,13 @@ h3 {
 	font-weight: 600;
 }
 
+/* 부족 품목처럼 내용이 몇 줄이 될지 알 수 없는 칸은 라벨을 위쪽에 고정합니다
+   (기본 form-group은 align-items: center라 내용이 길어지면 라벨이
+   가운데로 떠버려서, 이 클래스가 붙은 줄에서만 위쪽 정렬로 바꿉니다) */
+.form-group.align-top {
+	align-items: flex-start;
+}
+
 .form-group select{
 	width: 170px;
 	height: 36px;
@@ -50,15 +57,78 @@ h3 {
 	cursor: pointer;
 }
 
+.btn-row {
+	display: flex;
+	justify-content: flex-end;
+	gap: 12px;
+	margin-top: 10px;
+}
+
+.report-columns {
+	display: flex;
+	gap: 30px;
+}
+
+.report-col {
+	flex: 1;
+	min-width: 0; /* 안의 긴 텍스트가 flex 박스를 밀어내지 않게 */
+}
+
+.report-col-divider {
+	border-left: 1px solid #e5e5e5;
+	padding-left: 30px;
+}
+
+/* 컬럼 안에서는 라벨-내용 간격을 좀 좁혀서 답답해 보이지 않게 합니다 */
+.report-col .form-group {
+	gap: 20px;
+}
+
+/* btn-row 안에서는 각 버튼이 이미 flex로 나란히 놓이니
+   개별 margin-left: auto는 필요 없어서 꺼 둡니다 */
+.btn-row .make,
+.btn-row .push,
+.btn-row .ghost {
+	display: inline-block;
+	margin-left: 0;
+}
+
+/* 보조 동작(PDF 다운로드 등)은 덜 강조되게 테두리만 있는 버튼으로 */
+.ghost {
+	background: white;
+	color: #9A7753;
+	border: 1px solid #9A7753;
+	border-radius: 8px;
+	padding: 8px 18px;
+	cursor: pointer;
+}
+
 .top-itemlist{
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
+	gap: 8px;
+}
+
+/* 목록이 길어질 수 있는 칸(부족 품목)은 카드 안에서 스크롤되게 높이를 제한합니다 */
+.top-itemlist.scrollable {
+	max-height: 260px;
+	overflow-y: auto;
+	padding-right: 6px;
 }
 
 .top-item{
 	display: flex;
+	justify-content: space-between;
+	align-items: center;
 	gap: 25px;
+	background: #f7f5f2;
+	border-radius: 8px;
+	padding: 10px 14px;
+}
+
+.top-item span:last-child {
+	color: #6b6b6b;
+	white-space: nowrap;
 }
 
 .radio-group{

@@ -58,7 +58,7 @@
 					<option>재고부족</option>
 					<option>재고초과</option>
 					<option>이상출고</option>
-					<option>예측알림</option>
+					<option>창고정리추천</option>
 				</select>
 				
 				<select class="category-select" id="stateSelect" onchange="changeFilter()">
@@ -84,9 +84,10 @@
 					<h2 id="cnt2">0</h2>
 				</div>
 				
-				<div class="mini-box" id="card3" onclick="pickType('예측알림')">
-					<label>소진 예측</label>
-					<h2 id="cnt3">-</h2>
+				<div class="mini-box mini-box-action" id="card3" onclick="doScanConsolidation()">
+					<label>창고 정리</label>
+					<div class="scan-icon">↻</div>
+					<span class="scan-caption">다시 찾기</span>
 				</div>
 			</section>
 		
@@ -171,7 +172,11 @@
 				<label>상태</label>
 				<span id="modalState"></span>
 			</div>
-		
+
+			<!-- 알림 종류에 맞는 실제 조치 버튼이 openDetail()에서 여기 채워집니다.
+			     (재고부족→승인 검토로 이동 / 재고초과→출고 승인요청 만들기 / 창고정리추천→이동 실행) -->
+			<div class="alert-form-group full-width" id="actionArea"></div>
+
 		</section>
 		<div class="modal-footer">
 			<button class="btn-cancel" onclick="closeDetail()">취소</button>
@@ -375,13 +380,13 @@
 	function drawCards() {
 
 		let cnt = [0, 0, 0];
-		let names = ["재고부족", "재고초과", "이상출고", "예측알림"];
+		let names = ["재고부족", "재고초과", "이상출고"];
 
 		for (let i = 0; i < alertIds.length; i++) {
 			if (resolved[i] == true) {
 				continue;
 			}
-			for (let k = 0; k < 3; k++) {
+			for (let k = 0; k < names.length; k++) {
 				if (types[i] == names[k]) {
 					cnt[k] = cnt[k] + 1;
 				}
@@ -391,9 +396,9 @@
 		document.querySelector("#cnt0").innerHTML = cnt[0];
 		document.querySelector("#cnt1").innerHTML = cnt[1];
 		document.querySelector("#cnt2").innerHTML = cnt[2];
-		/* 예측알림은 서버에서 아직 만들지 않아 "-" 로 둡니다 */
 
-		for (let i = 0; i < 4; i++) {
+		/* card3(창고 정리)은 종류 필터가 아니라 버튼이라 active 표시 대상에서 뺍니다 */
+		for (let i = 0; i < names.length; i++) {
 			if (names[i] == nowType) {
 				document.querySelector("#card" + i).className = "mini-box active";
 			} else {
@@ -554,8 +559,161 @@
 			document.querySelector("#resolveBtn").disabled = false;
 		}
 
+		/* 알림 종류마다 실제로 해야 할 조치가 달라서, 그에 맞는 버튼을 여기서 채웁니다.
+		   (재고부족/재고초과/창고정리추천은 "해결 처리" 버튼을 숨기고 실제 조치 버튼으로 대신합니다 -
+		    문제가 실제로 풀려야(승인 실행/이동 실행) 알림이 없어지게 하려는 것입니다) */
+		drawActionArea(i);
+
 		openModal("#detailModal");
 	}
+
+
+	/* ============================================================
+	   6. 알림 종류별 실제 조치
+	   ------------------------------------------------------------
+	   버튼을 따로 두지 않고, "해결 처리" 버튼 자체가 그 알림에 맞는
+	   진짜 조치를 하도록 라벨과 동작을 종류마다 바꿔치기합니다.
+	   (버튼이 두 개면 헷갈리고, 하나만 누르고 다른 하나를 안 눌러서
+	    조치 없이 알림만 꺼지는 일이 생길 수 있어서 하나로 합쳤습니다)
+
+	   재고부족   : 이미 자동으로 만들어진 "발주 승인요청"이 있으므로 승인 관리 화면으로 이동
+	   재고초과   : 거래처/수량을 고르면, 그 값으로 출고 승인요청을 생성
+	   이상출고   : 사람이 보고 판단만 하면 되므로 그대로 "해결 처리"(원래 동작)
+	   창고정리추천 : 알림 메시지 안의 구역/수량을 읽어서, 그 이동을 바로 실행
+	   ============================================================ */
+	function drawActionArea(i) {
+
+		let area = document.querySelector("#actionArea");
+		let type = types[i];
+		let already = resolved[i];
+		let btn = document.querySelector("#resolveBtn");
+
+		/* 이전에 열어본 다른 알림의 조치 화면(폼 등)이 남아있지 않게 매번 비우고 시작합니다 */
+		area.innerHTML = "";
+
+		if (already == true) {
+			return;
+		}
+
+		if (type == "재고부족") {
+			area.innerHTML =
+				"<p class='list-note'>이 알림이 뜨는 순간 시스템이 자동으로 <b>발주 승인요청</b>을 만들어 뒀습니다. " +
+				"아래 버튼을 누르면 승인 관리 화면으로 이동합니다. 거기서 승인하면 그 즉시 입고 처리까지 자동으로 됩니다.</p>";
+
+			btn.innerHTML = "승인 관리로 이동";
+			btn.onclick = function () { location.href = "approval.html"; };
+			return;
+		}
+
+		if (type == "재고초과") {
+			area.innerHTML =
+				"<p class='list-note'>초과된 만큼 어느 거래처로 출고할지 고르고 아래 버튼을 누르면 " +
+				"출고 승인요청이 만들어집니다. 관리자가 승인하면 그 즉시 출고 처리까지 자동으로 됩니다.</p>" +
+				"<div class='form-group'><label>거래처</label><select id='excessPartner'></select></div>" +
+				"<div class='form-group'><label>출고 수량</label><input type='number' id='excessQty'></div>";
+
+			fillPartner("#excessPartner", "CUSTOMER");
+
+			btn.innerHTML = "출고 승인요청 만들기";
+			btn.onclick = doCreateOutboundApproval;
+			return;
+		}
+
+		if (type == "창고정리추천") {
+			area.innerHTML =
+				"<p class='list-note'>구역 간 이동이 필요한 추천입니다. 아래 버튼을 누르면 승인 관리 화면으로 이동합니다. " +
+				"거기서 다른 승인요청과 같이 확인하고 바로 실행할 수 있습니다.</p>";
+
+			btn.innerHTML = "승인 관리로 이동";
+			btn.onclick = function () { location.href = "approval.html"; };
+			return;
+		}
+
+		/* 이상출고 등 나머지는 원래대로 "해결 처리"만 씁니다 */
+		btn.innerHTML = "해결 처리";
+		btn.onclick = doResolve;
+	}
+
+
+	/* ============================================================
+	   7. 조치에 필요한 거래처 정보 받아오기 (재고초과 폼용)
+
+	   품목 목록과는 별도로, 여기서만 쓰는 정보라 따로 받습니다.
+	   fillPartner()는 common.js가 쓰는 것과 같은 전역 배열
+	   (customerIds/customerNames)을 그대로 채웁니다.
+	   ============================================================ */
+	function loadExtras() {
+		apiGet("/api/partners?type=CUSTOMER&size=200", putCustomersForAlert);
+	}
+
+	function putCustomersForAlert(data) {
+		customerIds = [];
+		customerNames = [];
+		for (let i = 0; i < data.items.length; i++) {
+			customerIds[i] = data.items[i].partnerId;
+			customerNames[i] = data.items[i].name;
+		}
+	}
+
+
+	/* ============================================================
+	   7-1. 창고 정리 지금 다시 찾아보기 (POST /api/warehouse-consolidation/scan)
+
+	   원래 창고정리추천은 서버 켤 때 한 번만 찾아보는데, 그새 재고가 바뀌었으면
+	   지금 다시 찾아보고 싶을 때 누르는 버튼입니다. 같은 품목에 처리 안 된
+	   추천이 이미 있으면 서버가 또 안 만들어서 여러 번 눌러도 안전합니다.
+	   ============================================================ */
+	function doScanConsolidation() {
+		apiSend("POST", "/api/warehouse-consolidation/scan", null, afterScanConsolidation);
+	}
+
+	function afterScanConsolidation(data) {
+		loadData();
+		if (data.createdCount == 0) {
+			alert("지금 합칠 수 있는 재고가 없습니다.");
+		} else {
+			alert("창고 정리 추천 " + data.createdCount + "건을 새로 찾았습니다.");
+		}
+	}
+
+
+	/* ============================================================
+	   8. 재고초과 - 출고 승인요청 만들기 (POST /api/approvals)
+
+	   여기서 바로 출고를 실행하지 않고 "승인요청"만 만듭니다.
+	   관리자가 승인 관리 화면에서 승인해야 실제 출고가 자동 실행됩니다
+	   (거래처/수량이 맞는지 한 번 더 확인하는 절차입니다).
+	   ============================================================ */
+	function doCreateOutboundApproval() {
+
+		let i = openIndex;
+		let partnerId = document.querySelector("#excessPartner").value;
+		let qty = document.querySelector("#excessQty").value;
+
+		if (partnerId == "" || qty == "" || qty * 1 <= 0) {
+			alert("거래처와 수량을 채워 주세요.");
+			return;
+		}
+
+		let body = {
+			itemId: alertItemIds[i],
+			requestType: "출고",
+			requestedQty: qty * 1,
+			partnerId: partnerId * 1
+		};
+
+		apiSend("POST", "/api/approvals", body, afterCreateApproval);
+	}
+
+	function afterCreateApproval(data) {
+		closeDetail();
+		loadData();
+		alert("출고 승인요청을 만들었습니다. 승인 관리 화면에서 승인하면 자동으로 출고 처리됩니다.");
+	}
+
+
+	/* 창고정리추천의 실제 이동 실행은 승인 관리 화면(approval.html)으로 옮겼습니다 -
+	   다른 승인요청들과 같은 곳에서 한 번에 확인/처리할 수 있게 하기 위해서입니다. */
 
 
 	/* 로트마다 남은 수량이 따로 있어서 다 더해야 현재 재고가 나옵니다 */
@@ -717,9 +875,28 @@
 	/* 화면이 열릴 때 실행 - 품목을 먼저 받고, 끝나면 알림을 받습니다 */
 	loadItems();
 
+	/* 조치(승인요청 만들기/이동 실행)에 필요한 거래처·창고·구역 정보도 같이 받아 둡니다 */
+	loadExtras();
+
 
 	/* 오른쪽 위에 로그인한 사람을 보여 줍니다 */
 	drawUserBar();
+
+
+	/* ============================================================
+	   10. 새 알림 자동으로 받아오기
+
+	   이 화면을 열어 둔 사이에 다른 곳에서 입고/출고가 일어나 새 알림이
+	   떠도, 새로고침을 안 누르면 안 보였습니다. 그래서 30초마다 목록을
+	   다시 받아옵니다. 상세보기 창을 보고 있는 중에는 그 내용이 갑자기
+	   바뀌면 안 되니 그동안은 건너뜁니다.
+	   ============================================================ */
+	setInterval(function () {
+		let modal = document.querySelector("#detailModal");
+		if (modal.className.indexOf("active") == -1) {
+			loadData();
+		}
+	}, 30000);
 
 </script>
 

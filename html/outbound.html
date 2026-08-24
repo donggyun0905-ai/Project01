@@ -119,7 +119,6 @@
 		
 		<section class= "table-box">
 		<h4 class="table-title">출고 이력</h4>
-			<div id="listNote" class="list-note"></div>
 			<table>
 				<thead>
 					<tr>
@@ -132,8 +131,7 @@
 						<th>단위</th>
 						<th>구역</th>
 						<th>목적지</th> <!-- 거래처랑 같습니다  -->
-						<th>삭제</th>
-					</tr>				
+					</tr>
 				</thead>
 				
 				<!-- 표 내용은 drawList()가 채웁니다 -->
@@ -238,15 +236,17 @@
 	let pickedLotExp = [];
 	let pickedLotQtys = [];   // 그 로트에서 뺄 수량
 
-	/* 출고 이력 표 (이번에 등록한 것만 쌓입니다) */
+	/* 출고 이력 표 (서버에서 받아옴, GET /api/outbound) */
+	let rowIds = [];
 	let rowDates = [];
 	let rowItemIds = [];
 	let rowLotIds = [];
-	let rowNames = [];
 	let rowQtys = [];
-	let rowUnits = [];
-	let rowZones = [];
-	let rowPartners = [];
+	let rowZoneIds = [];
+	let rowPartnerIds = [];
+
+	let nowPage = 1;
+	let totalCount = 0;
 
 	/* 여러 건을 순서대로 보낼 때 쓰는 값 */
 	let sendIndex = 0;
@@ -270,7 +270,7 @@
 
 		document.querySelector("#outDate").value = getToday();
 
-		drawList();
+		loadHistory();
 	}
 
 
@@ -527,18 +527,6 @@
 
 	function afterOne(data) {
 
-		/* 표에 한 줄 추가 */
-		let last = rowDates.length;
-
-		rowDates[last] = document.querySelector("#outDate").value;
-		rowItemIds[last] = document.querySelector("#outCode").value;
-		rowLotIds[last] = pickedLotIds[sendIndex];
-		rowNames[last] = document.querySelector("#outName").value;
-		rowQtys[last] = pickedLotQtys[sendIndex];
-		rowUnits[last] = document.querySelector("#outUnit").value;
-		rowZones[last] = getSelectText("#outWarehouse") + " " + getSelectText("#outZone");
-		rowPartners[last] = getSelectText("#outPartner");
-
 		doneCount = doneCount + 1;
 
 		if (data.alertCreated == true) {
@@ -565,7 +553,6 @@
 
 	function finishSend() {
 
-		drawList();
 		clearInput(["#outQty"]);
 
 		let msg = "출고가 등록되었습니다. (로트 " + doneCount + "건)";
@@ -577,29 +564,106 @@
 			msg = msg + "\n발주 승인 요청이 " + approvalCount + "건 자동 생성되었습니다.";
 		}
 
+		/* 방금 등록한 출고가 바로 보이게 다시 받아옵니다 */
+		nowPage = 1;
+		loadHistory();
+
 		alert(msg);
 	}
 
 
 	/* ============================================================
-	   출고 이력 표
-
-	   서버에 출고 목록을 조회하는 API가 아직 없어서,
-	   이 화면에서 등록한 건만 보여 줍니다.
-	   (GET /api/outbound 가 생기면 여기서 받아오면 됩니다)
+	   출고 이력 표  (GET /api/outbound)
 	   ============================================================ */
-	function drawList() {
+	function loadHistory() {
+		apiGet("/api/outbound?page=" + nowPage + "&size=" + pageSize, putHistory);
+	}
 
-		let note = document.querySelector("#listNote");
 
-		if (note != null) {
-			note.innerHTML = "출고 목록 조회 기능이 서버에 아직 없어, 이 화면에서 등록한 건만 표시됩니다.";
+	function putHistory(data) {
+
+		let list = data.items;
+		totalCount = data.total;
+
+		rowIds = [];
+		rowDates = [];
+		rowItemIds = [];
+		rowLotIds = [];
+		rowQtys = [];
+		rowZoneIds = [];
+		rowPartnerIds = [];
+
+		for (let i = 0; i < list.length; i++) {
+			rowIds[i] = list[i].outboundId;
+			rowDates[i] = list[i].outboundDate;
+			rowItemIds[i] = list[i].itemId;
+			rowLotIds[i] = list[i].lotId;
+			rowQtys[i] = list[i].quantity;
+			rowZoneIds[i] = list[i].zoneId;
+			rowPartnerIds[i] = list[i].partnerId;
 		}
+
+		drawList();
+	}
+
+
+	/* 품목/거래처 번호로 이름을 찾습니다 (common.js가 받아 둔 목록에서) */
+	function findItemName(itemId) {
+
+		for (let i = 0; i < itemCodes.length; i++) {
+			if (itemCodes[i] == "ITEM-" + itemId) {
+				return itemNameList[i];
+			}
+		}
+		return "품목 " + itemId;
+	}
+
+	function findItemUnit(itemId) {
+
+		for (let i = 0; i < itemCodes.length; i++) {
+			if (itemCodes[i] == "ITEM-" + itemId) {
+				return itemUnitList[i];
+			}
+		}
+		return "";
+	}
+
+	function findPartnerName(partnerId) {
+
+		for (let i = 0; i < customerIds.length; i++) {
+			if (customerIds[i] == partnerId) {
+				return customerNames[i];
+			}
+		}
+		return "거래처 " + partnerId;
+	}
+
+
+	/* 구역 번호로 "대형(0) EA" 같은 이름을 만듭니다 */
+	function findZoneName(zoneId) {
+
+		for (let i = 0; i < zoneIds.length; i++) {
+			if (zoneIds[i] == zoneId) {
+
+				for (let k = 0; k < warehouseIds.length; k++) {
+					if (warehouseIds[k] == zoneWarehouseIds[i]) {
+						return warehouseNames[k] + " " + zoneNames[i];
+					}
+				}
+				return zoneNames[i];
+			}
+		}
+		return "구역 " + zoneId;
+	}
+
+
+	function drawList() {
 
 		let html = "";
 
 		if (rowDates.length == 0) {
-			document.querySelector("#outBody").innerHTML = "<tr><td colspan='10'>이 화면에서 등록한 출고 내역이 없습니다.</td></tr>";
+			document.querySelector("#outBody").innerHTML = "<tr><td colspan='9'>출고 이력이 없습니다.</td></tr>";
+			drawPaging("#paging", 0, 1, "goPage");
 			return;
 		}
 
@@ -608,33 +672,24 @@
 			html = html + "<tr>";
 			html = html + "<td>" + (i + 1) + "</td>";
 			html = html + "<td>" + rowDates[i] + "</td>";
-			html = html + "<td>" + rowItemIds[i] + "</td>";
+			html = html + "<td>ITEM-" + rowItemIds[i] + "</td>";
 			html = html + "<td>LOT-" + rowLotIds[i] + "</td>";
-			html = html + "<td>" + rowNames[i] + "</td>";
-			html = html + "<td>" + rowQtys[i] + "</td>";
-			html = html + "<td>" + rowUnits[i] + "</td>";
-			html = html + "<td>" + rowZones[i] + "</td>";
-			html = html + "<td>" + rowPartners[i] + "</td>";
-			html = html + "<td><button class='delete-btn' onclick='doDelete(" + i + ")'>지우기</button></td>";
+			html = html + "<td>" + findItemName(rowItemIds[i]) + "</td>";
+			html = html + "<td>" + addComma(rowQtys[i]) + "</td>";
+			html = html + "<td>" + findItemUnit(rowItemIds[i]) + "</td>";
+			html = html + "<td>" + findZoneName(rowZoneIds[i]) + "</td>";
+			html = html + "<td>" + findPartnerName(rowPartnerIds[i]) + "</td>";
 			html = html + "</tr>";
 		}
 
 		document.querySelector("#outBody").innerHTML = html;
+		drawPaging("#paging", totalCount, nowPage, "goPage");
 	}
 
 
-	/* 표에서만 지웁니다. 서버에 출고 취소 기능이 없어서
-	   실제 재고는 되돌아가지 않습니다. */
-	function doDelete(index) {
-
-		if (confirm("이 줄을 목록에서 지울까요?\n(실제 출고는 취소되지 않습니다)") == false) {
-			return;
-		}
-
-		removeAt([rowDates, rowItemIds, rowLotIds, rowNames,
-		          rowQtys, rowUnits, rowZones, rowPartners], index);
-
-		drawList();
+	function goPage(p) {
+		nowPage = p;
+		loadHistory();
 	}
 
 

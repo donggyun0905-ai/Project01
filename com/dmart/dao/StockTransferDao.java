@@ -74,6 +74,43 @@ public class StockTransferDao {
         return result;
     }
 
+    // 이동 이력 화면용. STOCK_TRANSFER엔 item_id가 없어서(로트 단위 이동이라) itemId로 거르려면
+    // STOCK_LOT을 조인해야 함 - 최근 것부터 보여준다.
+    public List<StockTransfer> findPage(Connection conn, Long itemId, int offset, int limit) throws SQLException {
+        String sql = "SELECT st.* FROM STOCK_TRANSFER st JOIN STOCK_LOT sl ON st.lot_id = sl.lot_id"
+                + (itemId != null ? " WHERE sl.item_id = ?" : "")
+                + " ORDER BY st.transfer_id DESC LIMIT ? OFFSET ?";
+        List<StockTransfer> result = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = 1;
+            if (itemId != null) {
+                ps.setLong(idx++, itemId);
+            }
+            ps.setInt(idx++, limit);
+            ps.setInt(idx, offset);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(mapRow(rs));
+                }
+            }
+        }
+        return result;
+    }
+
+    public int count(Connection conn, Long itemId) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM STOCK_TRANSFER st JOIN STOCK_LOT sl ON st.lot_id = sl.lot_id"
+                + (itemId != null ? " WHERE sl.item_id = ?" : "");
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            if (itemId != null) {
+                ps.setLong(1, itemId);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
     // from_zone과 to_zone이 같으면 안 됨 (확정안 스키마 설계 문서의 제약사항).
     // 이 검증은 원래 Service 계층에 둬야 하지만, 이 프로젝트에는 별도 Service 계층이 없어 DAO에 최소한으로 남겨둠.
     private void validateZones(StockTransfer transfer) {

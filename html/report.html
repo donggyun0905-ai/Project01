@@ -58,23 +58,37 @@
 					<input type="date" id="reportDate">
 				</div>
 			</div>
-			
-			<div class="form-group">
-				<label>전일 대비</label>
-				<div id="sumArea"></div>
+
+			<!-- 왼쪽 : 기준일 바꾸면 같이 바뀌는 것들 (전일 대비 / TOP 출고 품목)
+			     오른쪽 : 기준일이랑 상관없이 "지금" 기준으로 항상 같은 부족 품목
+			     서로 성격이 달라서 얇은 선으로 나눠 구분했습니다. -->
+			<div class="report-columns">
+
+				<div class="report-col">
+					<div class="form-group">
+						<label>전일 대비</label>
+						<div class="top-itemlist" id="sumArea"></div>
+					</div>
+
+					<div class="form-group">
+						<label>TOP 출고 품목</label>
+						<div class="top-itemlist" id="topArea"></div>
+					</div>
+				</div>
+
+				<div class="report-col report-col-divider">
+					<div class="form-group align-top">
+						<label>부족 품목</label>
+						<div class="top-itemlist scrollable" id="lowArea"></div>
+					</div>
+				</div>
+
 			</div>
-				
-			<div class="form-group">
-				<label>부족 품목</label>
-				<div id="lowArea"></div>
-			</div>
 			
-			<div class="form-group">
-				<label>TOP 출고 품목</label>
-				<div class="top-itemlist" id="topArea"></div>
+			<div class="btn-row">
+				<button class="ghost" onclick="exportDailyPdf()">PDF로 다운로드</button>
+				<button class="make" onclick="makeReport()">보고서 생성하기</button>
 			</div>
-			
-			<button class="make" onclick="makeReport()">보고서 생성하기</button>
 		</section>
 		
 		<section class="report"> <!-- 데이터 내보내기 -->
@@ -82,11 +96,10 @@
 			
 			<div class="form-group">
 				<label>데이터</label>
-				<select id="dataType">
-					<option>입고 로그</option>
-					<option>출고 로그</option>
-					<option>재고 이동 로그</option>
-					<option>반품 및 폐기 로그</option>
+				<select id="dataType" onchange="changeDataType()">
+					<option value="inout">입출고 로그</option>
+					<option value="alerts">알림 이력</option>
+					<option value="statistics">통계 리포트</option>
 				</select>
 			</div>
 			
@@ -98,6 +111,26 @@
 				
 				<div class="date-range">
 					<input type="date" id="toDate">
+				</div>
+			</div>
+			
+			<!-- 통계 리포트를 골랐을 때만 나오는 칸입니다 (집계 단위 + 거래처 월별 추이 기간) -->
+			<div class="form-group" id="statOptionArea" style="display:none;">
+				<label>집계 단위</label>
+				<select id="statUnit">
+					<option value="day">일</option>
+					<option value="week">주</option>
+					<option value="month">월</option>
+				</select>
+			</div>
+
+			<div class="form-group" id="statTrendArea" style="display:none;">
+				<label>거래처 월별 추이 기간</label>
+				<div class="date-range">
+					<input type="month" id="trendStart">
+				</div>
+				<div class="date-range">
+					<input type="month" id="trendEnd">
 				</div>
 			</div>
 			
@@ -122,8 +155,11 @@
 <!-- ============================================================
      보고서 / 내보내기 화면 로직
      ------------------------------------------------------------
-     addComma / saveFile 은 common.js 에 있습니다.
-     통계·보고서 API 는 아직 명세서 범위 밖이라 경로를 가정한 상태입니다.
+     addComma 는 common.js 에 있습니다.
+     파일 내보내기는 서버가 실제 파일(csv/xlsx/pdf)을 만들어서 주기 때문에
+     saveFile()로 직접 CSV를 짜서 만드는 게 아니라, location.href로 그
+     주소를 열어서 브라우저가 다운로드하게 합니다 (세션 쿠키가 자동으로
+     따라가서 별도 처리가 필요 없습니다).
      ============================================================ -->
 <script>
 
@@ -137,30 +173,54 @@
 	let lowNames = [];    // 부족 품목
 	let lowStocks = [];
 	let lowMins = [];
-	let lowUnits = [];
 
 	let topNames = [];    // 많이 나간 품목
 	let topQtys = [];
-	let topUnits = [];
 
 
-	/* 기준일의 보고서 자료를 가져옵니다.
-	   나중에 : apiGet("/api/reports/daily?date=" + day, putReport) */
+	/* 기준일의 보고서 자료를 가져옵니다 (GET /api/reports/daily) */
 	function loadReportData(day) {
+		apiGet("/api/reports/daily?date=" + day, putReport);
+	}
 
-		inTotal = 1240;
-		inDiff = 12.5;
-		outTotal = 980;
-		outDiff = -3.5;
 
-		lowNames  = ["두부 프리미엄", "김치 실속형"];
-		lowStocks = [12, 2];
-		lowMins   = [16, 3];
-		lowUnits  = ["EA", "BOX"];
+	function putReport(data) {
 
-		topNames = ["만두 프리미엄", "샐러드 프리미엄", "두부 정품", "어묵 프리미엄", "베이컨 정품"];
-		topQtys  = [320, 280, 215, 190, 145];
-		topUnits = ["BOX", "EA", "EA", "BOX", "BOX"];
+		let comp = data.dailyComparison;
+
+		// 그 날짜에 비교할 전일 자료가 없으면 null로 옵니다
+		if (comp == null) {
+			inTotal = 0;
+			inDiff = 0;
+			outTotal = 0;
+			outDiff = 0;
+		} else {
+			inTotal = comp.todayInboundQty;
+			outTotal = comp.todayOutboundQty;
+			// 전일 수량이 0이면 증감률이 null로 옵니다 (계산 불가)
+			inDiff = comp.inboundQtyChangeRate == null ? 0 : Math.round(comp.inboundQtyChangeRate * 10) / 10;
+			outDiff = comp.outboundQtyChangeRate == null ? 0 : Math.round(comp.outboundQtyChangeRate * 10) / 10;
+		}
+
+		lowNames  = [];
+		lowStocks = [];
+		lowMins   = [];
+
+		let low = data.lowStockItem;
+		for (let i = 0; i < low.length; i++) {
+			lowNames[i]  = low[i].itemName;
+			lowStocks[i] = low[i].currentQty;
+			lowMins[i]   = low[i].minQty;
+		}
+
+		topNames = [];
+		topQtys  = [];
+
+		let top = data.topOutboundItem;
+		for (let i = 0; i < top.length; i++) {
+			topNames[i] = top[i].itemName;
+			topQtys[i]  = top[i].totalOutboundQty;
+		}
 
 		drawReport();
 	}
@@ -180,7 +240,7 @@
 	}
 
 
-	/* 가져온 자료로 보고서를 그립니다 */
+	/* 가져온 자료로 보고서를 그립니다 (단위는 서버가 EA로 통일해서 줍니다) */
 	function drawReport() {
 
 		/* ---- 전일 대비 ---- */
@@ -198,7 +258,7 @@
 			for (let i = 0; i < lowNames.length; i++) {
 				html = html + '<div class="top-item">';
 				html = html + "<span>" + lowNames[i] + "</span>";
-				html = html + "<span>" + lowStocks[i] + lowUnits[i] + " / 최소 " + lowMins[i] + lowUnits[i] + "</span>";
+				html = html + "<span>" + lowStocks[i] + "EA / 최소 " + lowMins[i] + "EA</span>";
 				html = html + "</div>";
 			}
 		}
@@ -213,7 +273,7 @@
 			for (let i = 0; i < topNames.length; i++) {
 				html = html + '<div class="top-item">';
 				html = html + "<span>" + (i + 1) + ". " + topNames[i] + "</span>";
-				html = html + "<span>" + addComma(topQtys[i]) + topUnits[i] + "</span>";
+				html = html + "<span>" + addComma(topQtys[i]) + "EA</span>";
 				html = html + "</div>";
 			}
 		}
@@ -241,52 +301,47 @@
 	}
 
 
-	/* ---------- 내보내기에 쓸 자료 (종류별로 다릅니다) ---------- */
+	/* 일일 보고서 PDF 다운로드 (GET /api/export/daily/pdf) */
+	function exportDailyPdf() {
 
-	let inTitle = "일자,품목명,로트번호,수량,단위,공급처";
-	let inRows = [
-		"2026-08-11,두부 프리미엄,LOT-1,40,EA,신선냉장유통(주)",
-		"2026-08-10,어묵 정품,LOT-3,24,BOX,한아름냉동식품(주)"
-	];
+		let day = document.querySelector("#reportDate").value;
 
-	let outTitle = "일자,품목명,로트번호,수량,단위,목적지";
-	let outRows = [
-		"2026-08-11,만두 프리미엄,LOT-7,320,BOX,쿠팡 풀필먼트",
-		"2026-08-10,샐러드 프리미엄,LOT-9,280,EA,이마트 성수점"
-	];
+		if (day == "") {
+			alert("기준일을 골라 주세요.");
+			return;
+		}
 
-	let moveTitle = "일시,품목명,로트번호,수량,출발구역,도착구역";
-	let moveRows = [
-		"2026-08-11 14:20,두부 프리미엄,LOT-1,20,대형(0) EA,중형(5) EA"
-	];
-
-	let returnTitle = "일자,구분,품목명,로트번호,수량,사유";
-	let returnRows = [
-		"2026-08-11,폐기,어묵 정품,LOT-3,8,유통기한만료",
-		"2026-08-09,반품,김치 실속형,LOT-4,4,고객반품"
-	];
+		location.href = makeUrl("/api/export/daily/pdf?date=" + day);
+	}
 
 
-	/* 내보내기 버튼
-	   나중에 서버가 만들어 주면 아래 한 줄로 바뀝니다.
-	     location.href = "http://localhost:8080/api/exports/" + type
-	                   + "?format=csv&from=" + from + "&to=" + to;
-	   주소창으로 이동하는 방식이라 세션 쿠키가 자동으로 따라갑니다. */
+	/* ---------------------------------------------------------
+	   데이터 내보내기
+
+	   서버가 실제로 지원하는 내보내기는 3종류뿐입니다.
+	   - 입출고 로그 (입고+출고 통합, /api/export/inout)
+	   - 알림 이력 (/api/export/alerts)
+	   - 통계 리포트 (입출고 집계 전체/대형/중형/소형 + 회전율 + 거래처
+	     TOP5 + 월별 추이를 한 파일로, /api/export/statistics)
+	   이동 로그·반품/폐기 로그는 내보내기 API 자체가 없어서 뺐습니다.
+	   --------------------------------------------------------- */
+
+	/* 데이터 종류를 바꾸면 통계 리포트 전용 칸을 보여주거나 숨깁니다 */
+	function changeDataType() {
+
+		let type = document.querySelector("#dataType").value;
+		let show = (type == "statistics") ? "block" : "none";
+
+		document.querySelector("#statOptionArea").style.display = show;
+		document.querySelector("#statTrendArea").style.display = show;
+	}
+
+
 	function doExport() {
 
 		let type = document.querySelector("#dataType").value;
 		let from = document.querySelector("#fromDate").value;
 		let to = document.querySelector("#toDate").value;
-
-		/* 라디오 버튼 중에 고른 값을 찾습니다 */
-		let fileType = "CSV";
-		let radios = document.getElementsByName("format");
-
-		for (let i = 0; i < radios.length; i++) {
-			if (radios[i].checked == true) {
-				fileType = radios[i].value;
-			}
-		}
 
 		if (from == "" || to == "") {
 			alert("기간을 모두 골라 주세요.");
@@ -298,46 +353,52 @@
 			return;
 		}
 
-		/* Excel 파일은 서버에서 만들어야 해서 지금은 안내만 합니다 */
-		if (fileType == "Excel") {
-			document.querySelector("#msgArea").innerHTML =
-				"<p>Excel 내보내기는 서버에서 만듭니다. 연동 후 사용할 수 있습니다.</p>";
-			return;
+		/* 라디오 버튼 중에 고른 값을 찾습니다 */
+		let fileType = "CSV";
+		let radios = document.getElementsByName("format");
+
+		for (let i = 0; i < radios.length; i++) {
+			if (radios[i].checked == true) {
+				fileType = radios[i].value;
+			}
 		}
 
-		/* 고른 종류에 맞는 자료를 정합니다 */
-		let title = inTitle;
-		let rows = inRows;
+		let ext = (fileType == "Excel") ? "excel" : "csv";
+		let path = "";
 
-		if (type == "출고 로그") {
-			title = outTitle;
-			rows = outRows;
-		} else if (type == "재고 이동 로그") {
-			title = moveTitle;
-			rows = moveRows;
-		} else if (type == "반품 및 폐기 로그") {
-			title = returnTitle;
-			rows = returnRows;
+		if (type == "inout") {
+			path = "/api/export/inout/" + ext + "?from=" + from + "&to=" + to;
+
+		} else if (type == "alerts") {
+			path = "/api/export/alerts/" + ext + "?from=" + from + "&to=" + to;
+
+		} else {
+			// 통계 리포트 - 집계 단위, 월별 추이 기간까지 같이 보냅니다
+			let unit = document.querySelector("#statUnit").value;
+			let trendStart = document.querySelector("#trendStart").value;
+			let trendEnd = document.querySelector("#trendEnd").value;
+
+			path = "/api/export/statistics/" + ext
+				+ "?unit=" + unit + "&from=" + from + "&to=" + to
+				+ "&start=" + trendStart + "&end=" + trendEnd;
 		}
 
-		/* 제목 줄과 내용 줄을 줄바꿈으로 이어붙입니다 */
-		let text = title;
+		location.href = makeUrl(path);
 
-		for (let i = 0; i < rows.length; i++) {
-			text = text + "\n" + rows[i];
-		}
-
-		let fileName = type + "_" + from + "_" + to + ".csv";
-		saveFile(fileName, text);
-
-		document.querySelector("#msgArea").innerHTML =
-			"<p>" + fileName + " 내려받기 완료 (" + rows.length + "건)</p>";
+		document.querySelector("#msgArea").innerHTML = "<p>다운로드를 시작합니다.</p>";
 	}
 
 
 	/* 화면이 열릴 때 오늘 날짜를 기준일에 넣어 둡니다 */
 	document.querySelector("#reportDate").value = getToday();
 	loadReportData(getToday());
+
+	/* 내보내기 기간도 최근 일주일로 기본값을 넣어 둡니다 */
+	let today = new Date();
+	let weekAgo = new Date();
+	weekAgo.setDate(weekAgo.getDate() - 6);
+	document.querySelector("#toDate").value = getDateText(today);
+	document.querySelector("#fromDate").value = getDateText(weekAgo);
 
 
 	/* 오른쪽 위에 로그인한 사람을 보여 줍니다 */

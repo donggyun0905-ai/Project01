@@ -74,6 +74,23 @@
 			<button class="register-btn" onclick="openNew()">승인 요청 등록</button>
 		</section>
 
+		<!-- 창고정리추천 - 구역 간 이동이 필요한 알림들을 여기서 바로 실행합니다.
+		     이건 발주/출고와 달리 대기/승인 상태가 있는 "요청"이 아니라 바로 실행하는
+		     조치라서, 위 승인요청 표와는 따로 둡니다. -->
+		<section class="table-box" id="consolBox" style="display:none;">
+			<h4 class="page-title">창고 정리 추천</h4>
+			<table>
+				<thead>
+					<tr>
+						<th>품목</th>
+						<th>이동 내용</th>
+						<th>조치</th>
+					</tr>
+				</thead>
+				<tbody id="consolBody"></tbody>
+			</table>
+		</section>
+
 		<!-- (표)  -->
 		<section class= "table-box">
 			<table>
@@ -241,6 +258,7 @@
 		fillItemList("#itemList");
 		changeNewType();
 		loadData();
+		loadConsolidationAlerts();
 	}
 
 
@@ -538,10 +556,10 @@
 
 		if (type == "발주") {
 			fillPartner("#nPartner", "SUPPLIER");
-			document.querySelector("#nPartnerLabel").innerHTML = "공급처 (비워두면 서버가 정합니다)";
+			document.querySelector("#nPartnerLabel").innerHTML = "공급처";
 		} else {
 			fillPartner("#nPartner", "CUSTOMER");
-			document.querySelector("#nPartnerLabel").innerHTML = "목적지 거래처 (출고는 필수)";
+			document.querySelector("#nPartnerLabel").innerHTML = "목적지 거래처";
 		}
 	}
 
@@ -583,6 +601,203 @@
 		nowPage = 1;
 		loadData();
 		alert("승인 요청이 등록되었습니다. (요청번호 " + data.approvalId + ")");
+	}
+
+
+	/* ============================================================
+	   창고정리추천 - 목록 받아오기 및 이동 실행
+
+	   창고정리추천은 발주/출고와 달리 APPROVAL 테이블에 안 들어가고
+	   ALERT로만 존재합니다(승인/반려 개념이 없이 "바로 실행"만 하면
+	   되는 조치라서). 그래서 GET /api/approvals가 아니라
+	   GET /api/alerts에서 이 종류만 걸러서 따로 보여 줍니다.
+	   ============================================================ */
+
+	let consolAlertIds = [];
+	let consolItemIds = [];
+	let consolMoves = [];
+
+	function loadConsolidationAlerts() {
+		apiGet("/api/alerts?resolved=false&size=200", putConsolidationAlerts);
+	}
+
+	function putConsolidationAlerts(data) {
+
+		consolAlertIds = [];
+		consolItemIds = [];
+		consolMoves = [];
+
+		for (let i = 0; i < data.items.length; i++) {
+
+			if (data.items[i].alertType != "창고정리추천") {
+				continue;
+			}
+
+			let move = parseConsolidationMessage(data.items[i].message);
+			if (move == null) {
+				continue;
+			}
+
+			let last = consolAlertIds.length;
+			consolAlertIds[last] = data.items[i].alertId;
+			consolItemIds[last] = data.items[i].itemId;
+			consolMoves[last] = move;
+		}
+
+		drawConsolidationList();
+	}
+
+	/* 알림 메시지 안의 "zoneId=3(수량 12, 점유율 40%)를 zoneId=7로" 부분을 읽어냅니다.
+	   WarehouseConsolidationService가 만드는 메시지 형식이 고정돼 있어서 이 방식이 안전합니다. */
+	function parseConsolidationMessage(msg) {
+		if (msg == null) {
+			return null;
+		}
+		let m = msg.match(/zoneId=(\d+)\(수량 (\d+), 점유율 \d+%\)를 zoneId=(\d+)로/);
+		if (m == null) {
+			return null;
+		}
+		return { fromZoneId: m[1] * 1, quantity: m[2] * 1, toZoneId: m[3] * 1 };
+	}
+
+	/* 구역 번호로 "대형(0) EA" 같은 이름을 만듭니다 (item.html의 findZoneName과 같은 방식) */
+	function zoneLabel(zoneId) {
+		for (let i = 0; i < zoneIds.length; i++) {
+			if (zoneIds[i] == zoneId) {
+				for (let k = 0; k < warehouseIds.length; k++) {
+					if (warehouseIds[k] == zoneWarehouseIds[i]) {
+						return warehouseNames[k] + " " + zoneNames[i];
+					}
+				}
+				return zoneNames[i];
+			}
+		}
+		return "구역 " + zoneId;
+	}
+
+	function drawConsolidationList() {
+
+		let box = document.querySelector("#consolBox");
+
+		if (consolAlertIds.length == 0) {
+			box.style.display = "none";
+			return;
+		}
+
+		box.style.display = "";
+
+		let html = "";
+
+		for (let i = 0; i < consolAlertIds.length; i++) {
+
+			let move = consolMoves[i];
+
+			html = html + "<tr>";
+			html = html + "<td>" + findItemName(consolItemIds[i]) + "</td>";
+			html = html + "<td>" + zoneLabel(move.fromZoneId) + " → " + zoneLabel(move.toZoneId)
+			            + " (" + addComma(move.quantity) + findItemUnit(consolItemIds[i]) + ")</td>";
+			html = html + "<td><button class='approval-btn' onclick='doExecuteConsolidation(" + i + ")'>지금 실행</button></td>";
+			html = html + "</tr>";
+		}
+
+		document.querySelector("#consolBody").innerHTML = html;
+	}
+
+	/* 그 구역에 있는 이 품목 로트를 전부(각 로트의 지금 수량 그대로) 목적지로 옮깁니다.
+	   알림에 적힌 추천 수량이 아니라 "지금 실제로 그 구역에 있는 만큼"을 기준으로 삼아야
+	   구역이 완전히 비워집니다. 로트가 여러 개면 한 건씩 순서대로 옮깁니다. */
+	let moveLotIds = [];
+	let moveLotQtys = [];
+	let moveIndex = 0;
+	let moveFromZoneId = null;
+	let moveToZoneId = null;
+	let moveAlertId = null;
+	let moveItemId = null;
+
+	function doExecuteConsolidation(i) {
+
+		let move = consolMoves[i];
+
+		let ask = zoneLabel(move.fromZoneId) + " → " + zoneLabel(move.toZoneId) + "로 "
+		        + addComma(move.quantity) + "개를 지금 옮길까요?";
+
+		if (confirm(ask) == false) {
+			return;
+		}
+
+		moveFromZoneId = move.fromZoneId;
+		moveToZoneId = move.toZoneId;
+		moveAlertId = consolAlertIds[i];
+		moveItemId = consolItemIds[i];
+
+		apiGet("/api/stock-lots?itemId=" + moveItemId + "&zoneId=" + move.fromZoneId
+		     + "&status=NORMAL&size=200", putMoveLots);
+	}
+
+	function putMoveLots(data) {
+
+		moveLotIds = [];
+		moveLotQtys = [];
+
+		for (let k = 0; k < data.items.length; k++) {
+
+			/* 남은 수량이 없는 로트는 옮길 게 없으니 건너뜁니다 */
+			if (data.items[k].quantity <= 0) {
+				continue;
+			}
+
+			moveLotIds[moveLotIds.length] = data.items[k].lotId;
+			moveLotQtys[moveLotQtys.length] = data.items[k].quantity;
+		}
+
+		/* 그 사이 재고가 이미 다 빠졌으면 옮길 것 없이 알림만 정리합니다 */
+		if (moveLotIds.length == 0) {
+			finishConsolidation();
+			return;
+		}
+
+		moveIndex = 0;
+		sendOneMove();
+	}
+
+	function sendOneMove() {
+
+		/* 로트를 다 처리했으면 마무리합니다 */
+		if (moveIndex >= moveLotIds.length) {
+			finishConsolidation();
+			return;
+		}
+
+		let body = {
+			lotId: moveLotIds[moveIndex],
+			fromZoneId: moveFromZoneId,
+			toZoneId: moveToZoneId,
+			quantity: moveLotQtys[moveIndex],
+			handlerId: sessionStorage.getItem("userId") * 1
+		};
+
+		apiSend("POST", "/api/transfers", body, afterOneMove, failOneMove);
+	}
+
+	function afterOneMove(data) {
+		moveIndex = moveIndex + 1;
+		sendOneMove();
+	}
+
+	/* 한 로트가 실패해도(예: 그 사이 구역이 꽉 참) 나머지는 계속 옮겨 봅니다 */
+	function failOneMove(message) {
+		alert("일부는 옮기지 못했습니다: " + message + "\n나머지는 창고 간 재고 이동 화면에서 직접 처리해 주세요.");
+		moveIndex = moveIndex + 1;
+		sendOneMove();
+	}
+
+	function finishConsolidation() {
+		apiSend("PATCH", "/api/alerts/" + moveAlertId + "/resolve", null, afterConsolidationResolve);
+	}
+
+	function afterConsolidationResolve(data) {
+		loadConsolidationAlerts();
+		alert("창고 정리 이동을 완료했습니다.");
 	}
 
 

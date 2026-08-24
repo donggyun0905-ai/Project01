@@ -50,19 +50,15 @@
 		<!-- 조회 조건 -->
 		<section class="form-box">
 			<div class="form-group">
+				<!-- 서버(통계 API)가 개별 창고가 아니라 대형/중형/소형 구분으로만 걸러 줘서
+				     (WAREHOUSE.name 자체가 "대형"/"중형"/"소형" 뿐이라 개별 창고 이름이 없음)
+				     드롭다운도 그 4개로 맞췄습니다. -->
 				<label>창고</label>
-				<select id="warehouse">
-					<option>전체</option>
-					<option>대형 1</option>
-					<option>대형 2</option>
-					<option>대형 3</option>
-					<option>대형 4</option>
-					<option>대형 5</option>
-					<option>중형 1</option>
-					<option>중형 2</option>
-					<option>중형 3</option>
-					<option>소형 1</option>
-					<option>소형 2</option>
+				<select id="warehouse" onchange="changeWarehouse()">
+					<option value="전체">전체</option>
+					<option value="대형">대형 (5개소)</option>
+					<option value="중형">중형 (3개소)</option>
+					<option value="소형">소형 (2개소)</option>
 				</select>
 			</div>
 
@@ -140,10 +136,11 @@
 	let whColors = [];
 
 	// 실시간 알림
-	let alertTypes = [];
-	let alertItems = [];
-	let alertMsgs  = [];
-	let alertTimes = [];
+	let alertTypes   = [];
+	let alertItemIds = [];
+	let alertItems   = [];
+	let alertMsgs    = [];
+	let alertTimes   = [];
 
 	// 그래프를 담아둘 변수 (다시 그릴 때 이전 것을 지우기 위해 필요)
 	let barChart = null;
@@ -152,70 +149,297 @@
 	/* =========================================================
 	   화면에 쓸 자료를 가져온다
 
-	   [서버 연동 방법]
-	   지금은 서버가 없어서 값을 직접 적어두고 쓴다.
-	   나중에 서버가 완성되면 이 함수 안쪽만 아래처럼 바꾸면 되고,
-	   화면을 그리는 코드는 하나도 고칠 필요가 없다.
-
-	     function loadData() {
-	       let xhr = new XMLHttpRequest();
-	       xhr.open("GET", "http://localhost:8080/api/reports/daily", true);
-
-	       // 로그인 세션 쿠키(JSESSIONID)를 같이 보낸다 - 이게 없으면 401이 온다
-	       xhr.withCredentials = true;
-
-	       xhr.onload = function() {
-	         let res = JSON.parse(xhr.responseText);
-
-	         if (res.success == false) {
-	           alert(res.error.message);
-	           return;
-	         }
-
-	         cardNums[0] = res.data.totalItemCount;
-	         cardNums[1] = res.data.totalStockQty;
-	         // ... 나머지도 같은 방식으로 채운다
-
-	         drawAll();
-	       };
-	       xhr.send();
-	     }
+	   카드 5개가 서로 다른 API에서 나뉘어 오기 때문에,
+	   한 번에 다 받아서 그리는 게 아니라 각자 받아오는 대로
+	   drawCards()를 다시 불러서 채워 넣는 방식입니다.
+	   (먼저 온 자료부터 화면에 바로바로 나타납니다)
 	   ========================================================= */
 	function loadData() {
+
+		// 카드 자리를 먼저 만들어 둡니다 (자료가 오기 전엔 "-" 로 보입니다)
 		cardNames = ["총 보유 품목", "총 보유 재고 수량", "오늘 입고 수량", "오늘 출고 수량", "재고 부족 품목"];
-		cardNums  = [250, 52350, 1250, 980, 2];
+		cardNums  = ["-", "-", "-", "-", "-"];
 		cardUnits = ["종", "EA", "EA", "EA", "종"];
-		cardDiffs = [0, 2.4, 8.1, -3.5, 0];
+		cardDiffs = [0, 0, 0, 0, 0];
+		drawCards();
 
-		days     = ["08-05", "08-06", "08-07", "08-08", "08-09", "08-10", "08-11"];
-		inQtys   = [820, 1040, 690, 1250, 900, 760, 1180];
-		outQtys  = [640, 880, 720, 980, 1100, 540, 860];
-
-		// 창고별 재고 (실제 시드 기준: 대형 5개 / 중형 3개 / 소형 2개)
-		whNames  = ["대형 창고 (5개소)", "중형 창고 (3개소)", "소형 창고 (2개소)"];
-		whQtys   = [30350, 14200, 7800];
-		whColors = ["#1f2628", "#5a8f7b", "#9b9b9b"];
-
-		alertTypes = ["재고부족", "재고초과", "이상출고", "예측알림"];
-		alertItems = ["두부 프리미엄", "어묵 정품", "만두 프리미엄", "베이컨 정품"];
-		alertMsgs  = [
-			"현재 재고가 임계치(16개) 미만입니다.",
-			"현재 재고가 최대 보유량(23박스)을 초과했습니다.",
-			"출고 수량이 최근 평균 출고량의 3배를 넘었습니다.",
-			"5일 내 재고 소진이 예상됩니다."
-		];
-		alertTimes = ["09:40", "08:15", "07:52", "어제"];
-
-		// 자료를 다 받은 뒤에 화면을 그린다
-		drawAll();
+		loadItemCount();       // 카드 0 : 총 보유 품목
+		loadWarehouseStock();  // 카드 1 + 창고별 재고 도넛
+		loadDailyCompare();    // 카드 2, 3 : 오늘 입고/출고
+		loadAlerts();          // 카드 4 + 실시간 알림 목록
+		loadBarChart();        // 입출고 현황 막대그래프
 	}
 
-	// 화면 전체를 그린다
-	function drawAll() {
+
+	/* ---------------------------------------------------------
+	   카드 0 : 총 보유 품목 (사용 중인 품목만)
+	   /api/items 는 total 만 필요해서 size=1로 최소한만 받습니다.
+	   --------------------------------------------------------- */
+	function loadItemCount() {
+		apiGet("/api/items?page=1&size=1&active=true", putItemCount);
+	}
+
+	function putItemCount(data) {
+		cardNums[0] = data.total;
 		drawCards();
-		drawBarChart();
+	}
+
+
+	/* ---------------------------------------------------------
+	   카드 1 + 창고별 재고 도넛 : 대형/중형/소형 합산
+
+	   [주의] 통계 API 중에 /api/statistics/warehouseStock 도 있지만,
+	   지금 서버 코드에 버그가 있어서(같은 이름의 창고가 여러 개일 때
+	   합치지 않고 마지막 값으로 덮어써 버림 - 대형 5개 중 1개 값만 남음)
+	   그 API 대신 warehouse.html과 같은 방식으로 창고/구역/재고를
+	   직접 받아서 화면에서 합산합니다. 안주희 님께 별도로 전달 예정.
+	   --------------------------------------------------------- */
+	let whZoneIds  = [];   // 구역 번호
+	let whZoneWh   = [];   // 그 구역이 속한 창고 번호
+	let whWhNames  = [];   // 창고 번호 -> 창고 구분(대형/중형/소형)
+	let whGroupQty = {};   // 창고 구분별 합계를 담아둘 객체
+
+	function loadWarehouseStock() {
+		apiGet("/api/warehouses?size=200", putWarehousesForStock);
+	}
+
+	function putWarehousesForStock(data) {
+
+		whWhNames = [];
+
+		for (let i = 0; i < data.items.length; i++) {
+			whWhNames[data.items[i].warehouseId] = data.items[i].name; // "대형"/"중형"/"소형"
+		}
+
+		apiGet("/api/zones?size=200", putZonesForStock);
+	}
+
+	function putZonesForStock(data) {
+
+		whZoneIds = [];
+		whZoneWh  = [];
+
+		for (let i = 0; i < data.items.length; i++) {
+			whZoneIds[i] = data.items[i].zoneId;
+			whZoneWh[i]  = data.items[i].warehouseId;
+		}
+
+		apiGet("/api/stock-lots?status=NORMAL&page=1&size=200", putStockForWh1);
+	}
+
+	function putStockForWh1(data) {
+
+		whGroupQty = { "대형": 0, "중형": 0, "소형": 0 };
+		addStockForWh(data.items);
+
+		if (data.total > 200) {
+			apiGet("/api/stock-lots?status=NORMAL&page=2&size=200", putStockForWh2);
+		} else {
+			drawDonutFromGroups();
+		}
+	}
+
+	function putStockForWh2(data) {
+		addStockForWh(data.items);
+		drawDonutFromGroups();
+	}
+
+	// 로트 목록을 받아서 구역 -> 창고 -> 창고구분(대/중/소) 순서로 찾아 더합니다
+	function addStockForWh(list) {
+
+		for (let i = 0; i < list.length; i++) {
+
+			let whId = null;
+
+			for (let k = 0; k < whZoneIds.length; k++) {
+				if (whZoneIds[k] == list[i].zoneId) {
+					whId = whZoneWh[k];
+					break;
+				}
+			}
+
+			if (whId == null) {
+				continue;
+			}
+
+			let groupName = whWhNames[whId];
+			whGroupQty[groupName] = whGroupQty[groupName] + list[i].quantity;
+		}
+	}
+
+	function drawDonutFromGroups() {
+
+		whNames  = ["대형 창고 (5개소)", "중형 창고 (3개소)", "소형 창고 (2개소)"];
+		whQtys   = [whGroupQty["대형"], whGroupQty["중형"], whGroupQty["소형"]];
+		whColors = ["#1f2628", "#5a8f7b", "#9b9b9b"];
+
+		cardNums[1] = whQtys[0] + whQtys[1] + whQtys[2];
+		drawCards();
 		drawDonutChart();
+	}
+
+
+	/* ---------------------------------------------------------
+	   카드 2, 3 : 오늘 입고/출고 수량 + 전일 대비
+	   --------------------------------------------------------- */
+	function loadDailyCompare() {
+
+		let pick = document.querySelector("#pickDate").value;
+		apiGet("/api/reports/daily?date=" + pick, putDailyCompare);
+	}
+
+	function putDailyCompare(data) {
+
+		let comp = data.dailyComparison;
+
+		// 그 날짜에 비교할 자료가 없으면 null로 옵니다
+		if (comp == null) {
+			cardNums[2] = 0;
+			cardNums[3] = 0;
+			cardDiffs[2] = 0;
+			cardDiffs[3] = 0;
+		} else {
+			cardNums[2] = comp.todayInboundQty;
+			cardNums[3] = comp.todayOutboundQty;
+
+			// 전일 수량이 0이면 증감률이 null로 옵니다 (계산 불가)
+			// 서버가 소수점을 안 자르고 그대로 보내서(예: 13.333333...) 화면에서 소수 첫째 자리로 반올림합니다
+			cardDiffs[2] = comp.inboundQtyChangeRate == null ? 0 : Math.round(comp.inboundQtyChangeRate * 10) / 10;
+			cardDiffs[3] = comp.outboundQtyChangeRate == null ? 0 : Math.round(comp.outboundQtyChangeRate * 10) / 10;
+		}
+
+		drawCards();
+	}
+
+
+	/* ---------------------------------------------------------
+	   카드 4 + 실시간 알림 목록
+
+	   서버는 종류별로 걸러 주지 않아서(resolved만 지원),
+	   해결 안 된 알림을 한 번에 받아서 화면에서 종류를 셉니다.
+	   목록에는 최근 5건만 보여줍니다.
+	   --------------------------------------------------------- */
+	function loadAlerts() {
+		apiGet("/api/alerts?resolved=false&page=1&size=200", putAlertsForDashboard);
+	}
+
+	/* 서버가 주는 알림 문구는 "품목(itemId=252) 재고가 threshold_min(10) 미만입니다
+	   (현재 0, 폐기로 인한 감소)" 처럼 개발자용 변수명이 그대로 들어있습니다.
+	   알림 탭에서 정리했던 것과 같은 규칙으로 사람이 읽기 좋게 다듬습니다.
+	   -> "재고가 기준 수량 10개 미만입니다 (현재 0, 폐기로 인한 감소)" */
+	function prettyAlertMessage(raw) {
+
+		if (raw == null) {
+			return "";
+		}
+
+		let text = raw;
+
+		// "품목(itemId=252) " 접두어는 화면에 품목명을 이미 따로 보여주므로 뗍니다
+		text = text.replace(/^품목\(itemId=\d+\)\s*/, "");
+
+		// 변수명 그대로 노출된 부분을 자연스러운 말로 바꿉니다
+		text = text.replace(/threshold_min\((\d+)\)/, "기준 수량 $1개");
+		text = text.replace(/capacity_max\((\d+)\)/, "최대 보유량 $1개");
+
+		return text;
+	}
+
+
+	function putAlertsForDashboard(data) {
+
+		let list = data.items;
+
+		// 카드 4 : 재고부족 알림 개수
+		let lowCount = 0;
+		for (let i = 0; i < list.length; i++) {
+			if (list[i].alertType == "재고부족") {
+				lowCount = lowCount + 1;
+			}
+		}
+		cardNums[4] = lowCount;
+		drawCards();
+
+		// 목록 : 최근 5건
+		// 서버가 이미 최신순(ORDER BY created_at DESC)으로 정렬해서 주기 때문에
+		// 그냥 앞에서 5개만 그대로 쓰면 됩니다 (뒤집을 필요 없음)
+		alertTypes    = [];
+		alertItemIds  = [];
+		alertItems    = [];
+		alertMsgs     = [];
+		alertTimes    = [];
+
+		let count = list.length;
+		if (count > 5) {
+			count = 5;
+		}
+
+		for (let i = 0; i < count; i++) {
+
+			alertTypes[i]   = list[i].alertType;
+			alertItemIds[i] = list[i].itemId;
+			alertItems[i]   = "품목 " + list[i].itemId;  // 이름은 아래에서 따로 받아 채워집니다
+			alertMsgs[i]    = prettyAlertMessage(list[i].message);
+
+			let t = list[i].createdAt;
+			if (t == null) {
+				alertTimes[i] = "";
+			} else {
+				t = t.replace("T", " ");
+				alertTimes[i] = t.substring(11, 16); // 시:분만
+			}
+		}
+
 		drawAlerts();
+
+		// 알림에는 품목 이름이 없어서(itemId만 옴), 몇 건 안 되니 하나씩 받아서 채웁니다
+		for (let i = 0; i < alertItemIds.length; i++) {
+			loadAlertItemName(i, alertItemIds[i]);
+		}
+	}
+
+	function loadAlertItemName(index, itemId) {
+		apiGet("/api/items/" + itemId, function (data) {
+			alertItems[index] = data.itemName;
+			drawAlerts();
+		});
+	}
+
+
+	/* ---------------------------------------------------------
+	   입출고 현황 막대그래프 (기준일까지 최근 7일)
+	   창고 드롭다운에서 고른 값(전체/대형/중형/소형)을 그대로 넘깁니다.
+	   --------------------------------------------------------- */
+	function loadBarChart() {
+
+		let pick = document.querySelector("#pickDate").value;
+		let to = new Date(pick);
+		let from = new Date(pick);
+		from.setDate(from.getDate() - 6);
+
+		let wh = document.querySelector("#warehouse").value;
+
+		let path = "/api/statistics/inout?unit=day"
+			+ "&from=" + getDateText(from)
+			+ "&to=" + getDateText(to)
+			+ "&warehouse=" + encodeURIComponent(wh);
+
+		apiGet(path, putBarChart);
+	}
+
+	function putBarChart(data) {
+
+		days    = [];
+		inQtys  = [];
+		outQtys = [];
+
+		for (let i = 0; i < data.length; i++) {
+			days[i]    = data[i].period.substring(5); // "2026-08-11" -> "08-11"
+			inQtys[i]  = data[i].inboundQty;
+			outQtys[i] = data[i].outboundQty;
+		}
+
+		drawBarChart();
 	}
 
 	/* =========================================================
@@ -344,11 +568,20 @@
 
 	/* =========================================================
 	   기준일을 바꿨을 때
+	   -> 날짜에 걸린 카드(오늘 입고/출고)와 막대그래프(그 날짜까지 7일)만
+	      다시 받아오면 됩니다. 나머지 카드·도넛·알림은 날짜와 무관합니다.
 	   ========================================================= */
 	function changeDate() {
-		// 나중에 서버가 생기면 여기서 그 날짜의 자료를 다시 받아오면 된다
-		let pick = document.querySelector("#pickDate").value;
-		alert(pick + " 자료를 불러옵니다. (서버 연동 후 동작)");
+		loadDailyCompare();
+		loadBarChart();
+	}
+
+	/* =========================================================
+	   창고 구분을 바꿨을 때
+	   -> 막대그래프(입출고 현황)만 그 구분으로 다시 받아옵니다.
+	   ========================================================= */
+	function changeWarehouse() {
+		loadBarChart();
 	}
 
 	/* =========================================================

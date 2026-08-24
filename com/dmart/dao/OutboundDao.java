@@ -86,6 +86,42 @@ public class OutboundDao {
         return result;
     }
 
+    // 출고 이력 화면용. OUTBOUND엔 item_id가 없어서 STOCK_LOT을 조인해 거른다.
+    public List<Outbound> findPage(Connection conn, Long itemId, int offset, int limit) throws SQLException {
+        String sql = "SELECT o.* FROM OUTBOUND o JOIN STOCK_LOT sl ON o.lot_id = sl.lot_id"
+                + (itemId != null ? " WHERE sl.item_id = ?" : "")
+                + " ORDER BY o.outbound_id DESC LIMIT ? OFFSET ?";
+        List<Outbound> result = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int idx = 1;
+            if (itemId != null) {
+                ps.setLong(idx++, itemId);
+            }
+            ps.setInt(idx++, limit);
+            ps.setInt(idx, offset);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(mapRow(rs));
+                }
+            }
+        }
+        return result;
+    }
+
+    public int count(Connection conn, Long itemId) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM OUTBOUND o JOIN STOCK_LOT sl ON o.lot_id = sl.lot_id"
+                + (itemId != null ? " WHERE sl.item_id = ?" : "");
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            if (itemId != null) {
+                ps.setLong(1, itemId);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
     private Outbound mapRow(ResultSet rs) throws SQLException {
         Outbound outbound = new Outbound();
         outbound.setOutboundId(rs.getLong("outbound_id"));
