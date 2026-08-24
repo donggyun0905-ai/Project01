@@ -83,6 +83,18 @@ public class StockLotDao {
         return null;
     }
 
+    // 재고 로트 삭제(10.3) 안전장치용: 이 로트에서 분할되어 나온(parent_lot_id가 이 로트인) 다른 로트가 있는지 -
+    // 있으면 이동/반품폐기로 이미 일부가 실제 업무에 쓰였다는 뜻.
+    public boolean existsChildByParentLotId(Connection conn, Long lotId) throws SQLException {
+        String sql = "SELECT 1 FROM STOCK_LOT WHERE parent_lot_id = ? LIMIT 1";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, lotId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
     public StockLot findById(Connection conn, Long lotId) throws SQLException {
         String sql = "SELECT * FROM STOCK_LOT WHERE lot_id = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {

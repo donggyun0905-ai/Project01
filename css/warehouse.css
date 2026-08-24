@@ -69,11 +69,26 @@ th{
 }
 
 .modal-box{
-	width: 420px;
+	width: 720px;
+	height: 550px;
 	background: #fff;
 	border-radius: 8px;
 	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 	overflow: hidden;
+}
+
+/* 창고/구역 등록·수정 모달이 720x550으로 커진 만큼, 헤더는 위에 / 버튼은 아래에 붙고
+   가운데 입력 영역이 남는 세로 공간을 채우도록 modal-box 자체를 세로 flex로 배치합니다.
+   (구역 재고 상세 모달(.lot-modal)은 내용 길이에 맞게 자유롭게 늘어나야 해서 제외) */
+.modal-box:not(.lot-modal) {
+	display: flex;
+	flex-direction: column;
+}
+
+.modal-box:not(.lot-modal) .modal-content {
+	flex: 1 1 auto;
+	display: flex;
+	flex-direction: column;
 }
 
 /*모달 상단 제목  */
@@ -81,8 +96,13 @@ th{
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	padding: 18px 20px;
+	padding: 22px 28px;
 	border-bottom: 1px solid #ddd;
+	flex: 0 0 auto;
+}
+
+.modal-header h3 {
+	font-size: 20px;
 }
 
 .modal-close{
@@ -92,15 +112,38 @@ th{
 	cursor: pointer;
 }
 
-/* 모달 가운데 */
+/* 모달 가운데 - 필드 개수가 창고(2개)/구역(3개)로 서로 달라서 2단 그리드로 두면
+   빈 칸이 생기며 어색해지므로, 세로로 깔끔하게 쌓습니다. */
 .modal-fields{
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 30px;
+	display: flex;
+	flex-direction: column;
+	gap: 24px;
+}
+
+.modal-fields .form-group label {
+	font-weight: 600;
+	font-size: 14px;
+	color: #333;
+}
+
+.modal-fields input,
+.modal-fields select {
+	width: 100%;
+	padding: 12px 14px;
+	border: 1px solid #d9d9d9;
+	border-radius: 6px;
+	font-size: 15px;
+	box-sizing: border-box;
+}
+
+.modal-fields input:focus,
+.modal-fields select:focus {
+	outline: none;
+	border-color: #7B8F4E;
 }
 
 .modal-content{
-	padding: 30px 35px
+	padding: 36px 44px;
 }
 
 .modal-content h4 {
@@ -141,6 +184,8 @@ th{
 	justify-content: flex-end;
 	gap: 15px;
 	padding: 15px 20px 20px;
+	margin-top: auto;
+	flex: 0 0 auto;
 }
 
 
@@ -154,14 +199,15 @@ th{
 }
 
 
-/* 모달 버튼 */
+/* 모달 버튼 - 커진 모달 크기에 맞게 좀 더 넉넉하게 */
 .modal-footer button {
-	flex: 1; 
-	height: 40px;
-	width: 90px; 
+	flex: 0 0 auto;
+	height: 46px;
+	min-width: 110px;
+	padding: 0 24px;
 	border: none;
 	border-radius: 6px;
-	font-size: 14px;
+	font-size: 15px;
 	font-weight: 600;
 	cursor: pointer;
 	transition: 0.2s;
@@ -203,9 +249,13 @@ td .action-buttons {
 	background: #7B8F4E;
 }
 
-/* 구역 재고 상세 모달 - 로트가 쌓여도 좌우로 여유 있게 넓힘 */
+/* 구역 재고 상세 모달 - 로트가 쌓여도 좌우로 여유 있게 넓힘.
+   height는 내용 길이에 맞게 자유롭게 늘어나야 해서, .modal-box에 새로 생긴
+   고정 height(550px)를 여기서 다시 auto로 되돌립니다 - 안 그러면 로트가 많을 때
+   아래쪽(닫기 버튼)이 overflow:hidden에 잘릴 수 있습니다. */
 .lot-modal {
 	width: 640px;
+	height: auto;
 }
 
 /* 로트/품목이 10개를 넘어가면 모달이 한없이 길어지지 않게, 대략 10줄 높이에서
@@ -262,6 +312,29 @@ td .action-buttons {
 	font-size: 16px;
 }
 
+/* 구역 수정 모달 안에서 현재 사용량/퍼센트를 바로 보여주는 요약 박스 -
+   구역 재고 상세 모달과 같은 zn-stock-numbers/zn-stock-bar 스타일을 재사용합니다. */
+.zn-edit-usage {
+	margin-top: 6px;
+	padding: 14px 16px;
+	background: #f7f8f5;
+	border: 1px solid #dfe3d8;
+	border-radius: 8px;
+}
+
+.zn-edit-usage .zn-stock-numbers {
+	margin-bottom: 10px;
+	font-size: 13px;
+	color: #666;
+}
+
+/* 퍼센트/개수 값 자체는 눈에 확 띄게 크고 진하게 */
+.zn-edit-usage .zn-stock-numbers strong {
+	font-size: 20px;
+	font-weight: 800;
+	color: #33421d;
+}
+
 .zn-stock-bar {
 	height: 10px;
 	background: #ececec;
@@ -288,6 +361,76 @@ td .action-buttons {
 	padding: 0 20px 8px;
 	font-size: 12px;
 	color: #999999;
+}
+
+/* 구역 목록 표의 "현재 사용량" 칸 - 개수 + 퍼센트 배지 + 작은 막대바로 한눈에 보이게 */
+.zn-usage-cell {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 0;
+}
+
+.zn-usage-top {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.zn-usage-count {
+	font-weight: 700;
+	font-size: 14px;
+	color: #222;
+}
+
+.zn-usage-badge {
+	display: inline-block;
+	padding: 2px 10px;
+	border-radius: 999px;
+	font-size: 12px;
+	font-weight: 700;
+	background: #eef2e6;
+	color: #4a5a34;
+	white-space: nowrap;
+}
+
+.zn-usage-badge.zone-warn {
+	background: #fff1dc;
+	color: #cc8400;
+}
+
+.zn-usage-badge.zone-full {
+	background: #fbe4e2;
+	color: #d9453b;
+}
+
+.zn-usage-bar {
+	width: 100%;
+	max-width: 140px;
+	height: 6px;
+	background: #ececec;
+	border-radius: 999px;
+	overflow: hidden;
+}
+
+.zn-usage-bar-fill {
+	height: 100%;
+	background: #7B8F4E;
+	border-radius: 999px;
+}
+
+.zn-usage-bar-fill.zone-warn {
+	background: #cc8400;
+}
+
+.zn-usage-bar-fill.zone-full {
+	background: #d9453b;
+}
+
+.zn-usage-unset {
+	font-size: 12px;
+	color: #999;
 }
 
 /* 재고가 있는 구역은 줄 전체를 눌러서 상세를 볼 수 있습니다.

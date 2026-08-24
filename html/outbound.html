@@ -1,6 +1,5 @@
 <!DOCTYPE html> <!-- 08.12 출고 등록 -->
-<!-- FIFO/FEFO 모달이 추가되었습니다 모달을 보려면 outbound.css에서 210번줄을 찾아가세요 -->
-<!-- 모달 2개 있는데 지금은 첫번째 페이지만 뜹니다 2번째 보려면 맨 밑으로 가서 주석 해제하시면 2번째 페이지가 뜹니다 -->
+<!-- FIFO/FEFO 자동 추천 + 로트 선택 결과 모달이 있습니다. 모달 css는 outbound.css 210번줄부터 -->
 <html lang = "ko">
 <head> 
 	<meta charset="UTF-8">
@@ -94,18 +93,6 @@
 			</div>
 		
 			<div class="form-group">
-				<label>창고</label>
-				<select id="outWarehouse" onchange="changeWarehouse()">
-				</select>
-			</div>
-			
-			<div class="form-group">
-				<label>구역</label>
-				<select id="outZone">
-				</select>
-			</div>
-			
-			<div class="form-group">
 				<label>목적지</label>
 				<select id="outPartner">
 				</select>
@@ -147,48 +134,32 @@
 	
 	</div>
 
-<!-- FIFO/FEFO 추천 (모달) 페이지 -->
-<div class="modal-overlay" id="recommendModal">
-	<div class="modal-box">
-	
+<!-- FIFO/FEFO 추천 + LOT 자동 선택 결과 (모달 - 한 번에 다 보여줍니다) -->
+<div class="modal-overlay" id="lotModal">
+	<div class="modal-box lot-modal">
+
 		<div class="modal-header">
-			<h3>출고 방식 자동 추천</h3>
+			<h3>출고 방식 자동 추천 및 LOT 선택 결과</h3>
 			<button class="modal-close" onclick="closeAll()"> x </button>
 		</div>
+
 		<div class="modal-content">
-			<h4>출고 방식 자동 추천 완료</h4>
 			<p id="recommendText"></p>
 			<div class="recommend-box">
 				<span>추천 방식</span>
 				<strong id="recommendWay"></strong>
 			</div>
-		</div>
-		
-		<div class="modal-footer">
-			<button class="btn-cancel" onclick="closeAll()">취소</button>
-			<button class="btn-primary" onclick="openLot()">다음</button>
-		</div>
-	</div>
-</div>
-
-<!-- FIFO/FEFO 모달 2단계 -->
-<div class="modal-overlay" id="lotModal">
-	<div class="modal-box lot-modal">
-	
-		<div class="modal-header">
-			<h3>출고 LOT 자동 선택 결과</h3>
-			<button class="modal-close" onclick="closeAll()"> x </button>
-		</div>
-		
-		<div class="modal-content">
+			<br>
 			아래 로트에서 출고 수량이 차감됩니다.<br>
 			<strong id="lotTotalText"></strong>
 		</div>
+		<div class="lot-table-wrap">
 		<table>
 			<thead>
 				<tr>
 					<th>순서</th>
 					<th>로트번호</th>
+					<th>창고/구역</th>
 					<th>입고일</th>
 					<th>유통기한</th>
 					<th>출고 수량</th>
@@ -197,6 +168,7 @@
 		<tbody id="lotBody">
 		</tbody>
 		</table>
+		</div>
 		<div class="policy-info"><strong id="lotWayText"></strong></div>
 		
 		<div class="modal-footer">
@@ -210,8 +182,11 @@
 <!-- ============================================================
      출고 등록 화면 로직
      ------------------------------------------------------------
-     흐름 : 입력 -> [자동 추천 및 확인] -> 모달1(FIFO/FEFO 판정)
-            -> [다음] -> 모달2(어느 로트에서 뺄지) -> [출고 등록] -> 표에 추가
+     흐름 : 입력 -> [자동 추천 및 확인] -> 모달(FIFO/FEFO 안내 + 로트 목록이 한 번에 표시)
+            -> [출고 등록] -> 표에 추가
+
+     원래는 안내 모달에서 [다음]을 한 번 더 눌러야 로트 표가 나왔는데,
+     한 번에 다 보이는 게 헷갈리지 않는다는 판단으로 모달 하나로 합쳤습니다.
 
      드롭다운 값과 공통 함수는 common.js 에 있습니다.
      ============================================================ -->
@@ -223,7 +198,7 @@
 	   흐름
 	     입력 → [자동 추천 및 확인]
 	          → 서버에 어느 로트에서 뺄지 물어봄 (GET /api/outbound/recommend)
-	          → 모달1(FIFO/FEFO 안내) → [다음] → 모달2(로트 목록)
+	          → 모달(FIFO/FEFO 안내 + 로트 목록을 한 번에 표시)
 	          → [출고 등록] → 로트마다 POST /api/outbound
 
 	   출고는 로트 단위로 처리해서, 한 번 요청에 여러 건이 나갈 수 있습니다.
@@ -234,7 +209,11 @@
 	let pickedLotIds = [];
 	let pickedLotIn = [];
 	let pickedLotExp = [];
-	let pickedLotQtys = [];   // 그 로트에서 뺄 수량
+	let pickedLotQtys = [];   // 그 로트에서 뺄 수량 (모달에서 직접 조정 가능)
+	let pickedLotAvail = [];  // 그 로트에 실제로 남아있는 수량 (조정 시 이 값까지만 허용)
+	let pickedLotZone = [];   // 그 로트가 있는 구역(zoneId) - 표에 창고/구역 이름으로 보여줍니다
+	let outItemId = -1;       // 지금 추천/조회 대상 품목 - 전체 로트를 다시 조회할 때 씁니다
+	let recommendTakeMap = {};  // lotId -> 추천 기본수량 (전체 로트 목록에 기본값으로 채워줄 때 씁니다)
 
 	/* 출고 이력 표 (서버에서 받아옴, GET /api/outbound) */
 	let rowIds = [];
@@ -264,8 +243,6 @@
 
 		fillCategory("#outCategory");
 		fillPartner("#outPartner", "CUSTOMER");   // 출고는 거래처(고객)만
-		fillWarehouse("#outWarehouse");
-		fillZone("#outWarehouse", "#outZone");
 		fillItemList("#itemList");
 
 		document.querySelector("#outDate").value = getToday();
@@ -274,7 +251,9 @@
 	}
 
 
-	/* 품목명을 고르면 코드·단위·카테고리가 채워지고 구역도 맞춰집니다 */
+	/* 품목명을 고르면 코드·단위·카테고리가 채워집니다.
+	   (창고/구역은 로트마다 이미 정해져 있고 추천 모달에서 로트별로 보여주므로,
+	   이 등록 폼에서는 더 이상 고를 필요가 없어 뺐습니다) */
 	function changeItem() {
 
 		let i = findItemByName(document.querySelector("#outName").value);
@@ -289,27 +268,6 @@
 
 		if (itemCategoryList[i] != null) {
 			document.querySelector("#outCategory").value = itemCategoryList[i];
-		}
-
-		pickSameZone(itemUnitList[i]);
-	}
-
-
-	function changeWarehouse() {
-		fillZone("#outWarehouse", "#outZone");
-		pickSameZone(document.querySelector("#outUnit").value);
-	}
-
-
-	function pickSameZone(unit) {
-
-		let box = document.querySelector("#outZone");
-
-		for (let i = 0; i < box.options.length; i++) {
-			if (box.options[i].text == unit) {
-				box.selectedIndex = i;
-				return;
-			}
 		}
 	}
 
@@ -346,6 +304,7 @@
 			sortBy = "fifo";
 		}
 
+		outItemId = itemId;
 		apiGet("/api/outbound/recommend?itemId=" + itemId + "&quantity=" + qty + "&sortBy=" + sortBy, putRecommend);
 	}
 
@@ -361,74 +320,110 @@
 	}
 
 
-	/* 서버가 준 추천 결과를 받아 모달을 엽니다 */
+	/* 서버가 준 추천 결과를 받습니다. 실제로 화면에 보여줄 로트 목록은 이 품목의
+	   "전체" 로트로 다시 받아올 거라서(putAllLots), 여기선 방식(FIFO/FEFO)과
+	   "로트별로 기본으로 얼마씩 채워둘지"만 기억해 둡니다. */
 	function putRecommend(data) {
 
 		pickedWay = data.sortBy.toUpperCase();
-		pickedLotIds = [];
-		pickedLotIn = [];
-		pickedLotExp = [];
-		pickedLotQtys = [];
-
-		/* 서버는 후보 로트를 통째로 주기 때문에
-		   각 로트에서 얼마씩 뺄지는 여기서 계산합니다. */
-		let rest = data.requestedQuantity;
-
-		for (let i = 0; i < data.lots.length; i++) {
-
-			if (rest <= 0) {
-				break;
-			}
-
-			let take = data.lots[i].quantity;
-
-			if (take > rest) {
-				take = rest;
-			}
-
-			pickedLotIds[pickedLotIds.length] = data.lots[i].lotId;
-			pickedLotIn[pickedLotIn.length] = data.lots[i].inboundDate;
-
-			if (data.lots[i].expiryDate == null) {
-				pickedLotExp[pickedLotExp.length] = "";
-			} else {
-				pickedLotExp[pickedLotExp.length] = data.lots[i].expiryDate;
-			}
-
-			pickedLotQtys[pickedLotQtys.length] = take;
-			rest = rest - take;
-		}
 
 		/* 재고가 모자라면 서버가 sufficient=false 로 알려 줍니다 */
 		if (data.sufficient == false) {
 
 			let have = 0;
 
-			for (let i = 0; i < pickedLotQtys.length; i++) {
-				have = have + pickedLotQtys[i];
+			for (let i = 0; i < data.lots.length; i++) {
+				have = have + data.lots[i].quantity;
 			}
 
 			alert("재고가 부족합니다.\n요청 " + data.requestedQuantity + "개 중 " + have + "개만 출고할 수 있습니다.");
 			return;
 		}
 
+		/* lotId -> 추천 기본수량. 전체 로트 목록을 받은 뒤 이 값으로 입력칸을 미리 채워 둡니다.
+		   (추천에 안 뽑힌 로트는 여기 없으니 기본값 0으로 둡니다 - 유통기한이 지난 로트 등) */
+		recommendTakeMap = {};
+		let rest = data.requestedQuantity;
+
+		for (let i = 0; i < data.lots.length; i++) {
+			if (rest <= 0) {
+				break;
+			}
+			let take = data.lots[i].quantity;
+			if (take > rest) {
+				take = rest;
+			}
+			recommendTakeMap[data.lots[i].lotId] = take;
+			rest = rest - take;
+		}
+
 		let text = "";
 
 		if (pickedWay == "FEFO") {
 			text = "해당 품목은 유통기한 관리 대상입니다.<br>따라서 <strong>FEFO(유통기한 기준)</strong> 방식이 자동 추천되었습니다.";
-			document.querySelector("#recommendWay").innerHTML = "FEFO(선유통기한선출)";
+			document.querySelector("#recommendWay").innerHTML = "FEFO";
 		} else {
 			text = "해당 품목은 유통기한 관리 대상이 아닙니다.<br>따라서 <strong>FIFO(입고일 기준)</strong> 방식이 자동 추천되었습니다.";
-			document.querySelector("#recommendWay").innerHTML = "FIFO(선입선출)";
+			document.querySelector("#recommendWay").innerHTML = "FIFO";
 		}
 
 		document.querySelector("#recommendText").innerHTML = text;
-		openModal("#recommendModal");
+
+		/* 추천된 일부 로트만 보여주면 다른 로트에서 빼고 싶어도 방법이 없으니,
+		   이 품목의 정상(NORMAL) 로트를 전부 받아와서 화면에 다 보여줍니다. */
+		apiGet("/api/stock-lots?itemId=" + outItemId + "&status=NORMAL&size=200", putAllLots);
+	}
+
+
+	/* 이 품목의 전체 로트를 받아 모달에 보여줄 목록을 만듭니다.
+	   추천 방식과 같은 기준(FEFO=유통기한 빠른 순, FIFO=입고일 빠른 순)으로 정렬해서,
+	   추천된 로트는 기본 수량이 미리 채워진 채로, 나머지는 0으로 보여줍니다. */
+	function putAllLots(data) {
+
+		let list = data.items;
+
+		list.sort(function (a, b) {
+			if (pickedWay == "FEFO") {
+				let ea = a.expiryDate == null ? "9999-99-99" : a.expiryDate;
+				let eb = b.expiryDate == null ? "9999-99-99" : b.expiryDate;
+				if (ea < eb) return -1;
+				if (ea > eb) return 1;
+				return 0;
+			}
+			if (a.inboundDate < b.inboundDate) return -1;
+			if (a.inboundDate > b.inboundDate) return 1;
+			return 0;
+		});
+
+		pickedLotIds = [];
+		pickedLotIn = [];
+		pickedLotExp = [];
+		pickedLotQtys = [];
+		pickedLotAvail = [];
+		pickedLotZone = [];
+
+		for (let i = 0; i < list.length; i++) {
+
+			if (list[i].quantity <= 0) {
+				continue; // 남은 수량이 없는 로트는 뺄 것도 없으니 목록에서 뺍니다
+			}
+
+			pickedLotIds[pickedLotIds.length] = list[i].lotId;
+			pickedLotIn[pickedLotIn.length] = list[i].inboundDate;
+			pickedLotExp[pickedLotExp.length] = list[i].expiryDate == null ? "" : list[i].expiryDate;
+			pickedLotAvail[pickedLotAvail.length] = list[i].quantity;
+			pickedLotZone[pickedLotZone.length] = list[i].zoneId;
+
+			let suggested = recommendTakeMap[list[i].lotId];
+			pickedLotQtys[pickedLotQtys.length] = suggested != null ? suggested : 0;
+		}
+
+		openLot();
 	}
 
 
 	/* ============================================================
-	   모달 2 - 어느 로트에서 얼마씩 뺄지
+	   추천 방식 안내 + 어느 로트에서 얼마씩 뺄지 (모달 하나에 같이 표시)
 	   ============================================================ */
 	function openLot() {
 
@@ -464,27 +459,66 @@
 			html = html + "<tr>";
 			html = html + "<td>" + (i + 1) + "</td>";
 			html = html + "<td>LOT-" + pickedLotIds[i] + "</td>";
+			html = html + "<td>" + findZoneName(pickedLotZone[i]) + "</td>";
 			html = html + "<td>" + pickedLotIn[i] + "</td>";
 			html = html + "<td>" + cell + "</td>";
-			html = html + "<td>" + pickedLotQtys[i] + "</td>";
+			html = html + "<td><input type='number' class='lot-qty-input' id='lotQty" + i + "' "
+				+ "min='0' max='" + pickedLotAvail[i] + "' value='" + pickedLotQtys[i] + "' "
+				+ "onchange='onLotQtyChange(" + i + ")'> / " + pickedLotAvail[i] + "</td>";
 			html = html + "</tr>";
 
 			total = total + pickedLotQtys[i];
 		}
 
 		document.querySelector("#lotBody").innerHTML = html;
-		document.querySelector("#lotTotalText").innerHTML = "총 출고 수량: " + total + " " + document.querySelector("#outUnit").value;
+		updateLotTotalText();
 
 		let wayText = "추천 방식: " + pickedWay;
 
 		if (nearCount > 0) {
 			wayText = wayText + " / 유통기한 임박 로트 " + nearCount + "건이 포함되어 있습니다";
 		}
+		wayText = wayText + " / 수량 칸을 직접 눌러서 로트별로 조정할 수 있습니다";
 
 		document.querySelector("#lotWayText").innerHTML = wayText;
 
-		closeModal("#recommendModal");
 		openModal("#lotModal");
+	}
+
+
+	/* 담당자가 모달에서 로트별 수량을 직접 조정했을 때 - 그 로트에 실제로
+	   남아있는 수량(pickedLotAvail)을 넘길 수는 없게 막고, 합계 표시를 갱신합니다. */
+	function onLotQtyChange(i) {
+
+		let input = document.querySelector("#lotQty" + i);
+		let value = input.value * 1;
+
+		if (isNaN(value) || value < 0) {
+			value = 0;
+		}
+		if (value > pickedLotAvail[i]) {
+			value = pickedLotAvail[i];
+			alert("이 로트에는 " + pickedLotAvail[i] + "개까지만 있습니다.");
+		}
+
+		value = Math.floor(value);
+		input.value = value;
+		pickedLotQtys[i] = value;
+
+		updateLotTotalText();
+	}
+
+
+	/* 로트별 수량을 조정할 때마다 총 출고 수량 표시를 다시 계산합니다 */
+	function updateLotTotalText() {
+
+		let total = 0;
+
+		for (let i = 0; i < pickedLotQtys.length; i++) {
+			total = total + pickedLotQtys[i];
+		}
+
+		document.querySelector("#lotTotalText").innerHTML = "총 출고 수량: " + total + " " + document.querySelector("#outUnit").value;
 	}
 
 
@@ -495,6 +529,15 @@
 	   한 건이 끝나면 다음 건을 보내는 방식으로 순서대로 처리합니다.
 	   ============================================================ */
 	function doRegister() {
+
+		let total = 0;
+		for (let i = 0; i < pickedLotQtys.length; i++) {
+			total = total + pickedLotQtys[i];
+		}
+		if (total <= 0) {
+			alert("출고할 수량이 없습니다. 로트별 수량을 확인해 주세요.");
+			return;
+		}
 
 		sendIndex = 0;
 		doneCount = 0;
@@ -511,6 +554,13 @@
 		/* 다 보냈으면 마무리합니다 */
 		if (sendIndex >= pickedLotIds.length) {
 			finishSend();
+			return;
+		}
+
+		/* 담당자가 이 로트 수량을 0으로 조정했으면(=이 로트는 안 쓰기로 함) 건너뜁니다 */
+		if (pickedLotQtys[sendIndex] <= 0) {
+			sendIndex = sendIndex + 1;
+			sendOne();
 			return;
 		}
 
@@ -694,7 +744,6 @@
 
 
 	function closeAll() {
-		closeModal("#recommendModal");
 		closeModal("#lotModal");
 	}
 

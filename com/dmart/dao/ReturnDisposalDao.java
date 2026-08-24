@@ -50,6 +50,17 @@ public class ReturnDisposalDao {
         }
     }
 
+    // 재고 로트 삭제(10.3) 안전장치용: 이 로트가 한 번이라도 반품/폐기 처리된 적이 있는지.
+    public boolean existsByLotId(Connection conn, Long lotId) throws SQLException {
+        String sql = "SELECT 1 FROM RETURN_DISPOSAL WHERE lot_id = ? LIMIT 1";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, lotId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
     public ReturnDisposal findById(Connection conn, Long recordId) throws SQLException {
         String sql = "SELECT * FROM RETURN_DISPOSAL WHERE record_id = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {

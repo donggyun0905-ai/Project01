@@ -49,6 +49,17 @@ public class StockTransferDao {
         }
     }
 
+    // 재고 로트 삭제(10.3) 안전장치용: 이 로트가 한 번이라도 이동된 적이 있는지(전체/부분 이동 모두 포함).
+    public boolean existsByLotId(Connection conn, Long lotId) throws SQLException {
+        String sql = "SELECT 1 FROM STOCK_TRANSFER WHERE lot_id = ? LIMIT 1";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, lotId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
     public StockTransfer findById(Connection conn, Long transferId) throws SQLException {
         String sql = "SELECT * FROM STOCK_TRANSFER WHERE transfer_id = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {

@@ -227,6 +227,18 @@
 					<input type="number" id="znCapacity">
 				</div>
 			</div>
+
+			<!-- 구역을 수정할 때만 보여줍니다 (신규 등록은 아직 재고가 없어서) -->
+			<div class="zn-edit-usage" id="znEditUsage" style="display:none;">
+				<div class="zn-stock-numbers">
+					<span>현재 사용량</span>
+					<strong id="znEditUsageText"></strong>
+				</div>
+				<div class="zn-stock-bar">
+					<div class="zn-stock-bar-fill" id="znEditUsageBarFill"></div>
+				</div>
+			</div>
+
 				<div class="modal-footer">
 					<button class="btn-cancel" onclick="closeAll()">취소</button>
 					<button class="btn-primary" onclick="saveZone()">저장</button>
@@ -356,6 +368,10 @@
 	}
 
 
+	/* 사용량(znUsed)은 서버가 zone마다 이미 계산해서 내려주는 usedQuantity를 그대로 씁니다.
+	   예전엔 /api/stock-lots를 통째로 받아 여기서 직접 더했는데, 그건 200개씩 페이지네이션
+	   되다 보니 재고가 400개(2페이지)를 넘으면 뒤쪽이 조용히 빠져서 사용량이 실제보다
+	   적게 나오는 문제가 있었습니다. */
 	function putZones(data) {
 
 		znIds = [];
@@ -369,51 +385,11 @@
 			znWhIds[i] = data.items[i].warehouseId;
 			znNames[i] = data.items[i].zoneName;
 			znCapacities[i] = data.items[i].capacity;
-			znUsed[i] = 0;
+			znUsed[i] = data.items[i].usedQuantity;
 		}
 
 		drawWarehouse();
 		drawZone();
-
-		/* 사용량은 재고를 세어야 알 수 있어서 따로 받아옵니다 */
-		loadUsed();
-	}
-
-
-	/* 정상 재고를 전부 받아서 구역별로 수량을 더합니다.
-	   로트가 400개쯤이라 한 번에 200개씩 나눠 받습니다. */
-	function loadUsed() {
-		apiGet("/api/stock-lots?status=NORMAL&page=1&size=200", putUsed1);
-	}
-
-
-	function putUsed1(data) {
-
-		addUsed(data.items);
-
-		if (data.total > 200) {
-			apiGet("/api/stock-lots?status=NORMAL&page=2&size=200", putUsed2);
-		} else {
-			drawZone();
-		}
-	}
-
-
-	function putUsed2(data) {
-		addUsed(data.items);
-		drawZone();
-	}
-
-
-	function addUsed(list) {
-
-		for (let i = 0; i < list.length; i++) {
-			for (let k = 0; k < znIds.length; k++) {
-				if (znIds[k] == list[i].zoneId) {
-					znUsed[k] = znUsed[k] + list[i].quantity;
-				}
-			}
-		}
 	}
 
 
@@ -514,23 +490,35 @@
 			/* 얼마나 찼는지 함께 보여 줍니다.
 			   90%를 넘으면 곧 자리가 없다는 뜻이라 눈에 띄게 표시합니다 (명세서 F-04).
 			   용량을 정해두지 않은 구역은 포화도를 계산하지 않습니다. */
-			let usedText = addComma(znUsed[i]);
-			let usedClass = "";
+			/* 개수 + 퍼센트 배지 + 작은 막대바로 한눈에 들어오게 구성합니다. */
+			let usedCell;
 
 			if (znCapacities[i] > 0) {
 
 				let percent = Math.round(znUsed[i] / znCapacities[i] * 100);
-				usedText = usedText + " (" + percent + "%)";
+				let level = "";
+				let badgeText = percent + "%";
 
 				if (percent >= 90) {
-					usedText = usedText + " 포화";
-					usedClass = " class='zone-full'";
+					level = " zone-full";
+					badgeText = badgeText + " 포화";
 				} else if (percent >= 70) {
-					usedClass = " class='zone-warn'";
+					level = " zone-warn";
 				}
 
+				usedCell = "<div class='zn-usage-cell'>"
+					+ "<div class='zn-usage-top'>"
+					+ "<span class='zn-usage-count'>" + addComma(znUsed[i]) + "</span>"
+					+ "<span class='zn-usage-badge" + level + "'>" + badgeText + "</span>"
+					+ "</div>"
+					+ "<div class='zn-usage-bar'><div class='zn-usage-bar-fill" + level + "' style='width:" + Math.min(percent, 100) + "%'></div></div>"
+					+ "</div>";
+
 			} else {
-				usedText = usedText + " (용량 미설정)";
+				usedCell = "<div class='zn-usage-cell'>"
+					+ "<span class='zn-usage-count'>" + addComma(znUsed[i]) + "</span>"
+					+ "<span class='zn-usage-unset'>용량 미설정</span>"
+					+ "</div>";
 			}
 
 			/* 재고가 있는 구역은 줄 전체를 눌러서 상세(로트별 품목·수량)를 볼 수 있습니다.
@@ -547,7 +535,7 @@
 			html = html + "<td>" + count + "</td>";
 			html = html + "<td>" + zoneText + "</td>";
 			html = html + "<td>" + addComma(znCapacities[i]) + "</td>";
-			html = html + "<td" + usedClass + ">" + usedText + "</td>";
+			html = html + "<td>" + usedCell + "</td>";
 			html = html + "<td onclick='event.stopPropagation()'>";
 			html = html + "<div class='action-buttons'>";
 			html = html + "<button class='edit-btn' onclick='openZone(" + i + ")'>수정</button>";
@@ -782,14 +770,46 @@
 			document.querySelector("#znTitle").innerHTML = "구역 등록";
 			document.querySelector("#znWarehouse").value = pickedWh;
 			document.querySelector("#znCapacity").value = "";
+			document.querySelector("#znEditUsage").style.display = "none";
 		} else {
 			document.querySelector("#znTitle").innerHTML = "구역 수정";
 			document.querySelector("#znWarehouse").value = znWhIds[index];
 			document.querySelector("#znName").value = znNames[index];
 			document.querySelector("#znCapacity").value = znCapacities[index];
+			showZoneEditUsage(index);
 		}
 
 		openModal("#znModal");
+	}
+
+
+	/* 구역 수정 모달 안에서 현재 사용량/퍼센트를 바로 보여줍니다.
+	   openZoneStock()의 사용률 막대바 계산과 같은 방식(90% 빨강, 70% 주황). */
+	function showZoneEditUsage(index) {
+
+		let box = document.querySelector("#znEditUsage");
+		let text = document.querySelector("#znEditUsageText");
+		let barFill = document.querySelector("#znEditUsageBarFill");
+
+		box.style.display = "block";
+		barFill.className = "zn-stock-bar-fill";
+
+		if (znCapacities[index] > 0) {
+
+			let percent = Math.round(znUsed[index] / znCapacities[index] * 100);
+			text.innerHTML = addComma(znUsed[index]) + " / " + addComma(znCapacities[index]) + " (" + percent + "%)";
+			barFill.style.width = Math.min(percent, 100) + "%";
+
+			if (percent >= 90) {
+				barFill.className = barFill.className + " bar-full";
+			} else if (percent >= 70) {
+				barFill.className = barFill.className + " bar-warn";
+			}
+
+		} else {
+			text.innerHTML = addComma(znUsed[index]) + " (용량 미설정)";
+			barFill.style.width = "0%";
+		}
 	}
 
 

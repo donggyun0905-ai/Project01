@@ -1,7 +1,10 @@
 package com.dmart.service;
 
+import com.dmart.dao.OutboundDao;
+import com.dmart.dao.ReturnDisposalDao;
 import com.dmart.dao.StockChangeLogDao;
 import com.dmart.dao.StockLotDao;
+import com.dmart.dao.StockTransferDao;
 import com.dmart.dao.ZoneDao;
 import com.dmart.db.DBConnection;
 import com.dmart.dto.StockChangeLog;
@@ -29,6 +32,9 @@ public class StockLotAdjustmentService {
     private final StockChangeLogDao stockChangeLogDao = new StockChangeLogDao();
     private final AuditLogService auditLogService = new AuditLogService();
     private final AlertResolutionService alertResolutionService = new AlertResolutionService();
+    private final OutboundDao outboundDao = new OutboundDao();
+    private final StockTransferDao stockTransferDao = new StockTransferDao();
+    private final ReturnDisposalDao returnDisposalDao = new ReturnDisposalDao();
 
     public static class AdjustResult {
         public final Long lotId;
@@ -98,6 +104,13 @@ public class StockLotAdjustmentService {
     }
 
     // API_명세.md 10.3 참고. 응답은 {lotId}만 돌려주면 되므로 결과 타입 없이 Long 하나로 충분.
+    //
+    // 삭제는 "이 입고 자체가 없었던 일"이라는 뜻이라, 이 로트가 생성된 뒤로 실제 업무를
+    // 조금이라도 거쳤으면 안전하게 되돌릴 방법이 없어 막아야 한다. quantity == initialQuantity
+    // 같은 필드 비교는 "전체 이동"(zone만 바뀌고 수량은 그대로인 경우)을 놓치는 구멍이 있어서,
+    // 대신 이 로트를 실제로 참조하는 이력이 있는지 관련 테이블 4곳을 직접 확인한다:
+    // 출고(OUTBOUND), 이동(STOCK_TRANSFER), 반품/폐기(RETURN_DISPOSAL), 그리고 이 로트에서
+    // 분할되어 나온 다른 로트(STOCK_LOT.parent_lot_id) — 넷 다 없어야만 삭제를 허용한다.
     public Long delete(Long lotId, String reason, Long changedBy) throws SQLException {
         if (reason == null || reason.isBlank()) {
             throw new IllegalArgumentException("reason은 필수입니다");
@@ -110,6 +123,18 @@ public class StockLotAdjustmentService {
             }
             if ("DELETED".equals(lot.getStatus())) {
                 throw new IllegalStateException("이미 삭제된 로트입니다: lotId=" + lotId);
+            }
+            if (outboundDao.existsByLotId(conn, lotId)) {
+                throw new IllegalStateException("이미 출고된 적이 있는 로트라 삭제할 수 없습니다: lotId=" + lotId);
+            }
+            if (stockTransferDao.existsByLotId(conn, lotId)) {
+                throw new IllegalStateException("이미 이동된 적이 있는 로트라 삭제할 수 없습니다: lotId=" + lotId);
+            }
+            if (returnDisposalDao.existsByLotId(conn, lotId)) {
+                throw new IllegalStateException("이미 반품/폐기 처리된 적이 있는 로트라 삭제할 수 없습니다: lotId=" + lotId);
+            }
+            if (stockLotDao.existsChildByParentLotId(conn, lotId)) {
+                throw new IllegalStateException("이 로트에서 분할되어 나온 다른 로트가 있어 삭제할 수 없습니다: lotId=" + lotId);
             }
 
             StockLot before = lot.copy();
