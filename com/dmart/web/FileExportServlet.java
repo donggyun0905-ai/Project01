@@ -29,6 +29,22 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 
+/*
+ * 파일 내보내기 API
+ *
+ * 기본 URL
+ * /api/export/*
+ *
+ * 지원 경로
+ * - /inout/csv
+ * - /alerts/csv
+ * - /statistics/csv
+ * - /inout/excel
+ * - /alerts/excel
+ * - /statistics/excel
+ * - /daily/pdf
+ */
+
 @WebServlet("/api/export/*")
 public class FileExportServlet extends HttpServlet {
 	private final ExportService exportService = new ExportService();
@@ -162,6 +178,19 @@ public class FileExportServlet extends HttpServlet {
 		sendFile(resp, file, "daily_report.pdf", "application/pdf");
 	}
 	
+	/*
+     * 통계 파일 내보내기에 필요한 데이터를 하나의
+     * StatisticsReport 객체로 구성한다.
+     *
+     * 포함 데이터
+     * - 전체 입출고량
+     * - 대형 창고 입출고량
+     * - 중형 창고 입출고량
+     * - 소형 창고 입출고량
+     * - 재고 회전율
+     * - 거래처 출고 TOP5
+     * - 거래처 월별 추이
+     */
 	private StatisticsReport createStatisticsReport(HttpServletRequest req) {
 		String unit = req.getParameter("unit");
 		LocalDate from = parseDate(req.getParameter("from"));
@@ -197,6 +226,14 @@ public class FileExportServlet extends HttpServlet {
 		return LocalDate.parse(value);
 	}
 	
+	 /*
+     * 생성된 임시 파일을 HTTP 응답으로 전송
+     *
+     * @param resp         HTTP 응답
+     * @param file         서버에 생성된 임시 파일
+     * @param downloadName 클라이언트에 표시할 다운로드 파일명
+     * @param contentType  파일 MIME 타입
+     */
 	private void sendFile(HttpServletResponse resp, File file, String downloadName, String contentType) throws IOException{
 		resp.setStatus(200);
 		resp.setContentType(contentType);

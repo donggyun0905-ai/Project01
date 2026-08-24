@@ -212,4 +212,24 @@ public class StatisticsDao {
 		} 
 		return result;
 	}
+	
+	// 창고별 집계
+	public Map<String, Integer> selectWarehouseStock(Connection conn) throws SQLException {
+		String sql = "SELECT w.name, "
+				+ "COALESCE(SUM(s.quantity), 0) AS stock_qty "
+				+ "FROM stock_lot s "
+				+ "JOIN zone z ON z.zone_id = s.zone_id "
+				+ "JOIN warehouse w ON w.warehouse_id = z.warehouse_id "
+				+ "GROUP BY w.warehouse_id, w.name "
+				+ "ORDER BY w.warehouse_id";
+		
+		Map<String, Integer> result = new LinkedHashMap<>();
+		
+		try (PreparedStatement pstmt = conn.prepareStatement(sql); ResultSet rs = pstmt.executeQuery()){
+			while(rs.next()) {
+				result.put(rs.getString("name"), rs.getInt("stock_qty"));
+			}
+		}
+		return result;
+	}
 }

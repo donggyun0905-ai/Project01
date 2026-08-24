@@ -24,6 +24,7 @@ import jakarta.servlet.http.HttpServletResponse;
 public class DailyReportServlet extends HttpServlet{
 	private final DailyReportService service = new DailyReportService();
 	
+	// 일일 보고서 조회
 	@Override
 	protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
 		try {
@@ -45,6 +46,7 @@ public class DailyReportServlet extends HttpServlet{
 		}
 	}
 	
+	// DailyReport 전체 데이터 JSON 응답 구조 변환
 	private static Map<String, Object> toJson(DailyReport report) {
 		return JsonUtil.object(
 				"date", report.getDate(),
@@ -54,6 +56,7 @@ public class DailyReportServlet extends HttpServlet{
 		);
 	}
 	
+	// 전일 대비 정보 JSON 구조 변환
 	private static Map<String, Object> comparisonToJson(DailyComparison dailyComp) {
 		if(dailyComp == null) return null;
 		
@@ -69,6 +72,7 @@ public class DailyReportServlet extends HttpServlet{
 		);
 	}
 	
+	// 재고 부족 품목 정보 JSON 구조 변환
 	private static Map<String, Object> lowStockItemToJson(LowStockItem lowItem){
 		return JsonUtil.object(
 				"itemId", lowItem.getItemId(),
@@ -78,6 +82,7 @@ public class DailyReportServlet extends HttpServlet{
 		);
 	}
 	
+	// 출고량 TOP 품목 정보 JSON 구조 변환
 	private static Map<String, Object> top5OutItemToJson(TopOutboundItem topItem){
 		return JsonUtil.object(
 				"rank", topItem.getRank(),

@@ -23,6 +23,7 @@ import com.dmart.report.dto.StockTurnover;
 public class StatisticsService {
 	private final StatisticsDao dao = new StatisticsDao();
 	
+	// 입출고량 집계
 	public List<PeriodInOutStat> getInOutStatistics(String unit, LocalDate from, LocalDate to, String warehouseName) {
 		if(unit == null || unit.isBlank()) unit = "day";
 		
@@ -141,5 +142,14 @@ public class StatisticsService {
 	        e.printStackTrace();
 	        return Collections.emptyList();
 	    }
+	}
+	
+	public Map<String, Integer> getWarehouseStock() {
+		try(Connection conn = DBConnection.getConnection()) {
+			return dao.selectWarehouseStock(conn);
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return Map.of();
+		}
 	}
 }
