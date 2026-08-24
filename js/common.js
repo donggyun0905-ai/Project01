@@ -629,9 +629,8 @@ function putZoneList(data) {
 		zoneNames[i] = data.items[i].zoneName;
 		zoneCapacities[i] = data.items[i].capacity;
 
-		/* 지금 얼마나 차 있는지는 재고를 따로 세어야 알 수 있어서
-		   여기서는 0으로 두고, 필요한 화면에서 채웁니다 */
-		zoneUsed[i] = 0;
+		/* 서버(ZoneServlet)가 구역마다 실제 사용량을 이미 계산해서 준다 */
+		zoneUsed[i] = data.items[i].usedQuantity;
 	}
 
 	/* 비활성 품목은 입고·출고·이동·반품에서 고를 수 없어야 하므로

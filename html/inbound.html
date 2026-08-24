@@ -80,7 +80,7 @@
 			
 			<div class="form-group">
 				<label>수량</label>
-				<input type="number" id="inQty">
+				<input type="number" id="inQty" onchange="checkInQtyMax()">
 			</div>
 			
 			<div class="form-group">
@@ -96,12 +96,9 @@
 				<label>창고</label>
 				<select id="inWarehouse" onchange="changeWarehouse()">
 				</select>
-			</div>
-			
-			<div class="form-group">
-				<label>구역</label>
-				<select id="inZone">
-				</select>
+				<!-- 구역은 창고+단위로 자동 결정되어 따로 보여줄 필요가 없어서(항상 단위와
+				     같은 이름), 여기엔 그 구역의 남은 공간만 안내합니다. -->
+				<span class="hint-text" id="inZoneRoomText"></span>
 			</div>
 			
 			<div class="form-group">
@@ -165,6 +162,11 @@
 	   유통기한은 품목의 유통기한 일수로 서버가 계산합니다.
 	   ============================================================ */
 
+	/* 지금 자동으로 정해진 구역 - 창고 안에 (구역명, 즉 단위) 하나뿐이라
+	   품목 단위 + 창고만 알면 구역은 항상 하나로 정해집니다. 그래서 구역을
+	   따로 고르게 하지 않고, 이 값을 내부적으로만 들고 있다가 등록할 때 씁니다. */
+	let inZoneId = -1;
+
 	/* 입고 이력 표 */
 	let rowLotIds = [];
 	let rowDates = [];
@@ -192,11 +194,15 @@
 		fillCategory("#inCategory");
 		fillPartner("#inPartner", "SUPPLIER");   // 입고는 공급처만
 		fillWarehouse("#inWarehouse");
-		fillZone("#inWarehouse", "#inZone");
 		fillItemList("#itemList");
 
 		/* 입고일은 오늘로 미리 채워 둡니다 */
 		document.querySelector("#inDate").value = getToday();
+
+		/* 구역은 창고 + 단위로 자동 결정됩니다. 품목을 고르기 전엔 #inUnit의
+		   기본값(EA) 기준으로 미리 한 번 맞춰 둡니다. */
+		pickSameZone(document.querySelector("#inUnit").value);
+		updateZoneRoom();
 
 		loadData();
 	}
@@ -219,27 +225,94 @@
 			document.querySelector("#inCategory").value = itemCategoryList[i];
 		}
 
-		/* 품목 단위와 같은 이름의 구역을 자동으로 골라 줍니다 */
+		/* 품목 단위와 같은 이름의 구역을 자동으로 찾습니다 */
 		pickSameZone(itemUnitList[i]);
+		updateZoneRoom();
 	}
 
 
 	function changeWarehouse() {
-		fillZone("#inWarehouse", "#inZone");
 		pickSameZone(document.querySelector("#inUnit").value);
+		updateZoneRoom();
 	}
 
 
-	/* 지금 창고에서 단위와 이름이 같은 구역을 고릅니다 */
+	/* 지금 고른 창고 안에서, 이름이 unit과 같은 구역을 찾아 inZoneId에 기억해
+	   둡니다. 창고 안에는 (창고, 구역명) 조합이 유일해서 창고+단위만 알면
+	   구역은 항상 하나로 정해지므로, 구역 자체는 화면에 따로 보여줄 필요가
+	   없습니다(단위 칸과 항상 같은 값이라 중복). 같은 이름의 구역이 그
+	   창고에 없으면 inZoneId를 -1로 두고, 그 사실은 updateZoneRoom()의
+	   안내 문구에서 알려 줍니다. */
 	function pickSameZone(unit) {
 
-		let box = document.querySelector("#inZone");
+		let whId = getSelectValue("#inWarehouse") * 1;
 
-		for (let i = 0; i < box.options.length; i++) {
-			if (box.options[i].text == unit) {
-				box.selectedIndex = i;
+		inZoneId = -1;
+
+		for (let i = 0; i < zoneIds.length; i++) {
+			if (zoneWarehouseIds[i] == whId && zoneNames[i] == unit) {
+				inZoneId = zoneIds[i];
 				return;
 			}
+		}
+	}
+
+
+	/* 자동으로 정해진 구역(inZoneId)에 지금 얼마나 더 들어갈 자리가 있는지
+	   보여주고, 수량 입력을 그 이상 못 넣게 상한을 걸어 둡니다.
+	   loadMasterFromServer가 이미 받아 둔 zoneCapacities/zoneUsed를 그대로 씁니다
+	   (창고/구역 관리 화면과 같은 usedQuantity 기준이라 정확합니다).
+	   용량을 정해 두지 않은 구역은 제한이 없는 걸로 봅니다. */
+	function updateZoneRoom() {
+
+		let hint = document.querySelector("#inZoneRoomText");
+		let qtyInput = document.querySelector("#inQty");
+
+		for (let i = 0; i < zoneIds.length; i++) {
+
+			if (zoneIds[i] != inZoneId) {
+				continue;
+			}
+
+			if (zoneCapacities[i] == null) {
+				hint.innerHTML = "용량 미설정 (제한 없음)";
+				qtyInput.removeAttribute("max");
+			} else {
+				let room = zoneCapacities[i] - zoneUsed[i];
+				if (room < 0) {
+					room = 0;
+				}
+				hint.innerHTML = "남은 공간: " + addComma(room) + "개";
+				qtyInput.setAttribute("max", room);
+			}
+
+			checkInQtyMax();
+			return;
+		}
+
+		/* 이 창고에 지금 단위와 같은 이름의 구역이 없는 경우 */
+		let unit = document.querySelector("#inUnit").value;
+		hint.innerHTML = "이 창고에는 '" + unit + "' 구역이 없습니다";
+		qtyInput.removeAttribute("max");
+	}
+
+
+	/* 수량이 구역 남은 공간(#inQty의 max)을 넘으면 그 값으로 맞춰 줍니다 */
+	function checkInQtyMax() {
+
+		let input = document.querySelector("#inQty");
+		let max = input.getAttribute("max");
+
+		if (max == null || input.value == "") {
+			return;
+		}
+
+		let value = input.value * 1;
+		let maxVal = max * 1;
+
+		if (value > maxVal) {
+			input.value = maxVal;
+			alert("이 구역에는 " + addComma(maxVal) + "개까지만 더 들어갈 수 있습니다.");
 		}
 	}
 
@@ -425,19 +498,16 @@
 			return;
 		}
 
-		/* 단위와 구역 이름이 같아야 합니다.
-		   서버(InboundService)도 똑같이 검사해서 다르면 거절합니다. */
-		let unit = document.querySelector("#inUnit").value;
-		let zoneText = getSelectText("#inZone");
-
-		if (unit != zoneText) {
-			alert("단위(" + unit + ")와 구역(" + zoneText + ")이 다릅니다.\n같은 이름의 구역을 골라 주세요.");
+		/* 구역은 창고+단위로 자동 결정됩니다(pickSameZone). 이 창고에 그
+		   단위와 같은 이름의 구역 자체가 없으면 입고할 곳이 없는 것입니다. */
+		if (inZoneId == -1) {
+			alert("이 창고에는 이 품목 단위(" + document.querySelector("#inUnit").value + ")와 같은 이름의 구역이 없습니다.\n다른 창고를 골라 주세요.");
 			return;
 		}
 
 		let body = {
 			itemId: itemId,
-			zoneId: getSelectValue("#inZone") * 1,
+			zoneId: inZoneId,
 			partnerId: getSelectValue("#inPartner") * 1,
 			quantity: qty,
 			inboundDate: document.querySelector("#inDate").value

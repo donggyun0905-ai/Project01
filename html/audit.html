@@ -58,25 +58,25 @@
 		<section class="form-box">
 			<div class="form-group">
 				<label>변경 유형</label>
-				<select id="fType" onchange="drawList()">
-					<option>전체</option>
-					<option>수정</option>
-					<option>삭제</option>
-					<option>복구</option>
+				<select id="fType" onchange="doSearch()">
+					<option value="">전체</option>
+					<option value="UPDATE">수정</option>
+					<option value="DELETE">삭제</option>
+					<option value="RESTORE">복구</option>
 				</select>
 			</div>
-			
+
 			<div class="form-group">
 				<label>로트 번호 (숫자만)</label>
 				<input type="number" id="fLot" placeholder="예: 55" onkeyup="pressEnter(event)">
 			</div>
-			
+
 			<div class="form-group expiration-group">
 				<label>기간</label>
 				<div class="date-range">
-					<input type="date" id="fFrom" onchange="drawList()">
+					<input type="date" id="fFrom" onchange="doSearch()">
 					<span>~</span>
-					<input type="date" id="fTo" onchange="drawList()">
+					<input type="date" id="fTo" onchange="doSearch()">
 				</div>
 			</div>
 			
@@ -138,6 +138,7 @@
 
 	let logIds = [];
 	let logLotIds = [];
+	let logItemIds = [];
 	let logWorkers = [];
 	let logTypes = [];
 	let logBefore = [];
@@ -149,25 +150,84 @@
 	let nowPage = 1;
 	let totalCount = 0;
 
+	/* 담당자 이름을 보여주려고 미리 받아 둡니다 (GET /api/users) */
+	let userIds = [];
+	let userNames = [];
+
 
 	function startUp() {
+		loadMasterFromServer(afterMaster);
+	}
+
+
+	/* 품목명을 보여주려고 품목 목록을 먼저 받아 둔 뒤, 담당자 이름도 받아 둡니다.
+	   비활성화된 계정도 예전 기록엔 이름이 나와야 하니 active=true/false 둘 다 받습니다. */
+	function afterMaster() {
+		apiGet("/api/users?active=true&size=200", putUsersActive);
+	}
+
+
+	function putUsersActive(data) {
+		addUsers(data.items);
+		apiGet("/api/users?active=false&size=200", putUsersInactive);
+	}
+
+
+	function putUsersInactive(data) {
+		addUsers(data.items);
 		loadData();
+	}
+
+
+	function addUsers(list) {
+		for (let i = 0; i < list.length; i++) {
+			userIds[userIds.length] = list[i].userId;
+			userNames[userNames.length] = list[i].name;
+		}
+	}
+
+
+	/* 담당자 번호로 이름을 찾습니다 */
+	function findUserName(userId) {
+
+		if (userId == null) {
+			return "-";
+		}
+
+		for (let i = 0; i < userIds.length; i++) {
+			if (userIds[i] == userId) {
+				return userNames[i];
+			}
+		}
+		return "사용자 " + userId;
 	}
 
 
 	/* ============================================================
 	   목록 받아오기  (GET /api/stock-change-logs)
 
-	   서버는 lotId 로만 걸러 줍니다.
-	   변경 유형과 기간은 화면에서 걸러 냅니다.
+	   변경 유형/기간도 이제 서버가 직접 걸러줍니다 - 그래서 쪽 번호(total)도
+	   필터링된 기준으로 정확히 나옵니다.
 	   ============================================================ */
 	function loadData() {
 
 		let path = "/api/stock-change-logs?page=" + nowPage + "&size=" + pageSize;
 		let lot = document.querySelector("#fLot").value;
+		let type = document.querySelector("#fType").value;
+		let from = document.querySelector("#fFrom").value;
+		let to = document.querySelector("#fTo").value;
 
 		if (lot != "") {
 			path = path + "&lotId=" + lot;
+		}
+		if (type != "") {
+			path = path + "&changeType=" + type;
+		}
+		if (from != "") {
+			path = path + "&from=" + from;
+		}
+		if (to != "") {
+			path = path + "&to=" + to;
 		}
 
 		apiGet(path, putLogs);
@@ -181,6 +241,7 @@
 
 		logIds = [];
 		logLotIds = [];
+		logItemIds = [];
 		logWorkers = [];
 		logTypes = [];
 		logBefore = [];
@@ -193,13 +254,10 @@
 
 			logIds[i] = list[i].logId;
 			logLotIds[i] = list[i].lotId;
+			logItemIds[i] = list[i].itemId;
 			logReverted[i] = list[i].isReverted;
 
-			if (list[i].changedBy == null) {
-				logWorkers[i] = "-";
-			} else {
-				logWorkers[i] = "사용자 " + list[i].changedBy;
-			}
+			logWorkers[i] = findUserName(list[i].changedBy);
 
 			/* 서버는 UPDATE / DELETE / RESTORE 로 저장합니다.
 			   화면에는 우리말로 바꿔서 보여 줍니다. */
@@ -283,42 +341,27 @@
 	}
 
 
-	/* 변경 유형과 기간은 화면에서 걸러 냅니다 */
-	function getList() {
+	/* 품목 번호로 이름을 찾습니다 (common.js가 받아 둔 품목 목록에서) */
+	function findItemName(itemId) {
 
-		let type = document.querySelector("#fType").value;
-		let from = document.querySelector("#fFrom").value;
-		let to = document.querySelector("#fTo").value;
-		let result = [];
-
-		for (let i = 0; i < logIds.length; i++) {
-
-			if (type != "전체" && logTypes[i] != type) {
-				continue;
-			}
-
-			let day = logTimes[i].substring(0, 10);
-
-			if (from != "" && day < from) {
-				continue;
-			}
-			if (to != "" && day > to) {
-				continue;
-			}
-
-			result[result.length] = i;
+		if (itemId == null) {
+			return "-";
 		}
 
-		return result;
+		for (let i = 0; i < itemCodes.length; i++) {
+			if (itemCodes[i] == "ITEM-" + itemId) {
+				return itemNameList[i];
+			}
+		}
+		return "품목 " + itemId;
 	}
 
 
 	function drawList() {
 
-		let list = getList();
 		let html = "";
 
-		if (list.length == 0) {
+		if (logIds.length == 0) {
 			document.querySelector("#lgBody").innerHTML = "<tr><td colspan='11'>조건에 맞는 기록이 없습니다.</td></tr>";
 			drawPaging("#paging", totalCount, nowPage, "goPage");
 			return;
@@ -326,29 +369,29 @@
 
 		let startNo = (nowPage - 1) * pageSize;
 
-		for (let n = 0; n < list.length; n++) {
+		for (let i = 0; i < logIds.length; i++) {
 
-			let i = list[n];
-
-			/* 되돌리기 버튼은 아직 안 되돌린 수정·삭제 기록에만 붙입니다.
-			   복구 기록 자체는 되돌릴 수 없습니다. */
+			/* 되돌리기는 "삭제" 기록에만 붙입니다(휴지통 개념 - 삭제된 로트는 되살리기 전까진
+			   다른 실제 업무가 못 건드리니 안전하게 되돌릴 수 있음). "수정" 기록은 그 이후에
+			   실제 출고/이동 등이 이미 일어났을 수 있어서 그냥 덮어쓰면 위험하므로, 되돌리기
+			   대신 직접수정으로 새 보정 기록을 남기도록 유도합니다(서버도 DELETE 외엔 거절함). */
 			let btn = "-";
 
-			if (logTypes[i] == "복구") {
-				btn = "-";
-			} else if (logReverted[i] == true) {
-				btn = "되돌림";
-			} else {
-				btn = "<button class='edit-btn' onclick='doRestore(" + i + ")'>되돌리기</button>";
+			if (logTypes[i] == "삭제") {
+				if (logReverted[i] == true) {
+					btn = "되돌림";
+				} else {
+					btn = "<button class='edit-btn' onclick='doRestore(" + i + ")'>되돌리기</button>";
+				}
 			}
 
 			html = html + "<tr>";
-			html = html + "<td>" + (startNo + n + 1) + "</td>";
+			html = html + "<td>" + (startNo + i + 1) + "</td>";
 			html = html + "<td>" + logTimes[i] + "</td>";
 			html = html + "<td>" + logWorkers[i] + "</td>";
 			html = html + "<td>" + logTypes[i] + "</td>";
-			html = html + "<td>-</td>";                          /* 품목명 : 로그에 없는 값 */
-			html = html + "<td>-</td>";                          /* 품목 번호 : 로그에 없는 값 */
+			html = html + "<td>" + findItemName(logItemIds[i]) + "</td>";
+			html = html + "<td>" + (logItemIds[i] == null ? "-" : "ITEM-" + logItemIds[i]) + "</td>";
 			html = html + "<td>LOT-" + logLotIds[i] + "</td>";
 			html = html + "<td>" + logBefore[i] + "</td>";
 			html = html + "<td>" + logAfter[i] + "</td>";

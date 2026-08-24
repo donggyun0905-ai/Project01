@@ -1,8 +1,10 @@
 package com.dmart.web;
 
 import com.dmart.dao.StockChangeLogDao;
+import com.dmart.dao.StockLotDao;
 import com.dmart.db.DBConnection;
 import com.dmart.dto.StockChangeLog;
+import com.dmart.dto.StockLot;
 import com.dmart.service.StockLotAdjustmentService;
 import com.dmart.util.ApiResponse;
 import com.dmart.util.AuthUtil;
@@ -17,9 +19,11 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 // API_명세.md 10.4(복원) + 13번(감사 로그 조회) 참고. 둘 다 ADMIN 전용, 같은 URL 패턴이라 한 서블릿에서 처리.
 @WebServlet("/api/stock-change-logs/*")
@@ -27,6 +31,7 @@ public class StockChangeLogServlet extends HttpServlet {
 
     private final StockLotAdjustmentService adjustmentService = new StockLotAdjustmentService();
     private final StockChangeLogDao stockChangeLogDao = new StockChangeLogDao();
+    private final StockLotDao stockLotDao = new StockLotDao();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -35,12 +40,21 @@ public class StockChangeLogServlet extends HttpServlet {
         }
 
         Long lotId = parseLongParam(req.getParameter("lotId"));
+        String changeType = req.getParameter("changeType");
+        LocalDate from = parseDateParam(req.getParameter("from"));
+        LocalDate to = parseDateParam(req.getParameter("to"));
         Pagination pg = Pagination.from(req);
 
         try (Connection conn = DBConnection.getConnection()) {
-            List<StockChangeLog> logs = stockChangeLogDao.findPage(conn, lotId, pg.offset, pg.size);
-            int total = stockChangeLogDao.count(conn, lotId);
-            List<Object> data = logs.stream().map(StockChangeLogServlet::toJson).collect(Collectors.toList());
+            List<StockChangeLog> logs = stockChangeLogDao.findPage(conn, lotId, changeType, from, to, pg.offset, pg.size);
+            int total = stockChangeLogDao.count(conn, lotId, changeType, from, to);
+            List<Object> data = new ArrayList<>();
+            for (StockChangeLog log : logs) {
+                // 화면에서 품목명을 보여주려면 itemId가 필요한데 STOCK_CHANGE_LOG 자체엔
+                // 없어서 로트를 한 번 더 찾아 붙여준다 (ItemServlet의 totalQuantity와 같은 방식).
+                StockLot lot = stockLotDao.findById(conn, log.getLotId());
+                data.add(toJson(log, lot != null ? lot.getItemId() : null));
+            }
             ApiResponse.success(resp, 200, pg.wrap(data, total));
         } catch (SQLException e) {
             getServletContext().log("감사 로그 조회 중 DB 오류", e);
@@ -105,10 +119,22 @@ public class StockChangeLogServlet extends HttpServlet {
         }
     }
 
-    private static Map<String, Object> toJson(StockChangeLog log) {
+    private LocalDate parseDateParam(String s) {
+        if (s == null || s.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(s);
+        } catch (DateTimeParseException e) {
+            return null;
+        }
+    }
+
+    private static Map<String, Object> toJson(StockChangeLog log, Long itemId) {
         return JsonUtil.object(
                 "logId", log.getLogId(),
                 "lotId", log.getLotId(),
+                "itemId", itemId,
                 "changedBy", log.getChangedBy(),
                 "changeType", log.getChangeType(),
                 "beforeValue", log.getBeforeValue(),

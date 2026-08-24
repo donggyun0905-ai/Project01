@@ -162,6 +162,9 @@ public class ApprovalServlet extends HttpServlet {
             if ("outbound".equals(result.executedService)) {
                 data.put("requestedQty", result.requestedQty);
                 data.put("fulfilledQty", result.fulfilledQty);
+                if (result.shortageApprovalId != null) {
+                    data.put("shortageApprovalId", result.shortageApprovalId);
+                }
             }
             if (Boolean.TRUE.equals(result.executionFailed)) {
                 data.put("executionError", result.executionError);

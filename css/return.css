@@ -30,11 +30,105 @@
 }
 
 .modal-box{
-	width: 820px;
+	width: 1100px;
+	max-height: 85vh;
 	background: #fff;
 	border-radius: 8px;
 	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+	display: flex;
+	flex-direction: column;
 	overflow: hidden;
+}
+
+.modal-header{
+	flex: 0 0 auto;
+}
+
+.modal-footer{
+	flex: 0 0 auto;
+}
+
+/* 로트가 많으면 폼 영역만 스크롤되게 합니다 (헤더/버튼은 고정) */
+.modal-box .form-box{
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+}
+
+.form-group.full-width{
+	grid-column: 1 / -1;
+}
+
+/* 반품/폐기 등록 - 로트 선택 표
+   (드롭다운 글자만 보고 고르기보다, 로트번호/구역/남은수량/입고일/유통기한을
+   한눈에 보고 행을 클릭해 고르는 게 더 보기 쉽다는 판단으로 표로 바꿨습니다) */
+.rd-lot-table-wrap{
+	max-height: 260px;
+	overflow-y: auto;
+	border: 1px solid #eee;
+	border-radius: 8px;
+}
+
+.rd-lot-table{
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.rd-lot-table th,
+.rd-lot-table td{
+	padding: 10px;
+	text-align: center;
+	font-size: 14px;
+	border-bottom: 1px solid #eee;
+}
+
+.rd-lot-table thead{
+	background: #f2f2f2;
+	position: sticky;
+	top: 0;
+}
+
+.rd-lot-row{
+	cursor: pointer;
+}
+
+.rd-lot-row:hover{
+	background: #f7f9ff;
+}
+
+.rd-lot-row.picked{
+	background: #eaf1ff;
+	font-weight: 600;
+}
+
+.rd-lot-table td input[type="checkbox"]{
+	width: 16px;
+	height: 16px;
+	cursor: pointer;
+}
+
+.rd-row-qty{
+	width: 90px;
+	height: 32px;
+	padding: 0 8px;
+	border: 1px solid #ddd;
+	border-radius: 6px;
+	text-align: center;
+	box-sizing: border-box;
+	cursor: text;
+}
+
+.rd-row-qty:disabled{
+	background: #f2f2f2;
+	color: #aaa;
+}
+
+.hint-text{
+	display: block;
+	margin-top: 8px;
+	font-size: 13px;
+	color: #1455c0;
+	font-weight: 600;
 }
 
 /*모달 상단 제목  */

@@ -1,6 +1,4 @@
 <!DOCTYPE html> <!-- 08.13 반품 및 폐기 관리-->
-<!-- FIFO/FEFO 모달이 추가되었습니다 모달을 보려면 outbound.css에서 210번줄을 찾아가세요 -->
-<!-- 모달 2개 있는데 지금은 첫번째 페이지만 뜹니다 2번째 보려면 맨 밑으로 가서 주석 해제하시면 2번째 페이지가 뜹니다 -->
 <html lang = "ko">
 <head> 
 	<meta charset="UTF-8">
@@ -55,30 +53,30 @@
 		<section class="form-box">
 				<div class="form-group">
 					<label>구분</label>
-					<select id="fType" onchange="drawList()">
+					<select id="fType" onchange="doSearch()">
 						<option>전체</option>
 						<option>반품</option>
 						<option>폐기</option>
 					</select>
 				</div>
-				
+
 				<div class="form-group expiration-group">
 					<label>처리일</label>
 					<div class="date-range">
-						<input type="date" id="fFrom" onchange="drawList()">
+						<input type="date" id="fFrom" onchange="doSearch()">
 						<span>~</span>
-						<input type="date" id="fTo" onchange="drawList()">
+						<input type="date" id="fTo" onchange="doSearch()">
 					</div>
 				</div>
-				
+
 				<div class="form-group">
 					<label>품목명</label>
-					<input type="text" id="fName" placeholder="검색" onkeyup="drawList()">
+					<input type="text" id="fName" placeholder="검색 후 Enter" onkeyup="pressEnter(event)">
 				</div>
-				
+
 				<div class="form-group">
 					<label>카테고리</label>
-					<select id="fCategory" onchange="drawList()">
+					<select id="fCategory" onchange="doSearch()">
 					</select>
 				</div>
 					
@@ -121,12 +119,12 @@
 <!-- 반품/폐기 등록 페이지 모달-->
 <div class="modal-overlay" id="registerModal">
 	<div class="modal-box">
-	
+
 		<div class="modal-header">
 			<h3>반품/폐기 등록</h3>
 			<button class="modal-close" onclick="closeRegister()"> x </button>
 		</div>
-		
+
 		<section class="form-box">
 			<div class="form-group">
 				<label>구분</label>
@@ -135,40 +133,50 @@
 					<option>폐기</option>
 				</select>
 			</div>
-				
+
 			<div class="form-group">
 				<label>처리 유형</label>
 				<select id="rdReason">
 				</select>
 			</div>
-			
+
 			<div class="form-group">
 				<label>품목명</label>
 				<input type="text" id="rdName" list="itemList" onchange="changeItem()" onkeyup="changeItem()" placeholder="예: 두부">
 				<datalist id="itemList"></datalist>
 			</div>
-			
+
 			<div class="form-group">
 				<label>품목 번호</label>
 				<input type="text" id="rdCode" readonly>
 			</div>
-			
-			<div class="form-group">
-				<label>로트 번호</label>
-				<select id="rdLot" onchange="changeLot()">
-				</select>
+
+			<!-- 로트가 여러 개일 때 드롭다운 글자만 보고 고르기 어려워서,
+			     표로 로트번호/구역/남은수량/입고일/유통기한을 한눈에 보고 골라 고르게 했습니다.
+			     체크박스로 여러 로트를 동시에 골라, 로트마다 처리 수량을 따로 입력해
+			     한 번의 [등록]으로 다 같이 처리할 수 있습니다 (출고/이동과 같은 방식). -->
+			<div class="form-group full-width">
+				<label>로트 선택 (여러 개 가능)</label>
+				<div class="rd-lot-table-wrap">
+					<table class="rd-lot-table">
+						<thead>
+							<tr>
+								<th>선택</th>
+								<th>로트번호</th>
+								<th>창고/구역</th>
+								<th>남은 수량</th>
+								<th>입고일</th>
+								<th>유통기한</th>
+								<th>처리 수량</th>
+							</tr>
+						</thead>
+						<tbody id="rdLotBody">
+						</tbody>
+					</table>
+				</div>
+				<span class="hint-text" id="rdPickedText"></span>
 			</div>
-			
-			<div class="form-group">
-				<label>구역</label>
-				<input type="text" id="rdZone" readonly>
-			</div>
-		
-			<div class="form-group">
-				<label>수량 (남은 수량 이하)</label>
-				<input type="number" id="rdQty">
-			</div>
-			
+
 			<div class="form-group">
 				<label>처리일</label>
 				<div class="date-range">
@@ -205,10 +213,21 @@
 	   일부만 처리하면 처리한 만큼만 새 로트로 나뉩니다.
 	   ============================================================ */
 
-	/* 고른 품목의 로트들 */
+	/* 고른 품목의 로트들 (표에 뿌려서 체크박스로 여러 개를 함께 고릅니다) */
 	let lotIds = [];
 	let lotQtys = [];
 	let lotZoneTexts = [];
+	let lotInDates = [];
+	let lotExpDates = [];
+	let rowChecked = [];    // lotIds[i]를 골랐는지
+	let rowQtyValues = [];  // 그 로트에서 처리할 수량
+
+	/* 여러 로트를 순서대로 보낼 때 쓰는 값 (출고 등록과 같은 방식) */
+	let sendList = [];
+	let sendIndex = 0;
+	let doneCount = 0;
+	let alertCount = 0;
+	let approvalCount = 0;
 
 	/* 반품/폐기 내역 (서버에서 받아옴, GET /api/returns) */
 	let rowIds = [];
@@ -268,9 +287,10 @@
 
 		if (i == -1) {
 			document.querySelector("#rdCode").value = "";
-			document.querySelector("#rdLot").innerHTML = "";
-			document.querySelector("#rdZone").value = "";
 			lotIds = [];
+			rowChecked = [];
+			rowQtyValues = [];
+			drawLotTable();
 			return;
 		}
 
@@ -287,8 +307,10 @@
 		lotIds = [];
 		lotQtys = [];
 		lotZoneTexts = [];
-
-		let html = "";
+		lotInDates = [];
+		lotExpDates = [];
+		rowChecked = [];
+		rowQtyValues = [];
 
 		for (let i = 0; i < list.length; i++) {
 
@@ -301,30 +323,104 @@
 			lotIds[last] = list[i].lotId;
 			lotQtys[last] = list[i].quantity;
 			lotZoneTexts[last] = findZoneName(list[i].zoneId);
-
-			html = html + "<option value='" + last + "'>LOT-" + list[i].lotId
-			            + " (남은 " + list[i].quantity + "개, " + lotZoneTexts[last] + ")</option>";
+			lotInDates[last] = list[i].inboundDate;
+			lotExpDates[last] = list[i].expiryDate == null ? "-" : list[i].expiryDate;
 		}
 
-		if (html == "") {
-			html = "<option value='-1'>처리할 수 있는 재고가 없습니다</option>";
-		}
-
-		document.querySelector("#rdLot").innerHTML = html;
-		changeLot();
+		drawLotTable();
 	}
 
 
-	function changeLot() {
+	/* 로트 표를 그립니다. 체크박스로 여러 로트를 동시에 고르고,
+	   고른 로트마다 오른쪽 입력칸에 처리 수량을 따로 넣습니다. */
+	function drawLotTable() {
 
-		let k = document.querySelector("#rdLot").value * 1;
+		let html = "";
 
-		if (k < 0 || lotIds.length == 0) {
-			document.querySelector("#rdZone").value = "";
+		if (lotIds.length == 0) {
+			html = "<tr><td colspan='7'>처리할 수 있는 재고가 없습니다</td></tr>";
+		} else {
+			for (let i = 0; i < lotIds.length; i++) {
+
+				let checked = rowChecked[i] == true;
+				let qtyVal = (rowQtyValues[i] == null) ? lotQtys[i] : rowQtyValues[i];
+
+				/* 체크박스가 작아서 누르기 불편하다는 의견이 있어, 행 전체를 눌러도
+				   체크되도록 tr에 onclick을 걸었습니다. 수량 입력칸은 클릭해서 값을
+				   고쳐야 하니 그 칸만 stopPropagation으로 행 클릭이 안 먹게 막았습니다. */
+				html = html + "<tr class='rd-lot-row" + (checked ? " picked" : "") + "' onclick='toggleRow(" + i + ")'>";
+				html = html + "<td><input type='checkbox'" + (checked ? " checked" : "") + "></td>";
+				html = html + "<td>LOT-" + lotIds[i] + "</td>";
+				html = html + "<td>" + lotZoneTexts[i] + "</td>";
+				html = html + "<td>" + addComma(lotQtys[i]) + "</td>";
+				html = html + "<td>" + lotInDates[i] + "</td>";
+				html = html + "<td>" + lotExpDates[i] + "</td>";
+				html = html + "<td onclick='event.stopPropagation()'><input type='number' class='rd-row-qty' value='" + qtyVal + "' max='" + lotQtys[i] + "'"
+				            + " onchange='onRowQtyChange(" + i + ")'" + (checked ? "" : " disabled") + "></td>";
+				html = html + "</tr>";
+			}
+		}
+
+		document.querySelector("#rdLotBody").innerHTML = html;
+		updatePickedText();
+	}
+
+
+	/* 체크박스를 누르면 그 로트를 고르고, 처음 고를 때는 남은 수량 전체를 기본값으로 넣어 둡니다 */
+	function toggleRow(i) {
+
+		rowChecked[i] = !(rowChecked[i] == true);
+
+		if (rowChecked[i] == true && (rowQtyValues[i] == null || rowQtyValues[i] <= 0)) {
+			rowQtyValues[i] = lotQtys[i];
+		}
+
+		drawLotTable();
+	}
+
+
+	/* 로트별 처리 수량 입력칸 - 그 로트에 남은 수량(input의 max)을 넘으면 그 값으로 맞춰 줍니다
+	   (입고/출고/이동 등록 화면과 같은 clamp 방식) */
+	function onRowQtyChange(i) {
+
+		let input = document.querySelectorAll(".rd-row-qty")[i];
+		let value = input.value * 1;
+		let maxVal = lotQtys[i];
+
+		if (value > maxVal) {
+			value = maxVal;
+			alert("LOT-" + lotIds[i] + " 에는 " + addComma(maxVal) + "개까지만 있습니다.");
+		}
+		if (value < 0) {
+			value = 0;
+		}
+
+		input.value = value;
+		rowQtyValues[i] = value;
+
+		updatePickedText();
+	}
+
+
+	function updatePickedText() {
+
+		let area = document.querySelector("#rdPickedText");
+		let count = 0;
+		let total = 0;
+
+		for (let i = 0; i < lotIds.length; i++) {
+			if (rowChecked[i] == true && rowQtyValues[i] > 0) {
+				count = count + 1;
+				total = total + rowQtyValues[i];
+			}
+		}
+
+		if (count == 0) {
+			area.innerHTML = lotIds.length == 0 ? "" : "위 표에서 처리할 로트를 골라 주세요. (여러 개 가능)";
 			return;
 		}
 
-		document.querySelector("#rdZone").value = lotZoneTexts[k];
+		area.innerHTML = count + "개 로트 선택됨 · 처리 수량 합계 " + addComma(total) + "개";
 	}
 
 
@@ -361,75 +457,106 @@
 
 	/* ============================================================
 	   반품/폐기 등록  (POST /api/returns)
+
+	   서버는 로트 하나당 한 건씩만 받아서, 여러 로트를 골랐으면
+	   출고 등록과 같은 방식으로 한 건씩 순서대로 보냅니다.
 	   ============================================================ */
 	function doRegister() {
 
-		if (isBlank(["#rdName", "#rdQty", "#rdDate"]) == true) {
-			alert("품목명, 수량, 처리일을 채워 주세요.");
+		if (isBlank(["#rdName", "#rdDate"]) == true) {
+			alert("품목명, 처리일을 채워 주세요.");
 			return;
 		}
 
-		let k = document.querySelector("#rdLot").value * 1;
+		sendList = [];
 
-		if (k < 0 || lotIds.length == 0) {
-			alert("처리할 로트를 골라 주세요.");
+		for (let i = 0; i < lotIds.length; i++) {
+			if (rowChecked[i] == true && rowQtyValues[i] > 0) {
+				sendList[sendList.length] = i;
+			}
+		}
+
+		if (sendList.length == 0) {
+			alert("처리할 로트를 하나 이상 고르고 수량을 넣어 주세요.");
 			return;
 		}
 
-		let qty = document.querySelector("#rdQty").value * 1;
-
-		if (qty <= 0) {
-			alert("수량은 1개 이상이어야 합니다.");
-			return;
-		}
-
-		/* 남은 수량보다 많이 처리할 수 없습니다 */
-		if (qty > lotQtys[k]) {
-			alert("LOT-" + lotIds[k] + " 에 남은 수량은 " + lotQtys[k] + "개입니다.\n그보다 많이 처리할 수 없습니다.");
-			return;
-		}
-
-		let processedBy = sessionStorage.getItem("userId");
-
-		if (processedBy == null) {
+		if (sessionStorage.getItem("userId") == null) {
 			alert("로그인 정보가 없습니다. 다시 로그인해 주세요.");
 			return;
 		}
 
-		let body = {
-			lotId: lotIds[k],
-			type: document.querySelector("#rdType").value,
-			reason: document.querySelector("#rdReason").value,
-			quantity: qty,
-			processedBy: processedBy * 1,
-			processedDate: document.querySelector("#rdDate").value
-		};
+		sendIndex = 0;
+		doneCount = 0;
+		alertCount = 0;
+		approvalCount = 0;
 
-		apiSend("POST", "/api/returns", body, afterRegister);
+		sendOneReturn();
 	}
 
 
-	function afterRegister(data) {
+	function sendOneReturn() {
 
-		let msg = "";
-
-		/* 전체를 처리하면 그 로트가 통째로 빠지고,
-		   일부면 처리한 만큼만 새 로트로 나뉩니다 */
-		if (data.splitOccurred == true) {
-			msg = "등록되었습니다. 처리한 만큼이 LOT-" + data.disposedLotId + " 로 분리되었습니다.";
-		} else {
-			msg = "등록되었습니다. LOT-" + data.disposedLotId + " 전체가 처리되어 정상 재고에서 빠집니다.";
+		/* 다 보냈으면 마무리합니다 */
+		if (sendIndex >= sendList.length) {
+			finishRegister();
+			return;
 		}
+
+		let i = sendList[sendIndex];
+
+		let body = {
+			lotId: lotIds[i],
+			type: document.querySelector("#rdType").value,
+			reason: document.querySelector("#rdReason").value,
+			quantity: rowQtyValues[i],
+			processedBy: sessionStorage.getItem("userId") * 1,
+			processedDate: document.querySelector("#rdDate").value
+		};
+
+		apiSend("POST", "/api/returns", body, afterOneReturn, failOneReturn);
+	}
+
+
+	function afterOneReturn(data) {
+
+		doneCount = doneCount + 1;
 
 		if (data.alertCreated == true) {
-			msg = msg + "\n재고부족 알림이 생성되었습니다.";
+			alertCount = alertCount + 1;
 		}
 		if (data.approvalId != null) {
-			msg = msg + "\n발주 승인 요청이 자동 생성되었습니다.";
+			approvalCount = approvalCount + 1;
 		}
 
-		clearInput(["#rdQty"]);
+		sendIndex = sendIndex + 1;
+		sendOneReturn();
+	}
+
+
+	/* 한 건이 실패해도 나머지는 계속 보냅니다 */
+	function failOneReturn(message) {
+
+		let i = sendList[sendIndex];
+		alert("LOT-" + lotIds[i] + " 처리 실패\n" + message);
+
+		sendIndex = sendIndex + 1;
+		sendOneReturn();
+	}
+
+
+	function finishRegister() {
+
 		closeRegister();
+
+		let msg = "등록되었습니다. (로트 " + doneCount + "건)";
+
+		if (alertCount > 0) {
+			msg = msg + "\n재고부족 알림이 " + alertCount + "건 생성되었습니다.";
+		}
+		if (approvalCount > 0) {
+			msg = msg + "\n발주 승인 요청이 " + approvalCount + "건 자동 생성되었습니다.";
+		}
 
 		/* 방금 등록한 내역이 바로 보이게 다시 받아옵니다 */
 		nowPage = 1;
@@ -444,9 +571,51 @@
 
 	/* ============================================================
 	   내역 표  (GET /api/returns)
+
+	   유형/카테고리/품목명/기간 모두 서버가 직접 걸러줍니다 - 그래서 쪽 번호(total)도
+	   필터링된 기준으로 정확히 나옵니다.
 	   ============================================================ */
 	function loadHistory() {
-		apiGet("/api/returns?page=" + nowPage + "&size=" + pageSize, putHistory);
+
+		let url = "/api/returns?page=" + nowPage + "&size=" + pageSize;
+
+		let type = document.querySelector("#fType").value;
+		let category = document.querySelector("#fCategory").value;
+		let word = document.querySelector("#fName").value;
+		let from = document.querySelector("#fFrom").value;
+		let to = document.querySelector("#fTo").value;
+
+		if (type != "전체") {
+			url = url + "&type=" + encodeURIComponent(type);
+		}
+		if (category != "전체") {
+			url = url + "&category=" + encodeURIComponent(category);
+		}
+		if (word != "") {
+			url = url + "&keyword=" + encodeURIComponent(word);
+		}
+		if (from != "") {
+			url = url + "&from=" + from;
+		}
+		if (to != "") {
+			url = url + "&to=" + to;
+		}
+
+		apiGet(url, putHistory);
+	}
+
+
+	/* 조건이 바뀌면 1페이지부터 다시 봅니다 */
+	function doSearch() {
+		nowPage = 1;
+		loadHistory();
+	}
+
+
+	function pressEnter(e) {
+		if (e.keyCode == 13) {
+			doSearch();
+		}
 	}
 
 
@@ -490,69 +659,22 @@
 		return "품목 " + itemId;
 	}
 
-	function findItemCategory(itemId) {
-
-		for (let i = 0; i < itemCodes.length; i++) {
-			if (itemCodes[i] == "ITEM-" + itemId) {
-				return itemCategoryList[i];
-			}
-		}
-		return null;
-	}
-
-
-	/* 유형/카테고리/품목명/기간 거르기는 서버에 없는 조건이라 화면에서 처리합니다 */
-	function getList() {
-
-		let type = document.querySelector("#fType").value;
-		let category = document.querySelector("#fCategory").value;
-		let from = document.querySelector("#fFrom").value;
-		let to = document.querySelector("#fTo").value;
-		let word = document.querySelector("#fName").value;
-		let result = [];
-
-		for (let i = 0; i < rowTypes.length; i++) {
-
-			if (type != "전체" && rowTypes[i] != type) {
-				continue;
-			}
-			if (category != "전체" && findItemCategory(rowItemIds[i]) != category) {
-				continue;
-			}
-			if (word != "" && findItemName(rowItemIds[i]).indexOf(word) < 0) {
-				continue;
-			}
-			if (from != "" && rowDates[i] < from) {
-				continue;
-			}
-			if (to != "" && rowDates[i] > to) {
-				continue;
-			}
-
-			result[result.length] = i;
-		}
-
-		return result;
-	}
-
-
 	function drawList() {
 
-		let list = getList();
 		let html = "";
 
-		if (list.length == 0) {
+		if (rowTypes.length == 0) {
 			document.querySelector("#rdBody").innerHTML = "<tr><td colspan='9'>반품/폐기 내역이 없습니다.</td></tr>";
 			drawPaging("#paging", 0, 1, "goPage");
 			return;
 		}
 
-		for (let n = 0; n < list.length; n++) {
+		let startNo = (nowPage - 1) * pageSize;
 
-			let i = list[n];
+		for (let i = 0; i < rowTypes.length; i++) {
 
 			html = html + "<tr>";
-			html = html + "<td>" + (n + 1) + "</td>";
+			html = html + "<td>" + (startNo + i + 1) + "</td>";
 			html = html + "<td>" + rowTypes[i] + "</td>";
 			html = html + "<td>" + rowKinds[i] + "</td>";
 			html = html + "<td>" + findItemName(rowItemIds[i]) + "</td>";
@@ -566,7 +688,7 @@
 
 		document.querySelector("#rdBody").innerHTML = html;
 
-		/* 쪽 번호는 서버가 준 전체 건수 기준입니다 (유형/카테고리/기간 거르기는 화면 안에서만 적용) */
+		/* 쪽 번호는 서버가 준 전체 건수 기준입니다 (유형/카테고리/품목명/기간 필터도 서버가 이미 반영한 값) */
 		drawPaging("#paging", totalCount, nowPage, "goPage");
 	}
 

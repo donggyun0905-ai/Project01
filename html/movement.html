@@ -56,11 +56,6 @@
 		<!-- 입력폼 -->
 		<section class="form-box">
 				<div class="form-group">
-					<label>이동 일자</label>
-					<input type="date" id="mvDate">
-				</div>
-				
-				<div class="form-group">
 					<label>품목명</label>
 					<input type="text" id="mvName" list="itemList" onchange="changeItem()" onkeyup="changeItem()" placeholder="예: 두부">
 					<datalist id="itemList"></datalist>
@@ -72,51 +67,50 @@
 				</div>
 				
 				<div class="form-group">
-					<label>로트 번호</label>
-					<select id="mvLot" onchange="changeLot()">
+					<label>출발 창고</label>
+					<select id="mvFromWarehouse" onchange="changeFromWarehouse()">
 					</select>
 				</div>
-				
+
 				<div class="form-group">
 					<label>출발 구역</label>
-					<input type="text" id="mvFrom" readonly>
+					<select id="mvFromZone" onchange="changeFromZone()">
+					</select>
+					<span class="hint-text" id="mvFromAvailText"></span>
 				</div>
-				
+
 				<div class="form-group">
-					<label>수량 (남은 수량 이하)</label>
-					<input type="number" id="mvQty">
+					<label>총 이동 수량</label>
+					<input type="number" id="mvQty" onchange="checkMoveQtyMax()">
 				</div>
-				
+
 				<div class="form-group">
 					<label>도착 창고</label>
 					<select id="mvToWarehouse" onchange="changeWarehouse()">
 					</select>
 				</div>
-				
+
 				<div class="form-group">
 					<label>도착 구역</label>
-					<select id="mvToZone">
+					<select id="mvToZone" onchange="changeToZone()">
 					</select>
+					<span class="hint-text" id="mvToRoomText"></span>
 				</div>
-					
-				<div class="form-group">
-					<label>비고 (기록용 메모)</label>
-					<input type="text" id="mvNote">
-				</div>
-				
-				<button class="register-btn" onclick="doRegister()">이동 등록</button>
+
+				<!-- 누르면 자동 추천 모달이 뜹니다 -->
+				<button class="register-btn" onclick="openMoveRecommend()">자동 추천 및 확인</button>
 			</section>
-		
+
 		<!-- 이동 이력 목록(표)  -->
-		
+
 		<section class= "table-box">
 		<h4 class="table-title">이동 이력 목록</h4>
-		<!-- 기간으로 거르기 (명세서 S-07) -->
+		<!-- 기간으로 거르기 (명세서 S-07) - 서버(GET /api/transfers?from=&to=)가 직접 걸러줍니다 -->
 		<div class="list-filter">
 			<label>기간</label>
-			<input type="date" id="fFrom" onchange="drawList()">
+			<input type="date" id="fFrom" onchange="changeFilter()">
 			<span>~</span>
-			<input type="date" id="fTo" onchange="drawList()">
+			<input type="date" id="fTo" onchange="changeFilter()">
 		</div>
 			<table>
 				<thead>
@@ -141,14 +135,60 @@
 		</section>
 		
 	</main>
-	
+
 	</div>
+
+<!-- 이동 로트 자동 추천 + 선택 결과 (모달 - 출발 구역 안의 로트를 한눈에 보여줍니다) -->
+<div class="modal-overlay" id="moveLotModal">
+	<div class="modal-box move-modal">
+
+		<div class="modal-header">
+			<h3>이동 로트 자동 추천 및 선택</h3>
+			<button class="modal-close" onclick="closeMoveModal()"> x </button>
+		</div>
+
+		<div class="modal-content">
+			<p id="moveRecommendText"></p>
+			<div class="recommend-box">
+				<span>추천 방식</span>
+				<strong id="moveRecommendWay"></strong>
+			</div>
+			<br>
+			아래 로트에서 이동 수량이 차감됩니다.<br>
+			<strong id="moveLotTotalText"></strong>
+		</div>
+		<div class="lot-table-wrap">
+			<table>
+				<thead>
+					<tr>
+						<th>순서</th>
+						<th>로트번호</th>
+						<th>입고일</th>
+						<th>유통기한</th>
+						<th>이동 수량</th>
+					</tr>
+				</thead>
+				<tbody id="moveLotBody">
+				</tbody>
+			</table>
+		</div>
+		<div class="policy-info"><strong id="moveLotWayText"></strong></div>
+
+		<div class="modal-footer">
+			<button class="btn-cancel" onclick="closeMoveModal()">취소</button>
+			<button class="btn-primary" onclick="doRegister()">이동 등록</button>
+		</div>
+	</div>
+</div>
 
 
 <!-- ============================================================
      재고 이동 화면 로직
      ------------------------------------------------------------
-     서버(TransferService)가 검사하는 규칙을 화면에서도 미리 막습니다.
+     이제 로트를 직접 고르지 않고, 출발 구역 + 총 이동 수량만 입력하면
+     그 구역 안의 로트를 유통기한/입고일 순으로 자동 추천해서 모달로 보여줍니다
+     (출고 등록 화면과 같은 방식). 서버(TransferService)가 검사하는 규칙은
+     화면에서도 미리 막습니다.
        1) 출발 구역과 도착 구역이 같으면 안 됨
        2) 품목 단위와 도착 구역 이름이 같아야 함 (EA 로트는 EA 구역으로만)
        3) 로트에 남은 수량보다 많이 옮길 수 없음
@@ -170,11 +210,29 @@
 	   화면에서도 같은 검사를 해서 미리 걸러 냅니다.
 	   ============================================================ */
 
-	/* 고른 품목의 로트들 */
-	let lotIds = [];
-	let lotQtys = [];
-	let lotZoneIds = [];
-	let lotZoneTexts = [];
+	/* 서버가 추천해 준, 출발 구역 안의 로트들 */
+	let pickedWay = "";
+	let pickedLotIds = [];
+	let pickedLotIn = [];
+	let pickedLotExp = [];
+	let pickedLotQtys = [];   // 그 로트에서 옮길 수량 (모달에서 직접 조정 가능)
+	let pickedLotAvail = [];  // 그 로트에 실제로 남아있는 수량
+
+	/* 지금 추천 중인 이동 건의 구역/담당자 - 모달에서 실제 등록할 때 씁니다 */
+	let moveFromZoneId = -1;
+	let moveToZoneId = -1;
+	let moveHandlerId = -1;
+
+	/* 총 이동 수량 입력의 상한을 정하는 두 값 - 출발 구역엔 얼마나 있는지,
+	   도착 구역엔 얼마나 더 들어갈 자리가 있는지. 둘 다 알면 더 작은 쪽이 상한이 됩니다.
+	   아직 모르면(품목/구역 안 고름, 용량 미설정) null로 둡니다. */
+	let mvFromAvail = null;
+	let mvToRoom = null;
+
+	/* 여러 로트를 순서대로 보낼 때 쓰는 값 */
+	let sendIndex = 0;
+	let doneCount = 0;
+	let splitCount = 0;
 
 	/* 이동 이력 (서버에서 받아옴, GET /api/transfers) */
 	let rowIds = [];
@@ -196,92 +254,233 @@
 
 	function afterMaster() {
 
+		fillWarehouse("#mvFromWarehouse");
+		fillZone("#mvFromWarehouse", "#mvFromZone");
 		fillWarehouse("#mvToWarehouse");
 		fillZone("#mvToWarehouse", "#mvToZone");
 		fillItemList("#itemList");
 
-		document.querySelector("#mvDate").value = getToday();
+		/* 도착 구역 남은 공간은 품목을 고르기 전에도 보여 줍니다 */
+		updateToZoneRoom();
 
 		loadHistory();
 	}
 
 
-	/* ============================================================
-	   품목을 고르면 그 품목의 로트를 서버에서 받아옵니다
-	   ============================================================ */
+	/* 품목명을 고르면 코드가 채워지고, 그 품목 단위(EA/BOX/PALLET)와 같은 이름의
+	   구역을 출발/도착 양쪽에서 자동으로 찾아 골라 줍니다(입고 등록 화면과 동일한 방식).
+	   어느 로트에서 옮길지는 더 이상 여기서 고르지 않고, [자동 추천 및 확인] 누르면
+	   출발 구역 안의 로트를 서버에서 받아와 모달로 보여줍니다. */
 	function changeItem() {
 
 		let i = findItemByName(document.querySelector("#mvName").value);
 
 		if (i == -1) {
 			document.querySelector("#mvCode").value = "";
-			document.querySelector("#mvLot").innerHTML = "";
-			document.querySelector("#mvFrom").value = "";
-			lotIds = [];
 			return;
 		}
 
 		document.querySelector("#mvCode").value = itemCodes[i];
 
-		/* 정상 상태인 로트만 받아옵니다 */
-		apiGet("/api/stock-lots?itemId=" + getItemId(itemNameList[i]) + "&status=NORMAL&size=200", putLots);
+		pickSameZone("#mvFromZone", itemUnitList[i]);
+		pickSameZone("#mvToZone", itemUnitList[i]);
+
+		updateFromZoneAvailable();
+		updateToZoneRoom();
 	}
 
 
-	function putLots(data) {
+	/* 지금 고른 창고 안에서, 주어진 단위(unit)와 이름이 같은 구역을 찾아 선택합니다.
+	   같은 이름의 구역이 그 창고에 없으면 그냥 그대로 둡니다. */
+	function pickSameZone(zoneSelectId, unit) {
 
-		let list = data.items;
+		let box = document.querySelector(zoneSelectId);
 
-		lotIds = [];
-		lotQtys = [];
-		lotZoneIds = [];
-		lotZoneTexts = [];
-
-		let html = "";
-
-		for (let i = 0; i < list.length; i++) {
-
-			/* 남은 수량이 없는 로트는 옮길 게 없어서 건너뜁니다 */
-			if (list[i].quantity <= 0) {
-				continue;
+		for (let i = 0; i < box.options.length; i++) {
+			if (box.options[i].text == unit) {
+				box.selectedIndex = i;
+				return;
 			}
-
-			let last = lotIds.length;
-
-			lotIds[last] = list[i].lotId;
-			lotQtys[last] = list[i].quantity;
-			lotZoneIds[last] = list[i].zoneId;
-			lotZoneTexts[last] = findZoneName(list[i].zoneId);
-
-			html = html + "<option value='" + last + "'>LOT-" + list[i].lotId
-			            + " (남은 " + list[i].quantity + "개, " + lotZoneTexts[last] + ")</option>";
 		}
-
-		if (html == "") {
-			html = "<option value='-1'>옮길 수 있는 재고가 없습니다</option>";
-		}
-
-		document.querySelector("#mvLot").innerHTML = html;
-		changeLot();
 	}
 
 
-	/* 로트를 고르면 출발 구역이 자동으로 채워집니다 */
-	function changeLot() {
+	/* 지금 입력폼에 골라져 있는 품목의 단위를 돌려줍니다 (없으면 null) */
+	function currentItemUnit() {
 
-		let k = document.querySelector("#mvLot").value * 1;
+		let i = findItemByName(document.querySelector("#mvName").value);
+		return i == -1 ? null : itemUnitList[i];
+	}
 
-		if (k < 0 || lotIds.length == 0) {
-			document.querySelector("#mvFrom").value = "";
+
+	/* 그 품목이 유통기한을 관리하지 않는 품목인지 확인합니다 (출고 등록 화면과 동일) */
+	function itemShelfEmpty(i) {
+
+		if (itemShelfList[i] == null) {
+			return true;
+		}
+		return false;
+	}
+
+
+	function changeFromWarehouse() {
+
+		fillZone("#mvFromWarehouse", "#mvFromZone");
+
+		let unit = currentItemUnit();
+		if (unit != null) {
+			pickSameZone("#mvFromZone", unit);
+		}
+
+		updateFromZoneAvailable();
+	}
+
+
+	function changeFromZone() {
+		updateFromZoneAvailable();
+	}
+
+
+	function changeToZone() {
+		updateToZoneRoom();
+	}
+
+
+	/* 출발 구역에 지금 고른 품목이 얼마나 있는지 보여줍니다.
+	   품목이나 구역을 아직 안 골랐으면 안내를 지웁니다. */
+	function updateFromZoneAvailable() {
+
+		let itemId = getItemId(document.querySelector("#mvName").value);
+		let zoneId = getSelectValue("#mvFromZone") * 1;
+
+		let hint = document.querySelector("#mvFromAvailText");
+
+		if (itemId == -1 || isNaN(zoneId) || zoneId <= 0) {
+			hint.innerHTML = "";
+			mvFromAvail = null;
+			applyMoveQtyMax();
 			return;
 		}
 
-		document.querySelector("#mvFrom").value = lotZoneTexts[k];
+		apiGet("/api/stock-lots?itemId=" + itemId + "&zoneId=" + zoneId + "&status=NORMAL&size=200", putFromZoneAvailable);
+	}
+
+
+	function putFromZoneAvailable(data) {
+
+		let list = data.items;
+		let total = 0;
+
+		for (let i = 0; i < list.length; i++) {
+			total = total + list[i].quantity;
+		}
+
+		document.querySelector("#mvFromAvailText").innerHTML = "이 구역 재고: " + addComma(total) + "개";
+		mvFromAvail = total;
+		applyMoveQtyMax();
+	}
+
+
+	/* 도착 구역에 지금 얼마나 더 들어갈 자리가 있는지 보여줍니다.
+	   loadMasterFromServer가 이미 받아 둔 zoneCapacities/zoneUsed를 그대로 씁니다
+	   (창고/구역 관리 화면과 같은 usedQuantity 기준이라 정확합니다).
+	   용량을 정해 두지 않은 구역은 제한이 없는 걸로 봅니다. */
+	function updateToZoneRoom() {
+
+		let toZoneId = getSelectValue("#mvToZone") * 1;
+		let hint = document.querySelector("#mvToRoomText");
+
+		for (let i = 0; i < zoneIds.length; i++) {
+
+			if (zoneIds[i] != toZoneId) {
+				continue;
+			}
+
+			if (zoneCapacities[i] == null) {
+				mvToRoom = null;
+				hint.innerHTML = "용량 미설정 (제한 없음)";
+			} else {
+				let room = zoneCapacities[i] - zoneUsed[i];
+				if (room < 0) {
+					room = 0;
+				}
+				mvToRoom = room;
+				hint.innerHTML = "남은 공간: " + addComma(room) + "개";
+			}
+
+			applyMoveQtyMax();
+			return;
+		}
+
+		mvToRoom = null;
+		hint.innerHTML = "";
+		applyMoveQtyMax();
+	}
+
+
+	/* 출발 구역 재고(mvFromAvail)와 도착 구역 남은 공간(mvToRoom) 중
+	   더 작은 값으로 총 이동 수량의 상한을 정합니다. 둘 다 모르면 상한 없음. */
+	function applyMoveQtyMax() {
+
+		let qtyInput = document.querySelector("#mvQty");
+		let limits = [];
+
+		if (mvFromAvail != null) {
+			limits[limits.length] = mvFromAvail;
+		}
+		if (mvToRoom != null) {
+			limits[limits.length] = mvToRoom;
+		}
+
+		if (limits.length == 0) {
+			qtyInput.removeAttribute("max");
+			return;
+		}
+
+		let max = limits[0];
+		for (let i = 1; i < limits.length; i++) {
+			if (limits[i] < max) {
+				max = limits[i];
+			}
+		}
+
+		qtyInput.setAttribute("max", max);
+
+		/* 이미 입력해 둔 수량이 새로 바뀐 상한을 넘으면 맞춰 줍니다 */
+		checkMoveQtyMax();
+	}
+
+
+	/* 총 이동 수량이 상한(#mvQty의 max)을 넘으면 그 값으로 맞춰 줍니다 */
+	function checkMoveQtyMax() {
+
+		let input = document.querySelector("#mvQty");
+		let max = input.getAttribute("max");
+
+		if (max == null || input.value == "") {
+			return;
+		}
+
+		let value = input.value * 1;
+		let maxVal = max * 1;
+
+		if (value > maxVal) {
+			input.value = maxVal;
+			alert("지금 조건에서는 " + addComma(maxVal) + "개까지만 옮길 수 있습니다.");
+		}
 	}
 
 
 	function changeWarehouse() {
+
 		fillZone("#mvToWarehouse", "#mvToZone");
+
+		let unit = currentItemUnit();
+		if (unit != null) {
+			pickSameZone("#mvToZone", unit);
+		}
+
+		updateToZoneRoom();
 	}
 
 
@@ -304,19 +503,19 @@
 
 
 	/* ============================================================
-	   이동 등록  (POST /api/transfers)
+	   모달 - 출발 구역 안의 로트를 서버에 물어봅니다
 	   ============================================================ */
-	function doRegister() {
+	function openMoveRecommend() {
 
-		if (isBlank(["#mvDate", "#mvName", "#mvQty"]) == true) {
-			alert("이동 일자, 품목명, 수량을 채워 주세요.");
+		if (isBlank(["#mvName", "#mvQty"]) == true) {
+			alert("품목명, 수량을 채워 주세요.");
 			return;
 		}
 
-		let k = document.querySelector("#mvLot").value * 1;
+		let itemId = getItemId(document.querySelector("#mvName").value);
 
-		if (k < 0 || lotIds.length == 0) {
-			alert("옮길 로트를 골라 주세요.");
+		if (itemId == -1) {
+			alert("등록되지 않은 품목입니다.\n후보 목록에서 골라 주세요.");
 			return;
 		}
 
@@ -327,22 +526,17 @@
 			return;
 		}
 
-		/* 규칙 3 : 남은 수량보다 많이 옮길 수 없습니다 */
-		if (qty > lotQtys[k]) {
-			alert("LOT-" + lotIds[k] + " 에 남은 수량은 " + lotQtys[k] + "개입니다.\n그보다 많이 옮길 수 없습니다.");
-			return;
-		}
-
+		let fromZoneId = getSelectValue("#mvFromZone") * 1;
 		let toZoneId = getSelectValue("#mvToZone") * 1;
-		let toZoneName = getSelectText("#mvToZone");
 
 		/* 규칙 1 : 출발과 도착이 같으면 옮길 이유가 없습니다 */
-		if (lotZoneIds[k] == toZoneId) {
+		if (fromZoneId == toZoneId) {
 			alert("출발 구역과 도착 구역이 같습니다.");
 			return;
 		}
 
 		/* 규칙 2 : 품목 단위와 도착 구역 이름이 같아야 합니다 */
+		let toZoneName = getSelectText("#mvToZone");
 		let i = findItemByName(document.querySelector("#mvName").value);
 
 		if (i != -1 && itemUnitList[i] != toZoneName) {
@@ -358,37 +552,277 @@
 			return;
 		}
 
-		let body = {
-			lotId: lotIds[k],
-			fromZoneId: lotZoneIds[k],
-			toZoneId: toZoneId,
-			quantity: qty,
-			handlerId: handlerId * 1
-		};
+		moveFromZoneId = fromZoneId;
+		moveToZoneId = toZoneId;
+		moveHandlerId = handlerId * 1;
 
-		apiSend("POST", "/api/transfers", body, afterRegister);
+		/* 유통기한이 있는 품목이면 FEFO, 없으면 FIFO */
+		pickedWay = (i != -1 && itemShelfEmpty(i) == true) ? "FIFO" : "FEFO";
+
+		apiGet("/api/stock-lots?itemId=" + itemId + "&zoneId=" + fromZoneId + "&status=NORMAL&size=200", putMoveLots);
 	}
 
 
-	function afterRegister(data) {
+	/* 출발 구역 안의 로트를 받아, 추천 방식과 같은 기준으로 정렬한 뒤
+	   요청 수량만큼 앞에서부터 자동으로 채워 넣습니다 (출고 등록과 같은 방식). */
+	function putMoveLots(data) {
 
-		let msg = "이동이 등록되었습니다.";
+		let list = data.items;
 
-		/* 일부만 옮기면 옮겨간 만큼이 새 로트로 나뉩니다 */
-		if (data.splitOccurred == true) {
-			msg = msg + "\n일부만 옮겨서 새 로트 LOT-" + data.newLotId + " 가 만들어졌습니다.";
-		} else {
-			msg = msg + "\n로트 전체가 옮겨졌습니다.";
+		if (list.length == 0) {
+			alert("이 구역에는 옮길 수 있는 재고가 없습니다.");
+			return;
 		}
 
-		clearInput(["#mvQty", "#mvNote"]);
+		list.sort(function (a, b) {
+			if (pickedWay == "FEFO") {
+				let ea = a.expiryDate == null ? "9999-99-99" : a.expiryDate;
+				let eb = b.expiryDate == null ? "9999-99-99" : b.expiryDate;
+				if (ea < eb) return -1;
+				if (ea > eb) return 1;
+				return 0;
+			}
+			if (a.inboundDate < b.inboundDate) return -1;
+			if (a.inboundDate > b.inboundDate) return 1;
+			return 0;
+		});
+
+		pickedLotIds = [];
+		pickedLotIn = [];
+		pickedLotExp = [];
+		pickedLotQtys = [];
+		pickedLotAvail = [];
+
+		let moveQty = document.querySelector("#mvQty").value * 1;
+		let rest = moveQty;
+
+		for (let i = 0; i < list.length; i++) {
+
+			if (list[i].quantity <= 0) {
+				continue;
+			}
+
+			pickedLotIds[pickedLotIds.length] = list[i].lotId;
+			pickedLotIn[pickedLotIn.length] = list[i].inboundDate;
+			pickedLotExp[pickedLotExp.length] = list[i].expiryDate == null ? "" : list[i].expiryDate;
+			pickedLotAvail[pickedLotAvail.length] = list[i].quantity;
+
+			let take = 0;
+
+			if (rest > 0) {
+				take = Math.min(rest, list[i].quantity);
+				rest = rest - take;
+			}
+
+			pickedLotQtys[pickedLotQtys.length] = take;
+		}
+
+		let text = "";
+
+		if (pickedWay == "FEFO") {
+			text = "해당 품목은 유통기한 관리 대상입니다.<br>따라서 <strong>FEFO(유통기한 기준)</strong> 방식이 자동 추천되었습니다.";
+		} else {
+			text = "해당 품목은 유통기한 관리 대상이 아닙니다.<br>따라서 <strong>FIFO(입고일 기준)</strong> 방식이 자동 추천되었습니다.";
+		}
+
+		if (rest > 0) {
+			text = text + "<br><strong class='zone-full'>이 구역에 남은 재고가 " + (moveQty - rest) + "개뿐이라, 아래 수량 입력칸에 그만큼만 미리 채워뒀습니다(재고가 늘어난 게 아니라 입력값만 채운 것입니다). 부족한 만큼은 옮길 수 없으니, 다른 구역에서 별도로 이동하거나 아래에서 직접 조정해 주세요.</strong>";
+		}
+
+		document.querySelector("#moveRecommendText").innerHTML = text;
+		document.querySelector("#moveRecommendWay").innerHTML = pickedWay;
+
+		openMoveLotTable();
+	}
+
+
+	/* ============================================================
+	   모달 - 추천된 로트별로 얼마씩 옮길지 보여주고, 직접 조정할 수 있게 합니다
+	   ============================================================ */
+	function openMoveLotTable() {
+
+		let html = "";
+		let nearCount = 0;
+
+		for (let i = 0; i < pickedLotIds.length; i++) {
+
+			let expiry = pickedLotExp[i];
+			let cell = "-";
+
+			if (expiry != "") {
+
+				if (isNearExpiry(expiry) == true) {
+
+					let left = getLeftDays(expiry);
+					let word = "D-" + left;
+
+					if (left < 0) {
+						word = "기한 지남";
+					}
+
+					cell = "<span class='near-expiry'>" + expiry + " (" + word + ")</span>";
+					nearCount = nearCount + 1;
+
+				} else {
+					cell = expiry;
+				}
+			}
+
+			html = html + "<tr>";
+			html = html + "<td>" + (i + 1) + "</td>";
+			html = html + "<td>LOT-" + pickedLotIds[i] + "</td>";
+			html = html + "<td>" + pickedLotIn[i] + "</td>";
+			html = html + "<td>" + cell + "</td>";
+			html = html + "<td><input type='number' class='move-lot-qty-input' id='moveLotQty" + i + "' "
+				+ "min='0' max='" + pickedLotAvail[i] + "' value='" + pickedLotQtys[i] + "' "
+				+ "onchange='onMoveLotQtyChange(" + i + ")'> / " + pickedLotAvail[i] + "</td>";
+			html = html + "</tr>";
+		}
+
+		document.querySelector("#moveLotBody").innerHTML = html;
+		updateMoveLotTotalText();
+
+		let wayText = "추천 방식: " + pickedWay + " / 출발 구역 안의 로트만 대상입니다";
+
+		if (nearCount > 0) {
+			wayText = wayText + " / 유통기한 임박 로트 " + nearCount + "건이 포함되어 있습니다";
+		}
+		wayText = wayText + " / 수량 칸을 직접 눌러서 로트별로 조정할 수 있습니다";
+
+		document.querySelector("#moveLotWayText").innerHTML = wayText;
+
+		openModal("#moveLotModal");
+	}
+
+
+	/* 담당자가 모달에서 로트별 수량을 직접 조정했을 때 - 그 로트에 실제로
+	   남아있는 수량(pickedLotAvail)을 넘길 수는 없게 막습니다. */
+	function onMoveLotQtyChange(i) {
+
+		let input = document.querySelector("#moveLotQty" + i);
+		let value = input.value * 1;
+
+		if (isNaN(value) || value < 0) {
+			value = 0;
+		}
+		if (value > pickedLotAvail[i]) {
+			value = pickedLotAvail[i];
+			alert("이 로트에는 " + pickedLotAvail[i] + "개까지만 있습니다.");
+		}
+
+		value = Math.floor(value);
+		input.value = value;
+		pickedLotQtys[i] = value;
+
+		updateMoveLotTotalText();
+	}
+
+
+	function updateMoveLotTotalText() {
+
+		let total = 0;
+
+		for (let i = 0; i < pickedLotQtys.length; i++) {
+			total = total + pickedLotQtys[i];
+		}
+
+		document.querySelector("#moveLotTotalText").innerHTML = "총 이동 수량: " + addComma(total);
+	}
+
+
+	function closeMoveModal() {
+		closeModal("#moveLotModal");
+	}
+
+
+	/* ============================================================
+	   이동 등록  (POST /api/transfers)
+
+	   로트가 여러 개면 서버에 여러 번 나눠 보내야 합니다.
+	   한 건이 끝나면 다음 건을 보내는 방식으로 순서대로 처리합니다.
+	   ============================================================ */
+	function doRegister() {
+
+		let total = 0;
+		for (let i = 0; i < pickedLotQtys.length; i++) {
+			total = total + pickedLotQtys[i];
+		}
+		if (total <= 0) {
+			alert("이동할 수량이 없습니다. 로트별 수량을 확인해 주세요.");
+			return;
+		}
+
+		sendIndex = 0;
+		doneCount = 0;
+		splitCount = 0;
+
+		closeMoveModal();
+		sendOneMove();
+	}
+
+
+	function sendOneMove() {
+
+		if (sendIndex >= pickedLotIds.length) {
+			finishMove();
+			return;
+		}
+
+		/* 담당자가 이 로트 수량을 0으로 조정했으면 건너뜁니다 */
+		if (pickedLotQtys[sendIndex] <= 0) {
+			sendIndex = sendIndex + 1;
+			sendOneMove();
+			return;
+		}
+
+		let body = {
+			lotId: pickedLotIds[sendIndex],
+			fromZoneId: moveFromZoneId,
+			toZoneId: moveToZoneId,
+			quantity: pickedLotQtys[sendIndex],
+			handlerId: moveHandlerId
+		};
+
+		apiSend("POST", "/api/transfers", body, afterOneMove, failOneMove);
+	}
+
+
+	function afterOneMove(data) {
+
+		doneCount = doneCount + 1;
+
+		if (data.splitOccurred == true) {
+			splitCount = splitCount + 1;
+		}
+
+		sendIndex = sendIndex + 1;
+		sendOneMove();
+	}
+
+
+	/* 한 건이 실패해도 나머지는 계속 보냅니다 */
+	function failOneMove(message) {
+
+		alert("LOT-" + pickedLotIds[sendIndex] + " 이동 실패\n" + message);
+
+		sendIndex = sendIndex + 1;
+		sendOneMove();
+	}
+
+
+	function finishMove() {
+
+		clearInput(["#mvQty"]);
+
+		let msg = "이동이 등록되었습니다. (로트 " + doneCount + "건)";
+
+		if (splitCount > 0) {
+			msg = msg + "\n그중 " + splitCount + "건은 일부만 옮겨서 새 로트가 만들어졌습니다.";
+		}
 
 		/* 방금 등록한 이동이 이력에 바로 보이게 다시 받아옵니다 */
 		nowPage = 1;
 		loadHistory();
-
-		/* 로트 수량이 바뀌었으니 목록을 다시 받아옵니다 */
-		changeItem();
 
 		alert(msg);
 	}
@@ -396,9 +830,33 @@
 
 	/* ============================================================
 	   이동 이력 표  (GET /api/transfers)
+
+	   기간(from/to)은 서버가 직접 걸러줍니다 - 그래서 쪽 번호(total)도
+	   필터링된 기준으로 정확히 나옵니다.
 	   ============================================================ */
 	function loadHistory() {
-		apiGet("/api/transfers?page=" + nowPage + "&size=" + pageSize, putHistory);
+
+		let url = "/api/transfers?page=" + nowPage + "&size=" + pageSize;
+
+		let from = document.querySelector("#fFrom").value;
+		let to = document.querySelector("#fTo").value;
+
+		if (from != "") {
+			url = url + "&from=" + from;
+		}
+		if (to != "") {
+			url = url + "&to=" + to;
+		}
+
+		apiGet(url, putHistory);
+	}
+
+
+	/* 기간을 바꾸면 1페이지부터 다시 봅니다 (이전 필터로 보던 페이지 번호가
+	   새 필터에서는 안 맞을 수 있어서) */
+	function changeFilter() {
+		nowPage = 1;
+		loadHistory();
 	}
 
 
@@ -453,45 +911,17 @@
 	}
 
 
-	/* 기간 거르기는 서버에 없는 조건이라 화면에서 처리합니다 */
-	function getList() {
-
-		let from = document.querySelector("#fFrom").value;
-		let to = document.querySelector("#fTo").value;
-		let result = [];
-
-		for (let i = 0; i < rowTimes.length; i++) {
-
-			let day = rowTimes[i].substring(0, 10);
-
-			if (from != "" && day < from) {
-				continue;
-			}
-			if (to != "" && day > to) {
-				continue;
-			}
-
-			result[result.length] = i;
-		}
-
-		return result;
-	}
-
-
 	function drawList() {
 
-		let list = getList();
 		let html = "";
 
-		if (list.length == 0) {
+		if (rowTimes.length == 0) {
 			document.querySelector("#mvBody").innerHTML = "<tr><td colspan='7'>이동 이력이 없습니다.</td></tr>";
 			drawPaging("#paging", 0, 1, "goPage");
 			return;
 		}
 
-		for (let n = 0; n < list.length; n++) {
-
-			let i = list[n];
+		for (let i = 0; i < rowTimes.length; i++) {
 
 			html = html + "<tr>";
 			html = html + "<td>" + rowTimes[i] + "</td>";
@@ -506,7 +936,7 @@
 
 		document.querySelector("#mvBody").innerHTML = html;
 
-		/* 쪽 번호는 서버가 준 전체 건수 기준입니다 (기간 거르기는 화면 안에서만 적용) */
+		/* 쪽 번호는 서버가 준 전체 건수 기준입니다 (기간 필터도 서버가 이미 반영한 값) */
 		drawPaging("#paging", totalCount, nowPage, "goPage");
 	}
 

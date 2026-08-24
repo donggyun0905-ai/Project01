@@ -1,8 +1,15 @@
 /* 로그인 css */
 
+/* 배경 - 로그인 후 만나는 사이드바 색(#1f2628, common.css)을 기본 바탕으로 쓰고,
+   다른 화면들의 포인트 색(이동=#4F8A8B 청록, 출고=#1455c0 파랑)을 옅게 섞어 넣었습니다.
+   이렇게 하면 로그인 화면 혼자 튀는 색이 아니라, 로그인 이후 화면과 톤이 이어집니다. */
 body{
-	background: #80c5cc;
 	margin: 0;
+	background:
+		radial-gradient(circle at 12% 18%, rgba(79, 138, 139, 0.35), transparent 42%),
+		radial-gradient(circle at 88% 80%, rgba(20, 85, 192, 0.30), transparent 48%),
+		linear-gradient(135deg, #1c3a3d 0%, #1f2628 55%, #10181a 100%);
+	background-attachment: fixed;
 }
 
 /* common.css의 .container가 display:flex(가로)라서, width를 안 주면
@@ -44,8 +51,10 @@ main{
 	transition: background 0.2s, border-color 0.2s;
 }
 
+/* placeholder가 흰색이었는데 입력칸 배경도 거의 흰색(위 .form-group input)이라
+   글자가 안 보이던 문제라 - 입력 글자와 같은 남색 계열로, 옅게 바꿨습니다 */
 .form-group input::placeholder {
-	color: rgba(255, 255, 255, 0.7);
+	color: rgba(4, 42, 92, 0.45);
 }
 
 .form-group input:focus {
@@ -79,19 +88,21 @@ main{
 }
 
 /* 유리창(글래스모피즘) 카드 - 화면 중앙에 뜨는 실제 로그인 박스.
-   뒤 배경(body)이 무늬 없는 매끈한 그라디언트라서, backdrop-filter로
-   흐리게 해봤자 흐릴 디테일이 없어 티가 잘 안 났습니다. 그래서 투명도
-   (흰색 배경의 알파값, %)를 주된 조절 수단으로 씁니다 - 숫자가 클수록
-   더 진하고 불투명하게, 작을수록 더 연하고 뒤가 잘 비칩니다. */
+   이제 배경(body)이 그라디언트라 backdrop-filter로 흐릴 디테일이 생겨서
+   블러를 다시 넣었습니다. 배경이 어두운 톤으로 바뀐 만큼, 카드 자체의
+   흰색 불투명도는 예전(35%)보다 조금 더 올려서(45%) 안의 남색 글자가
+   어떤 배경 위에서도 또렷하게 보이도록 했습니다. */
 .glass-card{
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	background: rgb(227 227 227 / 35%);
-	border: 1px solid rgb(255 255 255 / 50%);
+	background: rgb(255 255 255 / 45%);
+	border: 1px solid rgb(255 255 255 / 45%);
 	border-radius: 28px;
 	padding: 40px 56px 48px;
-	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+	box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+	backdrop-filter: blur(18px);
+	-webkit-backdrop-filter: blur(18px);
 }
 
 /* 로고 */

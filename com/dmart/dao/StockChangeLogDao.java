@@ -3,6 +3,7 @@ package com.dmart.dao;
 import com.dmart.dto.StockChangeLog;
 
 import java.sql.*;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -107,15 +108,16 @@ public class StockChangeLogDao {
         return result;
     }
 
-    // 13번 목록 API용. lotId 선택 필터(없으면 전체 감사 로그).
-    public List<StockChangeLog> findPage(Connection conn, Long lotId, int offset, int limit) throws SQLException {
-        String sql = "SELECT * FROM STOCK_CHANGE_LOG" + whereClause(lotId) + " ORDER BY changed_at DESC LIMIT ? OFFSET ?";
+    // 13번 목록 API용. lotId/changeType/기간 선택 필터(없으면 전체 감사 로그).
+    // changeType/from/to는 화면(audit.html)에서 예전엔 "지금 페이지 안에서만" 걸러서
+    // 페이지네이션과 안 맞았는데, 여기서 직접 걸러주면 total도 필터링된 기준으로 정확히 나온다.
+    public List<StockChangeLog> findPage(Connection conn, Long lotId, String changeType, LocalDate from, LocalDate to,
+                                          int offset, int limit) throws SQLException {
+        String sql = "SELECT * FROM STOCK_CHANGE_LOG" + whereClause(lotId, changeType, from, to)
+                + " ORDER BY changed_at DESC LIMIT ? OFFSET ?";
         List<StockChangeLog> result = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = 1;
-            if (lotId != null) {
-                ps.setLong(idx++, lotId);
-            }
+            int idx = bindFilterParams(ps, 1, lotId, changeType, from, to);
             ps.setInt(idx++, limit);
             ps.setInt(idx, offset);
             try (ResultSet rs = ps.executeQuery()) {
@@ -127,12 +129,10 @@ public class StockChangeLogDao {
         return result;
     }
 
-    public int count(Connection conn, Long lotId) throws SQLException {
-        String sql = "SELECT COUNT(*) FROM STOCK_CHANGE_LOG" + whereClause(lotId);
+    public int count(Connection conn, Long lotId, String changeType, LocalDate from, LocalDate to) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM STOCK_CHANGE_LOG" + whereClause(lotId, changeType, from, to);
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            if (lotId != null) {
-                ps.setLong(1, lotId);
-            }
+            bindFilterParams(ps, 1, lotId, changeType, from, to);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getInt(1);
@@ -140,8 +140,39 @@ public class StockChangeLogDao {
         }
     }
 
-    private String whereClause(Long lotId) {
-        return lotId == null ? "" : " WHERE lot_id = ?";
+    private String whereClause(Long lotId, String changeType, LocalDate from, LocalDate to) {
+        StringBuilder sb = new StringBuilder();
+        if (lotId != null) {
+            sb.append(" AND lot_id = ?");
+        }
+        if (changeType != null) {
+            sb.append(" AND change_type = ?");
+        }
+        if (from != null) {
+            sb.append(" AND DATE(changed_at) >= ?");
+        }
+        if (to != null) {
+            sb.append(" AND DATE(changed_at) <= ?");
+        }
+        return sb.length() == 0 ? "" : " WHERE 1=1" + sb;
+    }
+
+    private int bindFilterParams(PreparedStatement ps, int startIndex, Long lotId, String changeType,
+                                  LocalDate from, LocalDate to) throws SQLException {
+        int idx = startIndex;
+        if (lotId != null) {
+            ps.setLong(idx++, lotId);
+        }
+        if (changeType != null) {
+            ps.setString(idx++, changeType);
+        }
+        if (from != null) {
+            ps.setDate(idx++, Date.valueOf(from));
+        }
+        if (to != null) {
+            ps.setDate(idx++, Date.valueOf(to));
+        }
+        return idx;
     }
 
     private StockChangeLog mapRow(ResultSet rs) throws SQLException {
