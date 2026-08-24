@@ -56,9 +56,9 @@
 			<div class="form-group">
 				<label>조회 기간</label>
 				<div class="date-range">
-					<input type="date" id="fromDate">
+					<input type="date" id="fromDate" onchange="loadData()">
 					<span>~</span>
-					<input type="date" id="toDate">
+					<input type="date" id="toDate" onchange="loadData()">
 				</div>
 			</div>
 		</section>
@@ -68,7 +68,7 @@
 
 			<div class="card">
 				<div class="card-header">
-					<h4>재고 회전율 (낮은 순)</h4>
+					<h4>재고 회전율 (높은 순)</h4>
 				</div>
 				<div id="turnArea"></div>
 			</div>
@@ -76,10 +76,6 @@
 			<div class="card">
 				<div class="card-header">
 					<h4>거래처별 출고 TOP5</h4>
-					<div class="switch-btns">
-						<button id="btnQty" class="active" onclick="changeSort('수량')">수량</button>
-						<button id="btnAmt" onclick="changeSort('금액')">금액</button>
-					</div>
 				</div>
 				<div id="rankArea"></div>
 			</div>
@@ -112,98 +108,123 @@
 	   통계 자료를 담아둘 배열들 (처음에는 비어 있다)
 	   ========================================================= */
 
-	// 재고 회전율 (회전율 = 기간 안에 나간 수량 / 평균 재고량)
+	// 재고 회전율 (서버가 회전율 높은 순 6개를 줍니다 - 아래 loadTurnover() 주석 참고)
 	let turnNames = [];
 	let turnRates = [];
 
-	// 거래처별 출고
+	// 거래처별 출고 (금액은 서버에 없는 값이라 수량만 씁니다)
 	let custNames = [];
 	let custQtys  = [];
-	let custAmts  = [];
 
-	// 입출고량 집계 (일 / 주 / 월)
-	let dayLabels = [];
-	let dayIn     = [];
-	let dayOut    = [];
+	// 입출고량 집계
+	let lineLabels = [];
+	let lineIn     = [];
+	let lineOut    = [];
 
-	let weekLabels = [];
-	let weekIn     = [];
-	let weekOut    = [];
-
-	let monthLabels = [];
-	let monthIn     = [];
-	let monthOut    = [];
 
 	/* =========================================================
-	   통계 자료를 가져온다
+	   화면에 쓸 자료를 가져온다
 
-	   [서버 연동 방법]
-	   지금은 서버가 없어서 값을 직접 적어두고 쓴다.
-	   나중에 서버가 완성되면 이 함수 안쪽만 아래처럼 바꾸면 되고,
-	   화면을 그리는 코드는 하나도 고칠 필요가 없다.
-
-	     function loadData() {
-	       let xhr = new XMLHttpRequest();
-	       xhr.open("GET", "http://localhost:8080/api/statistics/turnover", true);
-
-	       // 로그인 세션 쿠키(JSESSIONID)를 같이 보낸다 - 이게 없으면 401이 온다
-	       xhr.withCredentials = true;
-
-	       xhr.onload = function() {
-	         let res = JSON.parse(xhr.responseText);
-
-	         if (res.success == false) {
-	           alert(res.error.message);
-	           return;
-	         }
-
-	         let list = res.data;
-	         for (let i = 0; i < list.length; i++) {
-	           turnNames[i] = list[i].itemName;
-	           turnRates[i] = list[i].turnoverRate;
-	         }
-
-	         drawAll();
-	       };
-	       xhr.send();
-	     }
+	   카드 3개가 서로 다른 API에서 나뉘어 오기 때문에, 각자 받아오는
+	   대로 자기 카드만 다시 그립니다. (dashboard.html과 같은 방식)
 	   ========================================================= */
 	function loadData() {
-		turnNames = ["두부 프리미엄", "어묵 정품", "유리병 소스", "베이컨 정품", "즉석밥 세트", "생수 2L"];
-		turnRates = [0.12, 0.18, 0.31, 0.45, 1.20, 2.85];
-
-		// 거래처 이름은 실제 시드 데이터 기준
-		custNames = ["쿠팡 풀필먼트", "이마트 성수점", "홈플러스 강서점", "롯데마트 잠실점", "GS25 물류센터"];
-		custQtys  = [8420, 6870, 5230, 4910, 4380];
-		custAmts  = [42100000, 35600000, 27300000, 31200000, 18900000];
-
-		dayLabels = ["08-05", "08-06", "08-07", "08-08", "08-09", "08-10", "08-11"];
-		dayIn     = [820, 1040, 690, 1250, 900, 760, 1180];
-		dayOut    = [640, 880, 720, 980, 1100, 540, 860];
-
-		weekLabels = ["1주차", "2주차", "3주차", "4주차"];
-		weekIn     = [5230, 6110, 4980, 6640];
-		weekOut    = [4870, 5490, 5960, 5120];
-
-		monthLabels = ["5월", "6월", "7월", "8월"];
-		monthIn     = [21200, 23400, 24800, 12600];
-		monthOut    = [19800, 22100, 23950, 11400];
-
-		// 자료를 다 받은 뒤에 화면을 그린다
-		drawAll();
+		loadTurnover();
+		loadRanking();
+		loadLineChart();
 	}
 
-	// 화면 전체를 그린다
-	function drawAll() {
+
+	/* ---------------------------------------------------------
+	   재고 회전율 (높은 순) - 잘 나가는 상품 TOP6
+	   서버(/api/statistics/turnover)가 회전율 높은 순으로 6개를 줍니다.
+	   --------------------------------------------------------- */
+	function loadTurnover() {
+		apiGet("/api/statistics/turnover", putTurnover);
+	}
+
+	function putTurnover(data) {
+
+		turnNames = [];
+		turnRates = [];
+
+		for (let i = 0; i < data.length; i++) {
+			turnNames[i] = data[i].itemName;
+			turnRates[i] = data[i].turnoverRatio;
+		}
+
 		drawTurnover();
+	}
+
+
+	/* ---------------------------------------------------------
+	   거래처별 출고 TOP5 (수량 기준)
+	   --------------------------------------------------------- */
+	function loadRanking() {
+
+		let from = document.querySelector("#fromDate").value;
+		let to = document.querySelector("#toDate").value;
+
+		apiGet("/api/statistics/clients/top5?from=" + from + "&to=" + to, putRanking);
+	}
+
+	function putRanking(data) {
+
+		custNames = [];
+		custQtys  = [];
+
+		for (let i = 0; i < data.length; i++) {
+			custNames[i] = data[i].partnerName;
+			custQtys[i]  = data[i].totalQty;
+		}
+
 		drawRanking();
+	}
+
+
+	/* ---------------------------------------------------------
+	   입출고량 집계 (일/주/월 버튼을 누를 때마다 서버에 새로 요청합니다.
+	   예전처럼 세 단위를 미리 다 받아서 화면에서만 바꾸는 방식이 아닙니다)
+	   --------------------------------------------------------- */
+	function loadLineChart() {
+
+		let from = document.querySelector("#fromDate").value;
+		let to = document.querySelector("#toDate").value;
+		let unit = unitToParam(nowUnit); // "일/주/월" -> "day/week/month"
+
+		apiGet("/api/statistics/inout?unit=" + unit + "&from=" + from + "&to=" + to, putLineChart);
+	}
+
+	// 서버는 unit 값을 영어(day/week/month)로만 받습니다
+	function unitToParam(unit) {
+		if (unit == "주") {
+			return "week";
+		}
+		if (unit == "월") {
+			return "month";
+		}
+		return "day";
+	}
+
+	function putLineChart(data) {
+
+		lineLabels = [];
+		lineIn     = [];
+		lineOut    = [];
+
+		for (let i = 0; i < data.length; i++) {
+			lineLabels[i] = data[i].period;
+			lineIn[i]     = data[i].inboundQty;
+			lineOut[i]    = data[i].outboundQty;
+		}
+
 		drawLineChart();
 	}
+
 
 	/* =========================================================
 	   화면 상태
 	   ========================================================= */
-	let nowSort = "수량";   // 거래처 정렬 기준
 	let nowUnit = "일";     // 입출고 집계 단위
 	let lineChart = null;   // 그래프를 담아둘 변수
 
@@ -214,9 +235,14 @@
 
 	/* =========================================================
 	   재고 회전율 막대를 그린다
-	   회전율이 낮은 순서로 이미 정렬해 두었다
 	   ========================================================= */
 	function drawTurnover() {
+
+		if (turnNames.length == 0) {
+			document.querySelector("#turnArea").innerHTML = "<p>표시할 자료가 없습니다.</p>";
+			return;
+		}
+
 		// 가장 큰 값을 찾는다 (이 값을 100%로 잡고 나머지 길이를 정한다)
 		let maxRate = 0;
 		for (let i = 0; i < turnRates.length; i++) {
@@ -228,29 +254,18 @@
 		let html = "";
 		for (let i = 0; i < turnNames.length; i++) {
 			// 막대 길이를 퍼센트로 계산한다
-			let percent = Math.round(turnRates[i] / maxRate * 100);
-
-			// 회전율이 0.2 미만이면 오래 묵은 재고로 본다
-			let isDead = false;
-			if (turnRates[i] < 0.2) {
-				isDead = true;
+			let percent = 0;
+			if (maxRate > 0) {
+				percent = Math.round(turnRates[i] / maxRate * 100);
 			}
 
 			html = html + '<div class="bar-row">';
 			html = html + '	<div class="bar-top">';
-			html = html + '		<span class="bar-name">' + turnNames[i];
-			if (isDead == true) {
-				html = html + '<span class="dead-tag">장기 재고</span>';
-			}
-			html = html + '		</span>';
+			html = html + '		<span class="bar-name">' + turnNames[i] + '</span>';
 			html = html + '		<span class="bar-num">' + turnRates[i].toFixed(2) + '</span>';
 			html = html + '	</div>';
 			html = html + '	<div class="bar-back">';
-			if (isDead == true) {
-				html = html + '		<div class="bar-fill dead" style="width:' + percent + '%"></div>';
-			} else {
-				html = html + '		<div class="bar-fill" style="width:' + percent + '%"></div>';
-			}
+			html = html + '		<div class="bar-fill" style="width:' + percent + '%"></div>';
 			html = html + '	</div>';
 			html = html + '</div>';
 		}
@@ -262,30 +277,31 @@
 	   거래처별 출고 순위를 그린다
 	   ========================================================= */
 	function drawRanking() {
-		// 정렬 기준에 따라 쓸 값을 정한다
-		let values = custQtys;
-		let unit = "EA";
-		if (nowSort == "금액") {
-			values = custAmts;
-			unit = "원";
+
+		if (custNames.length == 0) {
+			document.querySelector("#rankArea").innerHTML = "<p>표시할 자료가 없습니다.</p>";
+			return;
 		}
 
 		// 가장 큰 값을 찾는다
 		let maxValue = 0;
-		for (let i = 0; i < values.length; i++) {
-			if (values[i] > maxValue) {
-				maxValue = values[i];
+		for (let i = 0; i < custQtys.length; i++) {
+			if (custQtys[i] > maxValue) {
+				maxValue = custQtys[i];
 			}
 		}
 
 		let html = "";
 		for (let i = 0; i < custNames.length; i++) {
-			let percent = Math.round(values[i] / maxValue * 100);
+			let percent = 0;
+			if (maxValue > 0) {
+				percent = Math.round(custQtys[i] / maxValue * 100);
+			}
 
 			html = html + '<div class="bar-row">';
 			html = html + '	<div class="bar-top">';
 			html = html + '		<span class="bar-name">' + (i + 1) + '. ' + custNames[i] + '</span>';
-			html = html + '		<span class="bar-num">' + addComma(values[i]) + ' ' + unit + '</span>';
+			html = html + '		<span class="bar-num">' + addComma(custQtys[i]) + ' EA</span>';
 			html = html + '	</div>';
 			html = html + '	<div class="bar-back">';
 			html = html + '		<div class="bar-fill" style="width:' + percent + '%"></div>';
@@ -300,20 +316,6 @@
 	   입출고량 집계 선그래프를 그린다
 	   ========================================================= */
 	function drawLineChart() {
-		// 단위에 맞는 자료를 고른다
-		let labels = dayLabels;
-		let inData = dayIn;
-		let outData = dayOut;
-
-		if (nowUnit == "주") {
-			labels = weekLabels;
-			inData = weekIn;
-			outData = weekOut;
-		} else if (nowUnit == "월") {
-			labels = monthLabels;
-			inData = monthIn;
-			outData = monthOut;
-		}
 
 		// 이미 그려둔 그래프가 있으면 먼저 지운다
 		if (lineChart != null) {
@@ -325,10 +327,10 @@
 		lineChart = new Chart(area, {
 			type: "line",
 			data: {
-				labels: labels,
+				labels: lineLabels,
 				datasets: [
-					{ label: "입고량", data: inData, borderColor: "#1f2628", backgroundColor: "#1f262822", fill: true, tension: 0.3 },
-					{ label: "출고량", data: outData, borderColor: "#9b9b9b", backgroundColor: "#9b9b9b22", fill: true, tension: 0.3 }
+					{ label: "입고량", data: lineIn, borderColor: "#1f2628", backgroundColor: "#1f262822", fill: true, tension: 0.3 },
+					{ label: "출고량", data: lineOut, borderColor: "#9b9b9b", backgroundColor: "#9b9b9b22", fill: true, tension: 0.3 }
 				]
 			},
 			options: {
@@ -339,26 +341,8 @@
 	}
 
 	/* =========================================================
-	   버튼을 눌렀을 때
+	   일 / 주 / 월 버튼을 눌렀을 때
 	   ========================================================= */
-
-	// 수량 / 금액 버튼
-	function changeSort(sort) {
-		nowSort = sort;
-
-		// 누른 버튼만 진하게 만든다
-		if (sort == "수량") {
-			document.querySelector("#btnQty").className = "active";
-			document.querySelector("#btnAmt").className = "";
-		} else {
-			document.querySelector("#btnQty").className = "";
-			document.querySelector("#btnAmt").className = "active";
-		}
-
-		drawRanking();
-	}
-
-	// 일 / 주 / 월 버튼
 	function changeUnit(unit) {
 		nowUnit = unit;
 
@@ -375,7 +359,7 @@
 			document.querySelector("#btnMonth").className = "active";
 		}
 
-		drawLineChart();
+		loadLineChart();
 	}
 
 	/* =========================================================
@@ -383,8 +367,6 @@
 	   ========================================================= */
 
 	// 조회 기간 칸에 기본값을 넣어둔다 (최근 일주일)
-	/* getDateText 는 common.js 로 옮겼습니다 */
-
 	let today = new Date();
 	let weekAgo = new Date();
 	weekAgo.setDate(weekAgo.getDate() - 6);
