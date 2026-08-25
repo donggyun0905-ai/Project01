@@ -1,10 +1,12 @@
 package com.dmart.service;
 
+import com.dmart.dao.AlertDao;
 import com.dmart.dao.ApprovalDao;
 import com.dmart.dao.ItemDao;
 import com.dmart.dao.PartnerDao;
 import com.dmart.dao.StockLotDao;
 import com.dmart.db.DBConnection;
+import com.dmart.dto.Alert;
 import com.dmart.dto.Approval;
 import com.dmart.dto.Partner;
 import com.dmart.dto.StockLot;
@@ -24,6 +26,7 @@ public class ApprovalService {
     private final ItemDao itemDao = new ItemDao();
     private final PartnerDao partnerDao = new PartnerDao();
     private final StockLotDao stockLotDao = new StockLotDao();
+    private final AlertDao alertDao = new AlertDao();
     private final InboundService inboundService = new InboundService();
     private final OutboundService outboundService = new OutboundService();
 
@@ -53,9 +56,27 @@ public class ApprovalService {
                     throw new IllegalArgumentException("partnerId=" + partnerId + "는 " + expectedType + "가 아닙니다");
                 }
             }
+
+            // 이상출고 - 요청 수량이 지금 그 품목의 총 재고보다 많으면 알림을 만들어 관리자가
+            // 검토하도록 한다(11번 참고). alertId를 이미 다른 경로에서 받아온 경우(예: 재고초과
+            // 알림에서 넘어온 요청)는 중복으로 새로 만들지 않는다.
+            Long effectiveAlertId = alertId;
+            if (effectiveAlertId == null && "출고".equals(requestType)) {
+                int totalStock = stockLotDao.sumQuantityByItemId(conn, itemId);
+                if (requestedQty > totalStock) {
+                    Alert abnormalAlert = new Alert();
+                    abnormalAlert.setItemId(itemId);
+                    abnormalAlert.setAlertType("이상출고");
+                    abnormalAlert.setMessage("품목(itemId=" + itemId + ") 출고 요청 수량(" + requestedQty
+                            + ")이 현재 재고(" + totalStock + ")보다 많습니다");
+                    abnormalAlert.setIsResolved(false);
+                    effectiveAlertId = alertDao.insert(conn, abnormalAlert);
+                }
+            }
+
             Approval approval = new Approval();
             approval.setItemId(itemId);
-            approval.setAlertId(alertId);
+            approval.setAlertId(effectiveAlertId);
             approval.setRequestType(requestType);
             approval.setRequestedQty(requestedQty);
             approval.setPartnerId(partnerId);
@@ -128,6 +149,18 @@ public class ApprovalService {
             a.setApprovedBy(approvedBy);
             a.setApprovedAt(LocalDateTime.now());
             approvalDao.update(conn, a);
+
+            // 이 승인 건이 이상출고 알림에서 온 거라면, 승인이든 반려든 사람이 검토해서
+            // 결정한 시점에 그 알림도 같이 해결 처리한다(재고부족/재고초과처럼 재고 수치가
+            // 저절로 정상화되는 종류가 아니라, "검토했다" 자체가 해결 조건이라서).
+            if (a.getAlertId() != null) {
+                Alert linkedAlert = alertDao.findById(conn, a.getAlertId());
+                if (linkedAlert != null && "이상출고".equals(linkedAlert.getAlertType())) {
+                    linkedAlert.setIsResolved(true);
+                    alertDao.update(conn, linkedAlert);
+                }
+            }
+
             return a;
         });
 

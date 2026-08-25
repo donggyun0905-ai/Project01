@@ -56,16 +56,27 @@
 		<!-- 입력폼 -->
 		<section class="form-box">
 				<div class="form-group">
+					<label>이동일</label>
+					<input type="date" id="mvDate" readonly>
+				</div>
+
+				<div class="form-group">
+					<label>카테고리</label>
+					<select id="mvCategory">
+					</select>
+				</div>
+
+				<div class="form-group">
 					<label>품목명</label>
 					<input type="text" id="mvName" list="itemList" onchange="changeItem()" onkeyup="changeItem()" placeholder="예: 두부">
 					<datalist id="itemList"></datalist>
 				</div>
-				
+
 				<div class="form-group">
 					<label>품목 코드</label>
 					<input type="text" id="mvCode" readonly placeholder="품목을 고르면 채워집니다">
 				</div>
-				
+
 				<div class="form-group">
 					<label>출발 창고</label>
 					<select id="mvFromWarehouse" onchange="changeFromWarehouse()">
@@ -77,11 +88,6 @@
 					<select id="mvFromZone" onchange="changeFromZone()">
 					</select>
 					<span class="hint-text" id="mvFromAvailText"></span>
-				</div>
-
-				<div class="form-group">
-					<label>총 이동 수량</label>
-					<input type="number" id="mvQty" onchange="checkMoveQtyMax()">
 				</div>
 
 				<div class="form-group">
@@ -155,7 +161,10 @@
 			</div>
 			<br>
 			아래 로트에서 이동 수량이 차감됩니다.<br>
-			<strong id="moveLotTotalText"></strong>
+			<div class="move-total-line">
+				총 이동 수량 :
+				<input type="number" id="moveTotalQtyInput" min="0" onchange="onMoveTotalQtyChange()">
+			</div>
 		</div>
 		<div class="lot-table-wrap">
 			<table>
@@ -185,10 +194,13 @@
 <!-- ============================================================
      재고 이동 화면 로직
      ------------------------------------------------------------
-     이제 로트를 직접 고르지 않고, 출발 구역 + 총 이동 수량만 입력하면
-     그 구역 안의 로트를 유통기한/입고일 순으로 자동 추천해서 모달로 보여줍니다
-     (출고 등록 화면과 같은 방식). 서버(TransferService)가 검사하는 규칙은
-     화면에서도 미리 막습니다.
+     이제 로트를 직접 고르지 않고, 출발 구역만 고르면 그 구역 안의 로트를
+     유통기한/입고일 순으로 정렬해서 모달로 보여줍니다(출고 등록 화면과 같은 방식).
+     예전엔 "총 이동 수량"을 먼저 입력받아 서버 추천값으로 로트별 수량을 미리
+     채워 줬는데, 결국 모달에서 로트별로 다시 정하게 되어 있어 중복이라 없앴습니다
+     - 정렬 순서만 자동으로 정해 주고, 수량은 로트마다 0에서 시작해 직접 입력합니다.
+
+     서버(TransferService)가 검사하는 규칙은 화면에서도 미리 막습니다.
        1) 출발 구역과 도착 구역이 같으면 안 됨
        2) 품목 단위와 도착 구역 이름이 같아야 함 (EA 로트는 EA 구역으로만)
        3) 로트에 남은 수량보다 많이 옮길 수 없음
@@ -202,6 +214,13 @@
 	   재고 이동 - 서버 연동
 
 	   보내는 값 : lotId / fromZoneId / toZoneId / quantity / handlerId
+
+	   "이동일"은 화면에 보여주기만 하고 서버로는 안 보냅니다 - STOCK_TRANSFER.moved_at은
+	   DB가 이동이 실제로 기록되는 순간의 시각을 자동으로 넣는 컬럼이라(감사 기록으로서
+	   신뢰할 수 있어야 해서), 사용자가 임의로 바꿀 수 없게 그대로 두기로 했습니다.
+	   (한 번은 직접 고를 수 있게 서버까지 고쳤었는데, 이동은 입고/출고와 달리 "옮기는
+	   순간 바로 기록"하는 일이라 날짜를 따로 고를 실익이 적고, 오히려 실제 기록 시점을
+	   신뢰하기 어렵게 만든다고 판단해 되돌렸습니다.)
 
 	   서버가 검사하는 규칙
 	     1) 출발 구역과 도착 구역이 같으면 안 됨
@@ -222,12 +241,6 @@
 	let moveFromZoneId = -1;
 	let moveToZoneId = -1;
 	let moveHandlerId = -1;
-
-	/* 총 이동 수량 입력의 상한을 정하는 두 값 - 출발 구역엔 얼마나 있는지,
-	   도착 구역엔 얼마나 더 들어갈 자리가 있는지. 둘 다 알면 더 작은 쪽이 상한이 됩니다.
-	   아직 모르면(품목/구역 안 고름, 용량 미설정) null로 둡니다. */
-	let mvFromAvail = null;
-	let mvToRoom = null;
 
 	/* 여러 로트를 순서대로 보낼 때 쓰는 값 */
 	let sendIndex = 0;
@@ -259,6 +272,9 @@
 		fillWarehouse("#mvToWarehouse");
 		fillZone("#mvToWarehouse", "#mvToZone");
 		fillItemList("#itemList");
+		fillCategory("#mvCategory");
+
+		document.querySelector("#mvDate").value = getToday();
 
 		/* 도착 구역 남은 공간은 품목을 고르기 전에도 보여 줍니다 */
 		updateToZoneRoom();
@@ -281,6 +297,10 @@
 		}
 
 		document.querySelector("#mvCode").value = itemCodes[i];
+
+		if (itemCategoryList[i] != null) {
+			document.querySelector("#mvCategory").value = itemCategoryList[i];
+		}
 
 		pickSameZone("#mvFromZone", itemUnitList[i]);
 		pickSameZone("#mvToZone", itemUnitList[i]);
@@ -346,7 +366,8 @@
 	}
 
 
-	/* 출발 구역에 지금 고른 품목이 얼마나 있는지 보여줍니다.
+	/* 출발 구역에 지금 고른 품목이 얼마나 있는지 참고용으로 보여줍니다(입력 상한은 아님 -
+	   실제로 얼마나 옮길지는 자동 추천 모달에서 로트별로 직접 정합니다).
 	   품목이나 구역을 아직 안 골랐으면 안내를 지웁니다. */
 	function updateFromZoneAvailable() {
 
@@ -357,8 +378,6 @@
 
 		if (itemId == -1 || isNaN(zoneId) || zoneId <= 0) {
 			hint.innerHTML = "";
-			mvFromAvail = null;
-			applyMoveQtyMax();
 			return;
 		}
 
@@ -376,12 +395,10 @@
 		}
 
 		document.querySelector("#mvFromAvailText").innerHTML = "이 구역 재고: " + addComma(total) + "개";
-		mvFromAvail = total;
-		applyMoveQtyMax();
 	}
 
 
-	/* 도착 구역에 지금 얼마나 더 들어갈 자리가 있는지 보여줍니다.
+	/* 도착 구역에 지금 얼마나 더 들어갈 자리가 있는지 참고용으로 보여줍니다.
 	   loadMasterFromServer가 이미 받아 둔 zoneCapacities/zoneUsed를 그대로 씁니다
 	   (창고/구역 관리 화면과 같은 usedQuantity 기준이라 정확합니다).
 	   용량을 정해 두지 않은 구역은 제한이 없는 걸로 봅니다. */
@@ -397,77 +414,19 @@
 			}
 
 			if (zoneCapacities[i] == null) {
-				mvToRoom = null;
 				hint.innerHTML = "용량 미설정 (제한 없음)";
 			} else {
 				let room = zoneCapacities[i] - zoneUsed[i];
 				if (room < 0) {
 					room = 0;
 				}
-				mvToRoom = room;
 				hint.innerHTML = "남은 공간: " + addComma(room) + "개";
 			}
 
-			applyMoveQtyMax();
 			return;
 		}
 
-		mvToRoom = null;
 		hint.innerHTML = "";
-		applyMoveQtyMax();
-	}
-
-
-	/* 출발 구역 재고(mvFromAvail)와 도착 구역 남은 공간(mvToRoom) 중
-	   더 작은 값으로 총 이동 수량의 상한을 정합니다. 둘 다 모르면 상한 없음. */
-	function applyMoveQtyMax() {
-
-		let qtyInput = document.querySelector("#mvQty");
-		let limits = [];
-
-		if (mvFromAvail != null) {
-			limits[limits.length] = mvFromAvail;
-		}
-		if (mvToRoom != null) {
-			limits[limits.length] = mvToRoom;
-		}
-
-		if (limits.length == 0) {
-			qtyInput.removeAttribute("max");
-			return;
-		}
-
-		let max = limits[0];
-		for (let i = 1; i < limits.length; i++) {
-			if (limits[i] < max) {
-				max = limits[i];
-			}
-		}
-
-		qtyInput.setAttribute("max", max);
-
-		/* 이미 입력해 둔 수량이 새로 바뀐 상한을 넘으면 맞춰 줍니다 */
-		checkMoveQtyMax();
-	}
-
-
-	/* 총 이동 수량이 상한(#mvQty의 max)을 넘으면 그 값으로 맞춰 줍니다 */
-	function checkMoveQtyMax() {
-
-		let input = document.querySelector("#mvQty");
-		let max = input.getAttribute("max");
-
-		if (max == null || input.value == "") {
-			return;
-		}
-
-		let value = input.value * 1;
-		let maxVal = max * 1;
-
-		if (value > maxVal) {
-			input.value = maxVal;
-			alert("지금 조건에서는 " + addComma(maxVal) + "개까지만 옮길 수 있습니다.");
-		}
 	}
 
 
@@ -507,8 +466,8 @@
 	   ============================================================ */
 	function openMoveRecommend() {
 
-		if (isBlank(["#mvName", "#mvQty"]) == true) {
-			alert("품목명, 수량을 채워 주세요.");
+		if (isBlank(["#mvName"]) == true) {
+			alert("품목명을 채워 주세요.");
 			return;
 		}
 
@@ -516,13 +475,6 @@
 
 		if (itemId == -1) {
 			alert("등록되지 않은 품목입니다.\n후보 목록에서 골라 주세요.");
-			return;
-		}
-
-		let qty = document.querySelector("#mvQty").value * 1;
-
-		if (qty <= 0) {
-			alert("수량은 1개 이상이어야 합니다.");
 			return;
 		}
 
@@ -593,9 +545,6 @@
 		pickedLotQtys = [];
 		pickedLotAvail = [];
 
-		let moveQty = document.querySelector("#mvQty").value * 1;
-		let rest = moveQty;
-
 		for (let i = 0; i < list.length; i++) {
 
 			if (list[i].quantity <= 0) {
@@ -606,27 +555,15 @@
 			pickedLotIn[pickedLotIn.length] = list[i].inboundDate;
 			pickedLotExp[pickedLotExp.length] = list[i].expiryDate == null ? "" : list[i].expiryDate;
 			pickedLotAvail[pickedLotAvail.length] = list[i].quantity;
-
-			let take = 0;
-
-			if (rest > 0) {
-				take = Math.min(rest, list[i].quantity);
-				rest = rest - take;
-			}
-
-			pickedLotQtys[pickedLotQtys.length] = take;
+			pickedLotQtys[pickedLotQtys.length] = 0;
 		}
 
 		let text = "";
 
 		if (pickedWay == "FEFO") {
-			text = "해당 품목은 유통기한 관리 대상입니다.<br>따라서 <strong>FEFO(유통기한 기준)</strong> 방식이 자동 추천되었습니다.";
+			text = "해당 품목은 유통기한 관리 대상입니다.<br>따라서 <strong>FEFO(유통기한 기준)</strong> 순으로 로트를 보여줍니다.";
 		} else {
-			text = "해당 품목은 유통기한 관리 대상이 아닙니다.<br>따라서 <strong>FIFO(입고일 기준)</strong> 방식이 자동 추천되었습니다.";
-		}
-
-		if (rest > 0) {
-			text = text + "<br><strong class='zone-full'>이 구역에 남은 재고가 " + (moveQty - rest) + "개뿐이라, 아래 수량 입력칸에 그만큼만 미리 채워뒀습니다(재고가 늘어난 게 아니라 입력값만 채운 것입니다). 부족한 만큼은 옮길 수 없으니, 다른 구역에서 별도로 이동하거나 아래에서 직접 조정해 주세요.</strong>";
+			text = "해당 품목은 유통기한 관리 대상이 아닙니다.<br>따라서 <strong>FIFO(입고일 기준)</strong> 순으로 로트를 보여줍니다.";
 		}
 
 		document.querySelector("#moveRecommendText").innerHTML = text;
@@ -682,12 +619,12 @@
 		document.querySelector("#moveLotBody").innerHTML = html;
 		updateMoveLotTotalText();
 
-		let wayText = "추천 방식: " + pickedWay + " / 출발 구역 안의 로트만 대상입니다";
+		let wayText = "정렬 방식: " + pickedWay + " / 출발 구역 안의 로트만 대상입니다";
 
 		if (nearCount > 0) {
 			wayText = wayText + " / 유통기한 임박 로트 " + nearCount + "건이 포함되어 있습니다";
 		}
-		wayText = wayText + " / 수량 칸을 직접 눌러서 로트별로 조정할 수 있습니다";
+		wayText = wayText + " / 로트별 수량 칸에 옮길 수량을 직접 입력하세요";
 
 		document.querySelector("#moveLotWayText").innerHTML = wayText;
 
@@ -726,7 +663,41 @@
 			total = total + pickedLotQtys[i];
 		}
 
-		document.querySelector("#moveLotTotalText").innerHTML = "총 이동 수량: " + addComma(total);
+		document.querySelector("#moveTotalQtyInput").value = total;
+	}
+
+
+	/* "총 이동 수량"에 직접 숫자를 입력하면, 유통기한/입고일 순(정렬된 순서 그대로)으로
+	   앞에서부터 로트별 수량을 자동으로 채워 줍니다. 로트별 수량 칸을 하나씩 채우기
+	   번거로울 때 한 번에 채우는 용도이고, 채운 뒤에도 로트별로 다시 직접 조정할 수 있습니다. */
+	function onMoveTotalQtyChange() {
+
+		let input = document.querySelector("#moveTotalQtyInput");
+		let requested = input.value * 1;
+
+		if (isNaN(requested) || requested < 0) {
+			requested = 0;
+		}
+
+		let totalAvail = 0;
+		for (let i = 0; i < pickedLotAvail.length; i++) {
+			totalAvail = totalAvail + pickedLotAvail[i];
+		}
+
+		if (requested > totalAvail) {
+			requested = totalAvail;
+			alert("이 구역에 남은 재고가 " + addComma(totalAvail) + "개뿐이라, 그만큼만 채웠습니다.");
+		}
+
+		let rest = requested;
+
+		for (let i = 0; i < pickedLotIds.length; i++) {
+			let take = Math.min(rest, pickedLotAvail[i]);
+			pickedLotQtys[i] = take;
+			rest = rest - take;
+		}
+
+		openMoveLotTable();
 	}
 
 
@@ -812,7 +783,8 @@
 
 	function finishMove() {
 
-		clearInput(["#mvQty"]);
+		clearInput(["#mvName", "#mvCode"]);
+		document.querySelector("#mvFromAvailText").innerHTML = "";
 
 		let msg = "이동이 등록되었습니다. (로트 " + doneCount + "건)";
 

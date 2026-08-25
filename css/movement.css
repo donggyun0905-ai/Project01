@@ -90,8 +90,28 @@
 	color: #1455c0;
 }
 
-.move-modal #moveLotTotalText {
+.move-total-line {
+	display: flex;
+	align-items: center;
+	gap: 8px;
 	font-size: 16px;
+	font-weight: 600;
+	margin-top: 6px;
+}
+
+/* 여기에 수량을 입력하면 아래 로트에 유통기한/입고일 순으로 자동으로 채워집니다 */
+#moveTotalQtyInput {
+	width: 100px;
+	padding: 8px 10px;
+	border: 1px solid #ccc;
+	border-radius: 4px;
+	font-size: 14px;
+	text-align: right;
+}
+
+#moveTotalQtyInput:focus {
+	outline: none;
+	border-color: #4F8A8B;
 }
 
 /* 로트가 많아지면 표 안에서만 스크롤됩니다 (헤더/버튼 위치는 안 밀림) */
