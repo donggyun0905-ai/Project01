@@ -70,6 +70,17 @@ td .delete-btn {
 	margin: 0 4px;
 }
 
+/* NO 컬럼 옆 정렬 화살표 - 누르면 등록순/최신순이 뒤집힙니다 */
+.sort-icon {
+	margin-left: 4px;
+	cursor: pointer;
+	color: #888;
+}
+
+.sort-icon:hover {
+	color: #1d4ed8;
+}
+
 td .action-buttons {
 	display: flex;
 	gap: 8px;

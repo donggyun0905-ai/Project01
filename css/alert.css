@@ -284,6 +284,23 @@
 	line-height: 1.6;
 }
 
+/* 창고정리추천 알림 상세 - 구역 이동(대형(0) EA → 대형(1) EA)을 굵고 가운데 정렬로 강조하고,
+   수량/점유율은 그 밑에 작게 보여줍니다 (다른 화면의 recommend-box와 같은 타이포그래피) */
+.consol-detail strong {
+	display: block;
+	font-size: 17px;
+	color: #1455c0;
+	text-align: center;
+}
+
+.consol-detail span {
+	display: block;
+	margin-top: 8px;
+	font-size: 13px;
+	color: #666;
+	text-align: center;
+}
+
 /* 모달은 기본으로 숨기고, active 가 붙을 때만 보이게 합니다.
    (화면 설계 중 모양을 보려고 display: flex 로 열어둔 것을 되돌린 것입니다) */
 .modal-overlay {

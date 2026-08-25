@@ -103,13 +103,12 @@
 					<tr>
 						<th><input type="checkbox" id="checkAll" onclick="toggleAll()"></th>
 						<th>구분</th>
-						<th>알림 제목</th> 
-						<th>상세 내용</th> 
+						<th>알림 제목</th>
+						<th>내용</th>
 						<th>카테고리</th>
 						<th>발생 일시</th>
 						<th>상태</th>
-						<th>조치</th>
-					</tr>				
+					</tr>
 				</thead>
 				
 				<!-- 여러 건을 한 번에 해결 처리하는 줄 -->
@@ -437,7 +436,7 @@
 		let html = "";
 
 		if (all.length == 0) {
-			document.querySelector("#listArea").innerHTML = "<tr><td colspan='8'>조건에 맞는 알림이 없습니다.</td></tr>";
+			document.querySelector("#listArea").innerHTML = "<tr><td colspan='7'>조건에 맞는 알림이 없습니다.</td></tr>";
 			drawPaging("#paging", 0, 1, "goPage");
 			return;
 		}
@@ -470,15 +469,21 @@
 				checkBox = "<input type='checkbox' class='row-check' value='" + i + "' onclick='countChecked()'>";
 			}
 
-			html = html + "<tr>";
-			html = html + "<td>" + checkBox + "</td>";
+			/* 창고정리추천은 구역/수량까지 다 적으면 표 안에서 문장이 너무 길어지니,
+			   여기선 짧게만 보여주고 자세한 내용(구역/수량)은 행을 눌러 여는 상세보기 모달에서 봅니다 */
+			let content = plainText(messages[i]);
+			if (types[i] == "창고정리추천") {
+				content = "재고가 여러 구역에 분산되어 있습니다";
+			}
+
+			html = html + "<tr onclick='openDetail(" + i + ")'>";
+			html = html + "<td onclick='event.stopPropagation()'>" + checkBox + "</td>";
 			html = html + "<td>" + types[i] + "</td>";
 			html = html + "<td>" + name + " " + types[i] + "</td>";
-			html = html + "<td>" + plainText(messages[i]) + "</td>";
+			html = html + "<td>" + content + "</td>";
 			html = html + "<td>" + category + "</td>";
 			html = html + "<td>" + times[i] + "</td>";
 			html = html + "<td>" + stateText + "</td>";
-			html = html + "<td><button class='edit-btn' onclick='openDetail(" + i + ")'>상세보기</button></td>";
 			html = html + "</tr>";
 		}
 
@@ -565,11 +570,20 @@
 		document.querySelector("#modalCategory").innerHTML = category;
 		document.querySelector("#modalMin").innerHTML = min;
 		document.querySelector("#modalTime").innerHTML = times[i];
-		document.querySelector("#modalMsg").innerHTML = plainText(messages[i]);
 
-		/* 현재 재고는 알림에 없는 값이라 재고 목록에서 따로 받아 더합니다 */
+		/* 창고정리추천은 표에서 이미 "재고가 여러 구역에 분산되어 있습니다"를 보여줬으니
+		   모달에선 그 문장은 빼고, 실제 이동 내용(구역 → 구역 / 수량·점유율)만 보기 좋게 정리해 보여줍니다 */
+		if (types[i] == "창고정리추천") {
+			document.querySelector("#modalMsg").innerHTML = consolidationDetailHtml(messages[i]);
+		} else {
+			document.querySelector("#modalMsg").innerHTML = plainText(messages[i]);
+		}
+
+		/* 현재 재고는 알림에 없는 값이라 재고 목록에서 따로 받아 더합니다.
+		   로트가 200개 넘는 품목도 있을 수 있어 품목/알림과 같은 이어받기 패턴을 씁니다. */
 		document.querySelector("#modalStock").innerHTML = "불러오는 중...";
-		apiGet("/api/stock-lots?itemId=" + alertItemIds[i] + "&size=200", putStock);
+		stockTotal = 0;
+		apiGet(stockPagePath(alertItemIds[i], 1), putStock1);
 
 		if (resolved[i] == true) {
 			document.querySelector("#modalState").innerHTML = "해결됨";
@@ -587,6 +601,26 @@
 		drawActionArea(i);
 
 		openModal("#detailModal");
+	}
+
+
+	/* 창고정리추천 알림 문구에서 "재고가 여러 구역에 분산되어 있습니다" 안내는 빼고,
+	   실제 이동 내용(구역 → 구역 / 수량·점유율)만 뽑아 보기 좋게 줄바꿈해 보여줍니다.
+	   형식을 못 읽으면(옛날 알림 등) 원래 문장을 그대로 보여줍니다. */
+	function consolidationDetailHtml(msg) {
+
+		let text = plainText(msg).replace("재고가 여러 구역에 분산되어 있습니다.", "").trim();
+
+		let m = text.match(/^(.+?)\(수량 (\d+), 점유율 (\d+)%\)를 (.+?)로 합치는 걸 추천합니다$/);
+
+		if (m == null) {
+			return text;
+		}
+
+		return "<div class='consol-detail'>"
+			+ "<strong>" + m[1].trim() + " → " + m[4].trim() + "</strong>"
+			+ "<span>수량 " + m[2] + "개 · 점유율 " + m[3] + "%</span>"
+			+ "</div>";
 	}
 
 
@@ -630,7 +664,8 @@
 		if (type == "재고초과") {
 			area.innerHTML =
 				"<p class='list-note'>초과된 만큼 어느 거래처로 출고할지 고르고 아래 버튼을 누르면 " +
-				"출고 승인요청이 만들어집니다. 관리자가 승인하면 그 즉시 출고 처리까지 자동으로 됩니다.</p>" +
+				"출고 승인요청이 만들어집니다. 관리자가 승인하면 그 즉시 출고 처리까지 자동으로 됩니다. " +
+				"수량이 현재 재고보다 많아도 괜찮습니다 — 부족한 만큼은 자동으로 발주 요청이 하나 더 만들어집니다.</p>" +
 				"<div class='form-group'><label>거래처</label><select id='excessPartner'></select></div>" +
 				"<div class='form-group'><label>출고 수량</label><input type='number' id='excessQty'></div>";
 
@@ -665,15 +700,33 @@
 	   (customerIds/customerNames)을 그대로 채웁니다.
 	   ============================================================ */
 	function loadExtras() {
-		apiGet("/api/partners?type=CUSTOMER&size=200", putCustomersForAlert);
-	}
-
-	function putCustomersForAlert(data) {
 		customerIds = [];
 		customerNames = [];
-		for (let i = 0; i < data.items.length; i++) {
-			customerIds[i] = data.items[i].partnerId;
-			customerNames[i] = data.items[i].name;
+		apiGet(partnerPagePath(1), putCustomersForAlert1);
+	}
+
+	function partnerPagePath(page) {
+		return "/api/partners?type=CUSTOMER&page=" + page + "&size=200";
+	}
+
+	function putCustomersForAlert1(data) {
+
+		addCustomersForAlert(data.items);
+
+		if (data.total > 200) {
+			apiGet(partnerPagePath(2), putCustomersForAlert2);
+		}
+	}
+
+	function putCustomersForAlert2(data) {
+		addCustomersForAlert(data.items);
+	}
+
+	function addCustomersForAlert(list) {
+		for (let i = 0; i < list.length; i++) {
+			let last = customerIds.length;
+			customerIds[last] = list[i].partnerId;
+			customerNames[last] = list[i].name;
 		}
 	}
 
@@ -692,7 +745,7 @@
 	function afterScanConsolidation(data) {
 		loadData();
 		if (data.createdCount == 0) {
-			alert("지금 합칠 수 있는 재고가 없습니다.");
+			alert("추가로 찾은 정리 재고가 없습니다.");
 		} else {
 			alert("창고 정리 추천 " + data.createdCount + "건을 새로 찾았습니다.");
 		}
@@ -738,15 +791,37 @@
 	   다른 승인요청들과 같은 곳에서 한 번에 확인/처리할 수 있게 하기 위해서입니다. */
 
 
-	/* 로트마다 남은 수량이 따로 있어서 다 더해야 현재 재고가 나옵니다 */
-	function putStock(data) {
+	/* 로트마다 남은 수량이 따로 있어서 다 더해야 현재 재고가 나옵니다.
+	   (200건 넘게 있을 수 있어 1페이지를 받아본 뒤 모자라면 2페이지도 이어 받습니다) */
+	let stockTotal = 0;
 
-		let list = data.items;
-		let total = 0;
+	function stockPagePath(itemId, page) {
+		return "/api/stock-lots?itemId=" + itemId + "&page=" + page + "&size=200";
+	}
 
-		for (let i = 0; i < list.length; i++) {
-			total = total + list[i].quantity;
+	function putStock1(data) {
+
+		addStock(data.items);
+
+		if (data.total > 200) {
+			apiGet(stockPagePath(alertItemIds[openIndex], 2), putStock2);
+		} else {
+			showStock();
 		}
+	}
+
+	function putStock2(data) {
+		addStock(data.items);
+		showStock();
+	}
+
+	function addStock(list) {
+		for (let i = 0; i < list.length; i++) {
+			stockTotal = stockTotal + list[i].quantity;
+		}
+	}
+
+	function showStock() {
 
 		let unit = "";
 		let k = findItem(alertItemIds[openIndex]);
@@ -755,7 +830,7 @@
 			unit = " " + myItemUnits[k];
 		}
 
-		document.querySelector("#modalStock").innerHTML = total + unit;
+		document.querySelector("#modalStock").innerHTML = stockTotal + unit;
 	}
 
 
@@ -897,7 +972,7 @@
 	/* 화면이 열릴 때 실행 - 품목을 먼저 받고, 끝나면 알림을 받습니다 */
 	loadItems();
 
-	/* 조치(승인요청 만들기/이동 실행)에 필요한 거래처·창고·구역 정보도 같이 받아 둡니다 */
+	/* 조치(승인요청 만들기/이동 실행)에 필요한 거래처 정보도 같이 받아 둡니다 */
 	loadExtras();
 
 
@@ -911,11 +986,13 @@
 	   이 화면을 열어 둔 사이에 다른 곳에서 입고/출고가 일어나 새 알림이
 	   떠도, 새로고침을 안 누르면 안 보였습니다. 그래서 30초마다 목록을
 	   다시 받아옵니다. 상세보기 창을 보고 있는 중에는 그 내용이 갑자기
-	   바뀌면 안 되니 그동안은 건너뜁니다.
+	   바뀌면 안 되니 그동안은 건너뛰고, 표에서 체크박스를 골라 둔 중에도
+	   표가 다시 그려지면서 선택이 조용히 풀려버리지 않도록 그동안은 건너뜁니다.
 	   ============================================================ */
 	setInterval(function () {
 		let modal = document.querySelector("#detailModal");
-		if (modal.className.indexOf("active") == -1) {
+		let anyChecked = document.querySelector(".row-check:checked") != null;
+		if (modal.className.indexOf("active") == -1 && anyChecked == false) {
 			loadData();
 		}
 	}, 30000);

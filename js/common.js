@@ -839,6 +839,11 @@ function plainText(text) {
 	result = renameCount(result, "threshold_min", "기준 수량 ");
 	result = renameCount(result, "capacity_max", "최대 보유량 ");
 
+	/* 창고정리추천 알림은 "대형(0) EA[zoneId=3]" 처럼 사람이 읽을 이름 뒤에 실제 구역 번호를
+	   [ ] 안에 남겨 둡니다(승인 관리 화면이 이동을 실행할 때 그 번호를 읽어야 하기 때문).
+	   화면에는 이름만 보이면 되므로 대괄호째 지웁니다. */
+	result = result.replace(/\[zoneId=\d+\]/g, "");
+
 	return result;
 }
 

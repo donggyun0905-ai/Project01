@@ -82,7 +82,7 @@
 			<table>
 				<thead>
 					<tr>
-						<th>NO</th>
+						<th>NO <span id="noSortIcon" class="sort-icon" onclick="toggleOrder()">▲</span></th>
 						<th>품목 코드</th>
 						<th>품목명</th>
 						<th>카테고리</th>
@@ -135,6 +135,9 @@
 	let nowPage = 1;
 	let totalCount = 0;
 
+	/* NO 컬럼 정렬 방향. "asc"=등록순, "desc"=최신 등록순(역순) */
+	let nowOrder = "asc";
+
 	/* 수정 중인 품목 번호. -1 이면 새로 등록하는 중입니다. */
 	let editId = -1;
 
@@ -161,7 +164,7 @@
 	   ============================================================ */
 	function loadData() {
 
-		let path = "/api/items?page=" + nowPage + "&size=" + pageSize;
+		let path = "/api/items?page=" + nowPage + "&size=" + pageSize + "&order=" + nowOrder;
 
 		/* 사용 중 / 비활성 중 어느 쪽을 볼지 */
 		path = path + "&active=" + document.querySelector("#activeFilter").value;
@@ -180,6 +183,24 @@
 		}
 
 		apiGet(path, putItems);
+	}
+
+
+	/* NO 옆 삼각형을 누르면 정렬 방향을 뒤집습니다.
+	   순서 자체는 서버가 바꿔서 보내줘야(item_id ASC/DESC) 페이지가 넘어가도
+	   순서가 안 어긋납니다 - 그래서 화면에서 배열만 뒤집지 않고 다시 받아옵니다. */
+	function toggleOrder() {
+
+		if (nowOrder == "asc") {
+			nowOrder = "desc";
+			document.querySelector("#noSortIcon").innerHTML = "▼";
+		} else {
+			nowOrder = "asc";
+			document.querySelector("#noSortIcon").innerHTML = "▲";
+		}
+
+		nowPage = 1;
+		loadData();
 	}
 
 
@@ -258,15 +279,19 @@
 				shelf = itemShelfs[i] + "일";
 			}
 
-			html = html + "<tr>";
-			html = html + "<td>" + (startNo + i + 1) + "</td>";
+			/* 정순이면 1,2,3...으로 세고, 역순이면 전체 건수에서부터 거꾸로 세어
+			   내려가서(N, N-1, N-2...) 화살표를 눌렀을 때 번호도 같이 뒤집혀 보이게 합니다 */
+			let no = (nowOrder == "asc") ? (startNo + i + 1) : (totalCount - startNo - i);
+
+			html = html + "<tr onclick='openStock(" + i + ")'>";
+			html = html + "<td>" + no + "</td>";
 			html = html + "<td>ITEM-" + itemIds[i] + "</td>";
 			html = html + "<td>" + itemNames[i] + "</td>";
 			html = html + "<td>" + category + "</td>";
 			html = html + "<td>" + itemUnits[i] + "</td>";
 			html = html + "<td>" + shelf + "</td>";
 			html = html + "<td>" + stockCell(i) + "</td>";
-			html = html + "<td>";
+			html = html + "<td onclick='event.stopPropagation()'>";
 			html = html + "<button class='edit-btn' onclick='openItem(" + i + ")'>수정</button>";
 
 			/* 사용 중이면 비활성으로, 비활성이면 되살리기로 */
@@ -310,15 +335,14 @@
 	   2-1. 총 재고 칸
 
 	   총 재고는 서버가 품목마다 세어서 보내 줍니다(totalQuantity).
-	   누르면 어느 창고 어느 구역에 있는지 볼 수 있습니다.
+	   행을 누르면 어느 창고 어느 구역에 있는지 볼 수 있습니다(openStock, 표의 <tr> onclick).
 	   ============================================================ */
 	function stockCell(i) {
 
 		let total = itemStocks[i];
 		let text = addComma(total) + " " + itemUnits[i];
 
-		/* 재고가 아예 없으면 가장 눈에 띄게(빨강) 표시하고,
-		   볼 로트도 없어서 버튼을 안 만듭니다 */
+		/* 재고가 아예 없으면 가장 눈에 띄게(빨강) 표시합니다 */
 		if (total == 0) {
 			return "<span class='zone-full'>0 " + itemUnits[i] + "</span>";
 		}
@@ -328,7 +352,7 @@
 			text = "<span class='zone-warn'>" + text + "</span>";
 		}
 
-		return "<button class='edit-btn' onclick='openStock(" + i + ")'>" + text + "</button>";
+		return text;
 	}
 
 

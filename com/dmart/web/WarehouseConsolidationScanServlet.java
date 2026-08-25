@@ -14,7 +14,9 @@ import java.sql.SQLException;
 
 // WarehouseConsolidationService.scan()은 원래 서버 시작 시 1회만 도는데(WarehouseConsolidationStartupListener),
 // 관리자가 알림 화면에서 "지금 바로" 다시 스캔해 보고 싶을 때 쓰는 수동 트리거. 로직 자체는 그대로 재사용 —
-// scan()이 이미 같은 품목에 미해결 추천이 있으면 중복 생성 안 하므로 여러 번 눌러도 안전함(AlertDao.existsUnresolvedByItemIdAndType).
+// scan()이 이미 같은 품목에 미해결 추천이 있으면 중복 생성 안 하므로 여러 번 눌러도 안전하고
+// (AlertDao.existsUnresolvedByItemIdAndType), 그 미해결 추천이 낡아서(가리키는 구역에 재고가 이미 없음)
+// 새 추천을 막고 있는 경우는 scan() 시작 시점에 자동으로 정리(해결 처리)한다(resolveStaleRecommendations).
 @WebServlet("/api/warehouse-consolidation/scan")
 public class WarehouseConsolidationScanServlet extends HttpServlet {
 

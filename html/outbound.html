@@ -79,18 +79,13 @@
 			</div>
 			
 			<div class="form-group">
-				<label>수량</label>
-				<input type="number" id="outQty" onchange="checkOutQtyMax()">
-				<span class="hint-text" id="outAvailText"></span>
-			</div>
-			
-			<div class="form-group">
 				<label>단위</label>
 				<select id="outUnit">
 					<option>EA</option>
 					<option>BOX</option>
 					<option>PALLET</option>
 				</select>
+				<span class="hint-text" id="outAvailText"></span>
 			</div>
 		
 			<div class="form-group">
@@ -198,9 +193,13 @@
 
 	   흐름
 	     입력 → [자동 추천 및 확인]
-	          → 서버에 어느 로트에서 뺄지 물어봄 (GET /api/outbound/recommend)
-	          → 모달(FIFO/FEFO 안내 + 로트 목록을 한 번에 표시)
+	          → 이 품목의 로트를 FIFO/FEFO 순으로 정렬해서 보여줌 (GET /api/stock-lots)
+	          → 모달에서 로트별로 뺄 수량을 직접 입력(전부 0에서 시작)
 	          → [출고 등록] → 로트마다 POST /api/outbound
+
+	   (예전엔 미리 "몇 개 뺄지"를 입력받아 GET /api/outbound/recommend로 로트별 기본
+	    수량을 추천받았는데, 결국 이 모달에서 로트별로 다시 정하게 되어 있어 그 입력이
+	    중복이라 없앴습니다. 정렬 방식만 자동으로 정해 주고, 수량은 여기서 바로 입력합니다.)
 
 	   출고는 로트 단위로 처리해서, 한 번 요청에 여러 건이 나갈 수 있습니다.
 	   ============================================================ */
@@ -214,7 +213,6 @@
 	let pickedLotAvail = [];  // 그 로트에 실제로 남아있는 수량 (조정 시 이 값까지만 허용)
 	let pickedLotZone = [];   // 그 로트가 있는 구역(zoneId) - 표에 창고/구역 이름으로 보여줍니다
 	let outItemId = -1;       // 지금 추천/조회 대상 품목 - 전체 로트를 다시 조회할 때 씁니다
-	let recommendTakeMap = {};  // lotId -> 추천 기본수량 (전체 로트 목록에 기본값으로 채워줄 때 씁니다)
 
 	/* 출고 이력 표 (서버에서 받아옴, GET /api/outbound) */
 	let rowIds = [];
@@ -262,7 +260,6 @@
 		if (i == -1) {
 			document.querySelector("#outCode").value = "";
 			document.querySelector("#outAvailText").innerHTML = "";
-			document.querySelector("#outQty").removeAttribute("max");
 			return;
 		}
 
@@ -277,17 +274,15 @@
 	}
 
 
-	/* 이 품목의 전체 재고(모든 구역 합계)를 보여주고, 수량 입력을 그 이상 못 넣게
-	   상한을 걸어 둡니다. GET /api/items/{id}가 이미 정확한 totalQuantity를
-	   계산해 주므로 그대로 씁니다. (로트별로 실제 어디서 뺄지는 이후 추천
-	   모달이 다시 확인하니, 여기선 큰 틀에서 막아 주는 용도입니다) */
+	/* 이 품목의 전체 재고(모든 구역 합계)를 참고용으로 보여줍니다. 실제로 얼마씩 뺄지는
+	   [자동 추천 및 확인]을 눌러서 뜨는 모달에서 로트별로 직접 정하므로, 여기선 그냥
+	   안내 문구일 뿐 입력을 막는 용도는 아닙니다. */
 	function updateOutAvailable() {
 
 		let itemId = getItemId(document.querySelector("#outName").value);
 
 		if (itemId == -1) {
 			document.querySelector("#outAvailText").innerHTML = "";
-			document.querySelector("#outQty").removeAttribute("max");
 			return;
 		}
 
@@ -296,41 +291,24 @@
 
 
 	function putOutAvailable(data) {
-
 		document.querySelector("#outAvailText").innerHTML = "전체 재고: " + addComma(data.totalQuantity) + "개";
-		document.querySelector("#outQty").setAttribute("max", data.totalQuantity);
-
-		checkOutQtyMax();
-	}
-
-
-	/* 수량이 전체 재고(#outQty의 max)를 넘으면 그 값으로 맞춰 줍니다 */
-	function checkOutQtyMax() {
-
-		let input = document.querySelector("#outQty");
-		let max = input.getAttribute("max");
-
-		if (max == null || input.value == "") {
-			return;
-		}
-
-		let value = input.value * 1;
-		let maxVal = max * 1;
-
-		if (value > maxVal) {
-			input.value = maxVal;
-			alert("이 품목의 전체 재고는 " + addComma(maxVal) + "개입니다.");
-		}
 	}
 
 
 	/* ============================================================
-	   모달 1 - 서버에 추천을 물어봅니다
+	   모달 1 - 이 품목의 로트를 정렬 방식(FIFO/FEFO)에 맞춰 보여줍니다
+
+	   예전엔 여기서 "몇 개 뺄지"를 먼저 입력받아 서버(recommend API)에
+	   물어보고, 그 결과로 로트별 기본 수량을 미리 채워 줬습니다. 그런데
+	   실제로 얼마씩 뺄지는 결국 이 모달에서 로트별로 다시 정하게 되어 있어서
+	   미리 입력받는 수량이 그저 한 번 더 거치는 단계였습니다. 그래서 그 값은
+	   없애고, 로트 목록만 정렬해서 보여준 뒤 전부 0에서 시작해 로트별로
+	   직접 입력하도록 했습니다.
 	   ============================================================ */
 	function openRecommend() {
 
-		if (isBlank(["#outDate", "#outName", "#outQty"]) == true) {
-			alert("출고일, 품목명, 수량을 채워 주세요.");
+		if (isBlank(["#outDate", "#outName"]) == true) {
+			alert("출고일, 품목명을 채워 주세요.");
 			return;
 		}
 
@@ -341,23 +319,21 @@
 			return;
 		}
 
-		let qty = document.querySelector("#outQty").value * 1;
-
-		if (qty <= 0) {
-			alert("수량은 1개 이상이어야 합니다.");
-			return;
-		}
-
-		/* 유통기한이 있는 품목이면 FEFO, 없으면 FIFO 로 물어봅니다 */
+		/* 유통기한이 있는 품목이면 FEFO, 없으면 FIFO 순으로 보여줍니다 */
 		let i = findItemByName(document.querySelector("#outName").value);
-		let sortBy = "fefo";
+		pickedWay = (i != -1 && itemShelfEmpty(i) == true) ? "FIFO" : "FEFO";
 
-		if (i != -1 && itemShelfEmpty(i) == true) {
-			sortBy = "fifo";
+		if (pickedWay == "FEFO") {
+			document.querySelector("#recommendText").innerHTML =
+				"해당 품목은 유통기한 관리 대상입니다.<br>따라서 <strong>FEFO(유통기한 기준)</strong> 순으로 로트를 보여줍니다.";
+		} else {
+			document.querySelector("#recommendText").innerHTML =
+				"해당 품목은 유통기한 관리 대상이 아닙니다.<br>따라서 <strong>FIFO(입고일 기준)</strong> 순으로 로트를 보여줍니다.";
 		}
+		document.querySelector("#recommendWay").innerHTML = pickedWay;
 
 		outItemId = itemId;
-		apiGet("/api/outbound/recommend?itemId=" + itemId + "&quantity=" + qty + "&sortBy=" + sortBy, putRecommend);
+		apiGet("/api/stock-lots?itemId=" + itemId + "&status=NORMAL&size=200", putAllLots);
 	}
 
 
@@ -372,64 +348,9 @@
 	}
 
 
-	/* 서버가 준 추천 결과를 받습니다. 실제로 화면에 보여줄 로트 목록은 이 품목의
-	   "전체" 로트로 다시 받아올 거라서(putAllLots), 여기선 방식(FIFO/FEFO)과
-	   "로트별로 기본으로 얼마씩 채워둘지"만 기억해 둡니다. */
-	function putRecommend(data) {
-
-		pickedWay = data.sortBy.toUpperCase();
-
-		/* 재고가 모자라면 서버가 sufficient=false 로 알려 줍니다 */
-		if (data.sufficient == false) {
-
-			let have = 0;
-
-			for (let i = 0; i < data.lots.length; i++) {
-				have = have + data.lots[i].quantity;
-			}
-
-			alert("재고가 부족합니다.\n요청 " + data.requestedQuantity + "개 중 " + have + "개만 출고할 수 있습니다.");
-			return;
-		}
-
-		/* lotId -> 추천 기본수량. 전체 로트 목록을 받은 뒤 이 값으로 입력칸을 미리 채워 둡니다.
-		   (추천에 안 뽑힌 로트는 여기 없으니 기본값 0으로 둡니다 - 유통기한이 지난 로트 등) */
-		recommendTakeMap = {};
-		let rest = data.requestedQuantity;
-
-		for (let i = 0; i < data.lots.length; i++) {
-			if (rest <= 0) {
-				break;
-			}
-			let take = data.lots[i].quantity;
-			if (take > rest) {
-				take = rest;
-			}
-			recommendTakeMap[data.lots[i].lotId] = take;
-			rest = rest - take;
-		}
-
-		let text = "";
-
-		if (pickedWay == "FEFO") {
-			text = "해당 품목은 유통기한 관리 대상입니다.<br>따라서 <strong>FEFO(유통기한 기준)</strong> 방식이 자동 추천되었습니다.";
-			document.querySelector("#recommendWay").innerHTML = "FEFO";
-		} else {
-			text = "해당 품목은 유통기한 관리 대상이 아닙니다.<br>따라서 <strong>FIFO(입고일 기준)</strong> 방식이 자동 추천되었습니다.";
-			document.querySelector("#recommendWay").innerHTML = "FIFO";
-		}
-
-		document.querySelector("#recommendText").innerHTML = text;
-
-		/* 추천된 일부 로트만 보여주면 다른 로트에서 빼고 싶어도 방법이 없으니,
-		   이 품목의 정상(NORMAL) 로트를 전부 받아와서 화면에 다 보여줍니다. */
-		apiGet("/api/stock-lots?itemId=" + outItemId + "&status=NORMAL&size=200", putAllLots);
-	}
-
-
 	/* 이 품목의 전체 로트를 받아 모달에 보여줄 목록을 만듭니다.
-	   추천 방식과 같은 기준(FEFO=유통기한 빠른 순, FIFO=입고일 빠른 순)으로 정렬해서,
-	   추천된 로트는 기본 수량이 미리 채워진 채로, 나머지는 0으로 보여줍니다. */
+	   정렬 방식(FEFO=유통기한 빠른 순, FIFO=입고일 빠른 순)으로 정렬만 해서 보여주고,
+	   로트별 수량은 전부 0에서 시작합니다 - 얼마씩 뺄지는 아래에서 직접 입력합니다. */
 	function putAllLots(data) {
 
 		let list = data.items;
@@ -465,9 +386,7 @@
 			pickedLotExp[pickedLotExp.length] = list[i].expiryDate == null ? "" : list[i].expiryDate;
 			pickedLotAvail[pickedLotAvail.length] = list[i].quantity;
 			pickedLotZone[pickedLotZone.length] = list[i].zoneId;
-
-			let suggested = recommendTakeMap[list[i].lotId];
-			pickedLotQtys[pickedLotQtys.length] = suggested != null ? suggested : 0;
+			pickedLotQtys[pickedLotQtys.length] = 0;
 		}
 
 		openLot();
@@ -525,12 +444,12 @@
 		document.querySelector("#lotBody").innerHTML = html;
 		updateLotTotalText();
 
-		let wayText = "추천 방식: " + pickedWay;
+		let wayText = "정렬 방식: " + pickedWay;
 
 		if (nearCount > 0) {
 			wayText = wayText + " / 유통기한 임박 로트 " + nearCount + "건이 포함되어 있습니다";
 		}
-		wayText = wayText + " / 수량 칸을 직접 눌러서 로트별로 조정할 수 있습니다";
+		wayText = wayText + " / 로트별 수량 칸에 뺄 수량을 직접 입력하세요";
 
 		document.querySelector("#lotWayText").innerHTML = wayText;
 
@@ -655,7 +574,8 @@
 
 	function finishSend() {
 
-		clearInput(["#outQty"]);
+		clearInput(["#outName", "#outCode"]);
+		document.querySelector("#outAvailText").innerHTML = "";
 
 		let msg = "출고가 등록되었습니다. (로트 " + doneCount + "건)";
 

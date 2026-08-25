@@ -113,6 +113,23 @@ public class AlertDao {
         return result;
     }
 
+    // 11번 목록 API에서 창고정리추천을 배정 창고 기준으로 거를 때 사용. 그 거르기는 message에
+    // 담긴 zoneId를 읽어 판단해야 해서 SQL로는 할 수 없어, LIMIT/OFFSET 없이 조건에 맞는 전체를
+    // 받아 자바에서 거른 뒤 페이지를 잘라야 한다(그래야 total과 실제 보이는 개수가 어긋나지 않음).
+    public List<Alert> findAllMatching(Connection conn, Boolean resolved, Long itemId) throws SQLException {
+        String sql = "SELECT * FROM ALERT" + whereClause(resolved, itemId) + " ORDER BY created_at DESC";
+        List<Alert> result = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            bindFilterParams(ps, 1, resolved, itemId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(mapRow(rs));
+                }
+            }
+        }
+        return result;
+    }
+
     public int count(Connection conn, Boolean resolved, Long itemId) throws SQLException {
         String sql = "SELECT COUNT(*) FROM ALERT" + whereClause(resolved, itemId);
         try (PreparedStatement ps = conn.prepareStatement(sql)) {

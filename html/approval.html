@@ -623,43 +623,67 @@
 	let consolItemIds = [];
 	let consolMoves = [];
 
+	/* 미해결 알림이 200건을 넘을 수도 있어서, 다른 화면들과 같은
+	   이어받기 패턴으로 1페이지를 받아본 뒤 모자라면 2페이지도 받습니다. */
 	function loadConsolidationAlerts() {
-		apiGet("/api/alerts?resolved=false&size=200", putConsolidationAlerts);
-	}
-
-	function putConsolidationAlerts(data) {
-
 		consolAlertIds = [];
 		consolItemIds = [];
 		consolMoves = [];
+		apiGet(consolAlertPagePath(1), putConsolidationAlerts1);
+	}
 
-		for (let i = 0; i < data.items.length; i++) {
+	function consolAlertPagePath(page) {
+		return "/api/alerts?resolved=false&page=" + page + "&size=200";
+	}
 
-			if (data.items[i].alertType != "창고정리추천") {
+	function putConsolidationAlerts1(data) {
+
+		addConsolidationAlerts(data.items);
+
+		if (data.total > 200) {
+			apiGet(consolAlertPagePath(2), putConsolidationAlerts2);
+		} else {
+			drawConsolidationList();
+		}
+	}
+
+	function putConsolidationAlerts2(data) {
+		addConsolidationAlerts(data.items);
+		drawConsolidationList();
+	}
+
+	function addConsolidationAlerts(list) {
+
+		for (let i = 0; i < list.length; i++) {
+
+			if (list[i].alertType != "창고정리추천") {
 				continue;
 			}
 
-			let move = parseConsolidationMessage(data.items[i].message);
+			let move = parseConsolidationMessage(list[i].message);
 			if (move == null) {
 				continue;
 			}
 
 			let last = consolAlertIds.length;
-			consolAlertIds[last] = data.items[i].alertId;
-			consolItemIds[last] = data.items[i].itemId;
+			consolAlertIds[last] = list[i].alertId;
+			consolItemIds[last] = list[i].itemId;
 			consolMoves[last] = move;
 		}
-
-		drawConsolidationList();
 	}
 
-	/* 알림 메시지 안의 "zoneId=3(수량 12, 점유율 40%)를 zoneId=7로" 부분을 읽어냅니다.
-	   WarehouseConsolidationService가 만드는 메시지 형식이 고정돼 있어서 이 방식이 안전합니다. */
+	/* 알림 메시지 안의 "대형(0) EA[zoneId=3](수량 12, 점유율 40%)를 대형(1) EA[zoneId=7]로"
+	   부분을 읽어냅니다. WarehouseConsolidationService가 만드는 메시지 형식이 고정돼 있어서
+	   이 방식이 안전합니다. (구 형식 "zoneId=3(수량 12, 점유율 40%)를 zoneId=7로"로 만들어진
+	   알림이 아직 처리 안 된 채 남아있을 수 있어 그것도 같이 읽습니다) */
 	function parseConsolidationMessage(msg) {
 		if (msg == null) {
 			return null;
 		}
-		let m = msg.match(/zoneId=(\d+)\(수량 (\d+), 점유율 \d+%\)를 zoneId=(\d+)로/);
+		let m = msg.match(/\[zoneId=(\d+)\]\(수량 (\d+), 점유율 \d+%\).*?\[zoneId=(\d+)\]로/);
+		if (m == null) {
+			m = msg.match(/zoneId=(\d+)\(수량 (\d+), 점유율 \d+%\)를 zoneId=(\d+)로/);
+		}
 		if (m == null) {
 			return null;
 		}

@@ -48,10 +48,11 @@ public class ItemServlet extends HttpServlet {
         String keyword = req.getParameter("keyword");
         String activeParam = req.getParameter("active");
         Boolean active = activeParam != null ? Boolean.valueOf(activeParam) : Boolean.TRUE; // 기본 active=true(2.3과 동일한 관례)
+        boolean sortDesc = "desc".equals(req.getParameter("order")); // item.html의 NO 컬럼 정렬 화살표용, 기본은 오름차순
         Pagination pg = Pagination.from(req);
 
         try (Connection conn = DBConnection.getConnection()) {
-            List<Item> items = itemDao.findPage(conn, category, keyword, active, pg.offset, pg.size);
+            List<Item> items = itemDao.findPage(conn, category, keyword, active, sortDesc, pg.offset, pg.size);
             int total = itemDao.count(conn, category, keyword, active);
             List<Object> data = new ArrayList<>();
             for (Item item : items) {

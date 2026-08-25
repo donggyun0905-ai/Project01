@@ -77,9 +77,11 @@ public class ItemDao {
     }
 
     // 목록 API(3번)의 페이지네이션 + category/keyword/active 필터용. count()와 WHERE 절을 공유한다.
+    // sortDesc=true면 NO 컬럼 정렬 화살표(item.html)가 최신 등록순(item_id 내림차순)으로 보여준다.
     public List<Item> findPage(Connection conn, String category, String keyword, Boolean active,
-                                int offset, int limit) throws SQLException {
-        String sql = "SELECT * FROM ITEM" + whereClause(category, keyword, active) + " ORDER BY item_id LIMIT ? OFFSET ?";
+                                boolean sortDesc, int offset, int limit) throws SQLException {
+        String sql = "SELECT * FROM ITEM" + whereClause(category, keyword, active)
+                + " ORDER BY item_id " + (sortDesc ? "DESC" : "ASC") + " LIMIT ? OFFSET ?";
         List<Item> result = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             int idx = bindFilterParams(ps, 1, category, keyword, active);

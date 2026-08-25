@@ -342,6 +342,10 @@
 		text = text.replace(/threshold_min\((\d+)\)/, "기준 수량 $1개");
 		text = text.replace(/capacity_max\((\d+)\)/, "최대 보유량 $1개");
 
+		// 창고정리추천 알림은 "대형(0) EA[zoneId=3]" 처럼 이름 뒤에 실제 구역 번호를 [ ] 안에
+		// 남겨 둡니다(승인 관리 화면이 이동 실행할 때 읽는 값). 화면엔 이름만 보이면 되므로 지웁니다.
+		text = text.replace(/\[zoneId=\d+\]/g, "");
+
 		return text;
 	}
 

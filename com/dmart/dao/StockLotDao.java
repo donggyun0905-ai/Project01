@@ -144,6 +144,19 @@ public class StockLotDao {
         }
     }
 
+    // 창고정리 추천이 아직 유효한지(추천이 가리키는 구역에 그 품목이 실제로 남아있는지) 확인할 때 사용.
+    public int sumQuantityByItemAndZone(Connection conn, Long itemId, Long zoneId) throws SQLException {
+        String sql = "SELECT COALESCE(SUM(quantity), 0) FROM STOCK_LOT WHERE item_id = ? AND zone_id = ? AND status = 'NORMAL'";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, itemId);
+            ps.setLong(2, zoneId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
     // 품목 capacity_max 체크용: 그 품목의 전체 창고에 걸친 활성(NORMAL) 재고 합계
     public int sumQuantityByItemId(Connection conn, Long itemId) throws SQLException {
         String sql = "SELECT COALESCE(SUM(quantity), 0) FROM STOCK_LOT WHERE item_id = ? AND status = 'NORMAL'";
