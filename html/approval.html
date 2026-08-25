@@ -526,6 +526,12 @@
 				msg = msg + "\n출고가 자동으로 처리되었습니다.";
 				msg = msg + "\n요청 " + data.requestedQty + " 중 " + data.fulfilledQty + " 처리됨";
 			}
+
+			/* 요청한 만큼 다 못 채웠으면(재고 부족) 그 부족분만큼 발주가 자동으로 만들어집니다 */
+			if (data.shortageApprovalId != null) {
+				msg = msg + "\n\n재고가 부족해서 남은 " + (data.requestedQty - data.fulfilledQty)
+					+ "개에 대해 발주 요청이 자동 생성되었습니다 (승인번호 " + data.shortageApprovalId + ").";
+			}
 		}
 
 		closeDetail();

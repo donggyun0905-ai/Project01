@@ -80,7 +80,8 @@
 			
 			<div class="form-group">
 				<label>수량</label>
-				<input type="number" id="outQty">
+				<input type="number" id="outQty" onchange="checkOutQtyMax()">
+				<span class="hint-text" id="outAvailText"></span>
 			</div>
 			
 			<div class="form-group">
@@ -260,6 +261,8 @@
 
 		if (i == -1) {
 			document.querySelector("#outCode").value = "";
+			document.querySelector("#outAvailText").innerHTML = "";
+			document.querySelector("#outQty").removeAttribute("max");
 			return;
 		}
 
@@ -268,6 +271,55 @@
 
 		if (itemCategoryList[i] != null) {
 			document.querySelector("#outCategory").value = itemCategoryList[i];
+		}
+
+		updateOutAvailable();
+	}
+
+
+	/* 이 품목의 전체 재고(모든 구역 합계)를 보여주고, 수량 입력을 그 이상 못 넣게
+	   상한을 걸어 둡니다. GET /api/items/{id}가 이미 정확한 totalQuantity를
+	   계산해 주므로 그대로 씁니다. (로트별로 실제 어디서 뺄지는 이후 추천
+	   모달이 다시 확인하니, 여기선 큰 틀에서 막아 주는 용도입니다) */
+	function updateOutAvailable() {
+
+		let itemId = getItemId(document.querySelector("#outName").value);
+
+		if (itemId == -1) {
+			document.querySelector("#outAvailText").innerHTML = "";
+			document.querySelector("#outQty").removeAttribute("max");
+			return;
+		}
+
+		apiGet("/api/items/" + itemId, putOutAvailable);
+	}
+
+
+	function putOutAvailable(data) {
+
+		document.querySelector("#outAvailText").innerHTML = "전체 재고: " + addComma(data.totalQuantity) + "개";
+		document.querySelector("#outQty").setAttribute("max", data.totalQuantity);
+
+		checkOutQtyMax();
+	}
+
+
+	/* 수량이 전체 재고(#outQty의 max)를 넘으면 그 값으로 맞춰 줍니다 */
+	function checkOutQtyMax() {
+
+		let input = document.querySelector("#outQty");
+		let max = input.getAttribute("max");
+
+		if (max == null || input.value == "") {
+			return;
+		}
+
+		let value = input.value * 1;
+		let maxVal = max * 1;
+
+		if (value > maxVal) {
+			input.value = maxVal;
+			alert("이 품목의 전체 재고는 " + addComma(maxVal) + "개입니다.");
 		}
 	}
 

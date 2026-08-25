@@ -74,10 +74,11 @@ public class ApprovalService {
         public final List<Long> resultOutboundIds; // 출고 성공 시
         public final Integer requestedQty; // 출고일 때만
         public final Integer fulfilledQty; // 출고일 때만
+        public final Long shortageApprovalId; // 출고일 때, 다 못 채운 만큼 자동 발주가 생겼으면 그 approvalId
 
         private DecisionResult(Long approvalId, String status, String executedService, Boolean executionFailed,
                                 String executionError, List<Long> resultLotIds, List<Long> resultOutboundIds,
-                                Integer requestedQty, Integer fulfilledQty) {
+                                Integer requestedQty, Integer fulfilledQty, Long shortageApprovalId) {
             this.approvalId = approvalId;
             this.status = status;
             this.executedService = executedService;
@@ -87,22 +88,24 @@ public class ApprovalService {
             this.resultOutboundIds = resultOutboundIds;
             this.requestedQty = requestedQty;
             this.fulfilledQty = fulfilledQty;
+            this.shortageApprovalId = shortageApprovalId;
         }
 
         static DecisionResult rejected(Long approvalId) {
             return new DecisionResult(approvalId, "반려", null, null, null,
-                    Collections.emptyList(), Collections.emptyList(), null, null);
+                    Collections.emptyList(), Collections.emptyList(), null, null, null);
         }
 
         static DecisionResult inboundExecuted(Long approvalId, boolean failed, String error, Long lotId) {
             return new DecisionResult(approvalId, "승인", "inbound", failed, error,
-                    lotId != null ? List.of(lotId) : Collections.emptyList(), Collections.emptyList(), null, null);
+                    lotId != null ? List.of(lotId) : Collections.emptyList(), Collections.emptyList(), null, null, null);
         }
 
-        static DecisionResult outboundExecuted(Long approvalId, List<Long> outboundIds, int requestedQty, int fulfilledQty) {
+        static DecisionResult outboundExecuted(Long approvalId, List<Long> outboundIds, int requestedQty,
+                                                int fulfilledQty, Long shortageApprovalId) {
             return new DecisionResult(approvalId, "승인", "outbound", fulfilledQty == 0,
                     fulfilledQty == 0 ? "출고 가능한 재고가 없어 자동 출고 실행 불가" : null,
-                    Collections.emptyList(), outboundIds, requestedQty, fulfilledQty);
+                    Collections.emptyList(), outboundIds, requestedQty, fulfilledQty, shortageApprovalId);
         }
     }
 
@@ -201,6 +204,33 @@ public class ApprovalService {
             System.err.println("승인(approvalId=" + approval.getApprovalId() + ") 자동 출고 추천 조회 실패: " + e.getMessage());
         }
 
-        return DecisionResult.outboundExecuted(approval.getApprovalId(), outboundIds, approval.getRequestedQty(), fulfilled);
+        // 요청한 만큼 다 못 채웠으면(재고 부족) 그 부족분만큼 발주(입고 요청)를 자동으로 만든다.
+        // "출고 등록" 화면은 지금 있는 만큼만 입력하게 막아 두지만, 승인 요청은 실제 수요(요청량)가
+        // 현재 재고보다 클 수 있다는 걸 이미 전제로 하는 경로라 여기서 처리하는 게 맞다.
+        Long shortageApprovalId = null;
+        if (remaining > 0) {
+            try {
+                shortageApprovalId = createShortageApproval(approval.getItemId(), remaining);
+            } catch (SQLException | RuntimeException e) {
+                System.err.println("승인(approvalId=" + approval.getApprovalId() + ") 부족분 자동 발주 생성 실패: " + e.getMessage());
+            }
+        }
+
+        return DecisionResult.outboundExecuted(approval.getApprovalId(), outboundIds, approval.getRequestedQty(),
+                fulfilled, shortageApprovalId);
+    }
+
+    // alertId 없이(이 승인 건 자체가 원인이지 알림에서 온 게 아니므로) 시스템이 자동 제안하는
+    // 발주 - OutboundService/ReturnDisposalService의 재고부족 자동 발주와 같은 패턴.
+    private Long createShortageApproval(Long itemId, int shortageQty) throws SQLException {
+        return DBConnection.executeInTransactionWithResult(conn -> {
+            Approval shortage = new Approval();
+            shortage.setItemId(itemId);
+            shortage.setAlertId(null);
+            shortage.setRequestType("발주");
+            shortage.setRequestedQty(shortageQty);
+            shortage.setRequestedBy(null);
+            return approvalDao.insert(conn, shortage);
+        });
     }
 }

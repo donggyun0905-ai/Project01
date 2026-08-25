@@ -160,12 +160,25 @@ public class StockLotAdjustmentService {
 
     // API_명세.md 10.4 참고. 지정한 로그의 beforeValue 스냅샷으로 STOCK_LOT을 되돌리고,
     // 그 복원 자체도 새 RESTORE 로그로 남긴 뒤 원본 로그는 isReverted=true로 표시한다.
+    //
+    // DELETE 로그만 복원을 허용한다(휴지통 개념 - "방금 실수로 삭제한 걸 취소"). 삭제된 로트는
+    // 되살리기 전까진 출고/이동/반품 등 실제 업무가 전혀 못 건드리므로, 그사이 다른 일이
+    // 있었을 걱정 없이 안전하게 되돌릴 수 있다. 반면 UPDATE 로그(직접수정)는 로트가 그대로
+    // NORMAL 상태로 살아있어서, 그 로그 이후에 실제 출고/이동 등이 이미 일어났을 수 있다 -
+    // 그런 상태에서 스냅샷으로 그냥 덮어쓰면 그 사이의 진짜 업무 기록이 조용히 무시된다.
+    // 실무에서도 이런 경우는 "되돌리기"가 아니라 새 보정 거래(여기서는 10.2 직접수정)를
+    // 하나 더 남기는 방식을 쓰므로, UPDATE 로그는 그쪽으로 유도한다.
     public RestoreResult restore(Long logId, Long changedBy) throws SQLException {
         return DBConnection.executeInTransactionWithResult(conn -> {
             // 동시에 같은 로그가 두 번 복원되는 것(중복 복원)을 막기 위해 잠근다 — ApprovalService.decide()와 동일한 이유.
             StockChangeLog log = stockChangeLogDao.findByIdForUpdate(conn, logId);
             if (log == null) {
                 throw new IllegalArgumentException("존재하지 않는 logId입니다: " + logId);
+            }
+            if (!"DELETE".equals(log.getChangeType())) {
+                throw new IllegalStateException(
+                        "삭제(DELETE) 기록만 되돌릴 수 있습니다 (changeType=" + log.getChangeType()
+                                + "). 수정 기록을 바로잡으려면 직접수정(PUT /api/stock-lots/{id})으로 새 보정 기록을 남겨 주세요.");
             }
             if (Boolean.TRUE.equals(log.getIsReverted())) {
                 throw new IllegalStateException("이미 복원된 로그입니다: logId=" + logId);

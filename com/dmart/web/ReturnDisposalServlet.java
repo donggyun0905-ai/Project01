@@ -38,11 +38,16 @@ public class ReturnDisposalServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         Long itemId = parseLongParam(req.getParameter("itemId"));
+        String type = blankToNull(req.getParameter("type"));
+        String category = blankToNull(req.getParameter("category"));
+        String keyword = blankToNull(req.getParameter("keyword"));
+        LocalDate from = parseDateParam(req.getParameter("from"));
+        LocalDate to = parseDateParam(req.getParameter("to"));
         Pagination pg = Pagination.from(req);
 
         try (Connection conn = DBConnection.getConnection()) {
-            List<ReturnDisposal> list = returnDisposalDao.findPage(conn, itemId, pg.offset, pg.size);
-            int total = returnDisposalDao.count(conn, itemId);
+            List<ReturnDisposal> list = returnDisposalDao.findPage(conn, itemId, type, category, keyword, from, to, pg.offset, pg.size);
+            int total = returnDisposalDao.count(conn, itemId, type, category, keyword, from, to);
             List<Object> data = new ArrayList<>();
             for (ReturnDisposal record : list) {
                 // 화면에서 품목명/구역을 보여주려면 itemId/zoneId가 필요한데 RETURN_DISPOSAL
@@ -128,6 +133,21 @@ public class ReturnDisposalServlet extends HttpServlet {
         try {
             return Long.parseLong(s);
         } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private String blankToNull(String s) {
+        return (s == null || s.isBlank()) ? null : s;
+    }
+
+    private LocalDate parseDateParam(String s) {
+        if (s == null || s.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(s);
+        } catch (DateTimeParseException e) {
             return null;
         }
     }

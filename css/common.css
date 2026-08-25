@@ -16,12 +16,23 @@ body {
 	min-height: 100vh;
 }
 
-/* 사이드바 */
+/* 사이드바
+   - .container가 display:flex라서 원래는 사이드바 높이가 오른쪽 콘텐츠 높이에
+     맞춰 같이 늘어났습니다. 콘텐츠가 화면보다 길어지면 페이지 전체가 스크롤되면서
+     사이드바도 같이 밀려 올라가 버리던 게 이 문제였습니다.
+   - position: sticky + top: 0 + height: 100vh로 "화면(뷰포트) 기준으로 항상 붙어있게"
+     고정하고, 사이드바 안 내용이 화면보다 길어지는 경우에 대비해 그 안에서만
+     스크롤되도록(overflow-y: auto) 해뒀습니다. */
 .sidebar{
 	width: 220px;
 	background: #1f2628;
 	color: white;
 	padding: 20px 15px;
+	position: sticky;
+	top: 0;
+	height: 100vh;
+	overflow-y: auto;
+	flex-shrink: 0;
 }
 
 .logout-area {
@@ -204,7 +215,9 @@ tbody tr:hover{
     background:#f7f7f7;
 }
 
-/* 버튼 */
+/* 버튼 - form-box(grid)의 새 줄 맨 왼쪽에서 시작하게 고정합니다.
+   입력 필드 개수가 4의 배수가 아닌 화면(출고/이동 등)은 이게 없으면
+   마지막 줄 중간이나 오른쪽에 걸쳐서 화면마다 위치가 들쭉날쭉했습니다. */
 .register-btn{
 	color: white;
 	border: none;
@@ -214,6 +227,7 @@ tbody tr:hover{
 	width: 260px;
 	height: 42px;
 	align-self: end;
+	grid-column-start: 1;
 }
 
 /* ------------------------------------------------------------

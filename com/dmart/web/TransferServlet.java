@@ -19,6 +19,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +28,9 @@ import java.util.Map;
 // API_명세.md 8번 참고. TransferService를 감싸는 얇은 서블릿 — InboundServlet과 동일한 구조.
 // handlerId는 6/7번의 createdBy와 달리 세션이 아니라 요청 바디에서 받는다 (8번 요청 예시에 명시됨).
 // GET(이동 이력 목록)은 나중에 movement.html에서 이력을 보여주려고 추가함 - AlertServlet과 같이
-// 로그인만 하면 되고 ADMIN 제한은 없음.
+// 로그인만 하면 되고 ADMIN 제한은 없음. from/to는 movement.html의 기간 필터용 -
+// 예전엔 화면이 현재 페이지 안에서만 날짜로 걸러서 페이지네이션과 안 맞았는데, 여기서
+// 걸러주면 total도 필터링된 기준으로 정확히 나온다.
 @WebServlet("/api/transfers")
 public class TransferServlet extends HttpServlet {
 
@@ -37,11 +41,13 @@ public class TransferServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         Long itemId = parseLongParam(req.getParameter("itemId"));
+        LocalDate from = parseDateParam(req.getParameter("from"));
+        LocalDate to = parseDateParam(req.getParameter("to"));
         Pagination pg = Pagination.from(req);
 
         try (Connection conn = DBConnection.getConnection()) {
-            List<StockTransfer> list = stockTransferDao.findPage(conn, itemId, pg.offset, pg.size);
-            int total = stockTransferDao.count(conn, itemId);
+            List<StockTransfer> list = stockTransferDao.findPage(conn, itemId, from, to, pg.offset, pg.size);
+            int total = stockTransferDao.count(conn, itemId, from, to);
             List<Object> data = new ArrayList<>();
             for (StockTransfer transfer : list) {
                 // 화면에서 품목명을 보여주려면 itemId가 필요한데 STOCK_TRANSFER 자체엔 없어서
@@ -115,6 +121,17 @@ public class TransferServlet extends HttpServlet {
         try {
             return Long.parseLong(s);
         } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private LocalDate parseDateParam(String s) {
+        if (s == null || s.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(s);
+        } catch (DateTimeParseException e) {
             return null;
         }
     }

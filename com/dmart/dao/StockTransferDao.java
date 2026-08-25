@@ -3,6 +3,7 @@ package com.dmart.dao;
 import com.dmart.dto.StockTransfer;
 
 import java.sql.*;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -86,17 +87,17 @@ public class StockTransferDao {
     }
 
     // 이동 이력 화면용. STOCK_TRANSFER엔 item_id가 없어서(로트 단위 이동이라) itemId로 거르려면
-    // STOCK_LOT을 조인해야 함 - 최근 것부터 보여준다.
-    public List<StockTransfer> findPage(Connection conn, Long itemId, int offset, int limit) throws SQLException {
+    // STOCK_LOT을 조인해야 함 - 최근 것부터 보여준다. from/to는 movement.html의 기간 필터용 -
+    // 예전엔 화면에서 현재 페이지 안의 로트만 날짜로 걸러서 페이지네이션과 안 맞았는데,
+    // 여기서 걸러주면 total도 필터링된 기준으로 정확히 나온다.
+    public List<StockTransfer> findPage(Connection conn, Long itemId, LocalDate from, LocalDate to,
+                                         int offset, int limit) throws SQLException {
         String sql = "SELECT st.* FROM STOCK_TRANSFER st JOIN STOCK_LOT sl ON st.lot_id = sl.lot_id"
-                + (itemId != null ? " WHERE sl.item_id = ?" : "")
+                + whereClause(itemId, from, to)
                 + " ORDER BY st.transfer_id DESC LIMIT ? OFFSET ?";
         List<StockTransfer> result = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = 1;
-            if (itemId != null) {
-                ps.setLong(idx++, itemId);
-            }
+            int idx = bindFilterParams(ps, 1, itemId, from, to);
             ps.setInt(idx++, limit);
             ps.setInt(idx, offset);
             try (ResultSet rs = ps.executeQuery()) {
@@ -108,18 +109,45 @@ public class StockTransferDao {
         return result;
     }
 
-    public int count(Connection conn, Long itemId) throws SQLException {
+    public int count(Connection conn, Long itemId, LocalDate from, LocalDate to) throws SQLException {
         String sql = "SELECT COUNT(*) FROM STOCK_TRANSFER st JOIN STOCK_LOT sl ON st.lot_id = sl.lot_id"
-                + (itemId != null ? " WHERE sl.item_id = ?" : "");
+                + whereClause(itemId, from, to);
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            if (itemId != null) {
-                ps.setLong(1, itemId);
-            }
+            bindFilterParams(ps, 1, itemId, from, to);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getInt(1);
             }
         }
+    }
+
+    private String whereClause(Long itemId, LocalDate from, LocalDate to) {
+        StringBuilder sb = new StringBuilder();
+        if (itemId != null) {
+            sb.append(" AND sl.item_id = ?");
+        }
+        if (from != null) {
+            sb.append(" AND DATE(st.moved_at) >= ?");
+        }
+        if (to != null) {
+            sb.append(" AND DATE(st.moved_at) <= ?");
+        }
+        return sb.length() == 0 ? "" : " WHERE 1=1" + sb;
+    }
+
+    private int bindFilterParams(PreparedStatement ps, int startIndex, Long itemId, LocalDate from, LocalDate to)
+            throws SQLException {
+        int idx = startIndex;
+        if (itemId != null) {
+            ps.setLong(idx++, itemId);
+        }
+        if (from != null) {
+            ps.setDate(idx++, Date.valueOf(from));
+        }
+        if (to != null) {
+            ps.setDate(idx++, Date.valueOf(to));
+        }
+        return idx;
     }
 
     // from_zone과 to_zone이 같으면 안 됨 (확정안 스키마 설계 문서의 제약사항).
