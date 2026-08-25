@@ -352,6 +352,12 @@
 			text = "<span class='zone-warn'>" + text + "</span>";
 		}
 
+		/* 초과 알림 기준을 넘으면 표시(파랑)를 합니다.
+		   부족과 초과가 동시에 걸릴 일은 없어서(기준값 자체가 min < max) else if로 둡니다. */
+		else if (itemMaxs[i] != null && total > itemMaxs[i]) {
+			text = "<span class='zone-over'>" + text + "</span>";
+		}
+
 		return text;
 	}
 

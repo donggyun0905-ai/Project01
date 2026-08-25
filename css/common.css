@@ -408,6 +408,13 @@ tbody tr:hover{
 	font-weight: 600;
 }
 
+/* 초과 알림 기준(capacity_max)을 넘은 재고 - dashboard.css의 재고초과 알림 태그와
+   같은 파란색을 써서, 알림 목록에서 보던 것과 같은 의미로 바로 알아볼 수 있게 합니다. */
+.zone-over {
+	color: #2570c4;
+	font-weight: 600;
+}
+
 /* 표에서 지금 고른 줄 (창고 목록 등) */
 .row-picked {
 	background: #e8f0fe;

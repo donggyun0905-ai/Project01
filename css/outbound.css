@@ -268,3 +268,34 @@
 .modal-overlay.active {
 	display: flex;
 }
+
+/* 출고 이력 / 출고 요청 탭. table-title(15px, margin-bottom 12px) 자리를 대신하는
+   위치라 그 톤을 유지하면서, 눌러서 전환한다는 게 보이게 버튼 형태로 만듭니다. */
+.sub-tab-row {
+	display: flex;
+	gap: 6px;
+	margin-bottom: 14px;
+}
+
+.sub-tab {
+	border: none;
+	background: none;
+	padding: 6px 4px;
+	font-size: 15px;
+	color: #999;
+	cursor: pointer;
+	border-bottom: 2px solid transparent;
+}
+
+.sub-tab.active {
+	color: #222;
+	font-weight: 700;
+	border-bottom: 2px solid rgb(0, 128, 255);
+}
+
+.tab-empty-note {
+	padding: 40px 0;
+	text-align: center;
+	color: #999;
+	font-size: 14px;
+}

@@ -101,7 +101,12 @@
 		<!-- 출고 입력(표)  -->
 		
 		<section class= "table-box">
-		<h4 class="table-title">출고 이력</h4>
+		<div class="sub-tab-row">
+			<button class="sub-tab active" id="tabBtnRequest" onclick="changeOutboundTab('request')">출고 요청</button>
+			<button class="sub-tab" id="tabBtnHistory" onclick="changeOutboundTab('history')">출고 이력</button>
+		</div>
+
+		<div id="outHistoryView" style="display:none;">
 			<table>
 				<thead>
 					<tr>
@@ -124,6 +129,13 @@
 		
 			<!-- 쪽 번호 (명세서 S-04) -->
 			<div class="paging" id="paging"></div>
+		</div>
+
+		<!-- 출고 요청 - 재고보다 많은 수량이 요청됐을 때(이상출고) 여기서 모아 보여줄 예정입니다.
+		     아직 그 기능을 담을 API/DB가 없어서 지금은 자리만 만들어 둡니다. -->
+		<div id="outRequestView">
+			<p class="tab-empty-note">출고 요청 기능은 준비 중입니다.</p>
+		</div>
 		</section>
 		
 	</main>
@@ -717,6 +729,25 @@
 
 	function closeAll() {
 		closeModal("#lotModal");
+	}
+
+
+	/* 출고 이력 / 출고 요청 탭 전환.
+	   출고 요청은 아직 API가 없어서 지금은 자리만 있고, 나중에 DB/서버가 붙으면
+	   이 자리에서 loadRequestList() 같은 함수로 채우면 됩니다. */
+	function changeOutboundTab(tab) {
+
+		if (tab == "history") {
+			document.querySelector("#tabBtnHistory").className = "sub-tab active";
+			document.querySelector("#tabBtnRequest").className = "sub-tab";
+			document.querySelector("#outHistoryView").style.display = "block";
+			document.querySelector("#outRequestView").style.display = "none";
+		} else {
+			document.querySelector("#tabBtnHistory").className = "sub-tab";
+			document.querySelector("#tabBtnRequest").className = "sub-tab active";
+			document.querySelector("#outHistoryView").style.display = "none";
+			document.querySelector("#outRequestView").style.display = "block";
+		}
 	}
 
 
