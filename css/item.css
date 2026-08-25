@@ -126,3 +126,18 @@ td .action-buttons {
 .lot-modal .list-note {
 	padding: 0 20px;
 }
+
+/* 로트가 많아지면 표만 스크롤되게 합니다 (대략 5줄 높이) */
+.stock-table-wrap {
+	max-height: 300px;
+	overflow-y: auto;
+	margin: 0 20px;
+	border: 1px solid #eee;
+	border-radius: 8px;
+}
+
+.stock-table-wrap thead {
+	position: sticky;
+	top: 0;
+	background: #f5f5f5;
+}

@@ -159,7 +159,11 @@
 			</div>
 			<br>
 			아래 로트에서 출고 수량이 차감됩니다.<br>
-			<strong id="lotTotalText"></strong>
+			<div class="total-qty-line">
+				총 출고 수량 :
+				<input type="number" id="totalQtyInput" min="0" onchange="onTotalQtyChange()">
+				<span id="lotTotalUnit"></span>
+			</div>
 		</div>
 		<div class="lot-table-wrap">
 		<table>
@@ -501,7 +505,42 @@
 			total = total + pickedLotQtys[i];
 		}
 
-		document.querySelector("#lotTotalText").innerHTML = "총 출고 수량: " + total + " " + document.querySelector("#outUnit").value;
+		document.querySelector("#totalQtyInput").value = total;
+		document.querySelector("#lotTotalUnit").innerHTML = document.querySelector("#outUnit").value;
+	}
+
+
+	/* "총 출고 수량"에 직접 숫자를 입력하면, 정렬된 순서(FEFO/FIFO) 그대로 앞에서부터
+	   로트별 수량을 자동으로 채워 줍니다. 로트별 수량 칸을 하나씩 채우기 번거로울 때
+	   한 번에 채우는 용도이고, 채운 뒤에도 로트별로 다시 직접 조정할 수 있습니다. */
+	function onTotalQtyChange() {
+
+		let input = document.querySelector("#totalQtyInput");
+		let requested = input.value * 1;
+
+		if (isNaN(requested) || requested < 0) {
+			requested = 0;
+		}
+
+		let totalAvail = 0;
+		for (let i = 0; i < pickedLotAvail.length; i++) {
+			totalAvail = totalAvail + pickedLotAvail[i];
+		}
+
+		if (requested > totalAvail) {
+			requested = totalAvail;
+			alert("이 품목의 남은 재고가 " + addComma(totalAvail) + "개뿐이라, 그만큼만 채웠습니다.");
+		}
+
+		let rest = requested;
+
+		for (let i = 0; i < pickedLotIds.length; i++) {
+			let take = Math.min(rest, pickedLotAvail[i]);
+			pickedLotQtys[i] = take;
+			rest = rest - take;
+		}
+
+		openLot();
 	}
 
 

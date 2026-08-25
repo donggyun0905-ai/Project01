@@ -23,8 +23,6 @@ import java.util.List;
 // API_명세.md 7번 참고.
 public class OutboundService {
 
-    private static final double ABNORMAL_OUTBOUND_MULTIPLIER = 3.0; // 임시값 — 실측 후 조정 (11번 참고)
-
     private final ItemDao itemDao = new ItemDao();
     private final PartnerDao partnerDao = new PartnerDao();
     private final StockLotDao stockLotDao = new StockLotDao();
@@ -75,10 +73,6 @@ public class OutboundService {
                         "재고 수량(" + lot.getQuantity() + ")보다 많은 수량(" + quantity + ")을 출고할 수 없습니다");
             }
 
-            // 이상출고 체크용 평균은 이번 건이 OUTBOUND에 들어가기 "전"에 구해야 함 —
-            // insert 후에 구하면 이번 건 자체가 평균에 섞여 들어가서 판정이 왜곡됨 (자기 자신을 포함해 평균을 올려버림).
-            Double avgQuantity = outboundDao.averageQuantityByItemId(conn, lot.getItemId());
-
             StockLot before = lot.copy();
             int remaining = lot.getQuantity() - quantity;
             lot.setQuantity(remaining);
@@ -95,16 +89,9 @@ public class OutboundService {
 
             Item item = itemDao.findById(conn, lot.getItemId());
 
-            // 이상출고 체크 — 요구사항 3번 "데이터 이상치 검증" (11번, 3배는 임시값)
-            if (avgQuantity != null && quantity > avgQuantity * ABNORMAL_OUTBOUND_MULTIPLIER) {
-                Alert abnormalAlert = new Alert();
-                abnormalAlert.setItemId(lot.getItemId());
-                abnormalAlert.setAlertType("이상출고");
-                abnormalAlert.setMessage("품목(itemId=" + lot.getItemId() + ") 출고 수량(" + quantity
-                        + ")이 평균(" + String.format("%.1f", avgQuantity) + ")의 " + ABNORMAL_OUTBOUND_MULTIPLIER + "배를 초과했습니다");
-                abnormalAlert.setIsResolved(false);
-                alertDao.insert(conn, abnormalAlert);
-            }
+            // 이상출고는 이제 "출고 요청이 재고보다 많음" 기준으로 바뀌어서 ApprovalService.create()
+            // (출고 승인요청을 만드는 시점)에서 체크한다 - 직접 출고(여기)는 로트 재고를 넘는 수량 자체가
+            // 위에서 이미 막히므로(quantity > lot.getQuantity() 예외) 이 경로에서는 일어날 수 없다.
 
             // 재고부족 체크 + 발주 승인 자동생성 — 7.1
             boolean alertCreated = false;
