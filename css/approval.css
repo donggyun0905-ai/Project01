@@ -141,6 +141,20 @@
 	transition: 0.2s;
 }
  
+/* 승인 요청 등록 버튼
+   common.css 의 .register-btn 은 grid-column-start: 1 로 고정돼 있어서,
+   이 화면처럼 필터가 4개보다 적으면(상태·유형 2개) 버튼이 새 줄 맨 왼쪽으로
+   밀려나 애매한 자리에 걸칩니다. 필터와 같은 줄, 맨 오른쪽 칸에 붙입니다. */
+.register-btn {
+	background: #5E7FA3;
+	grid-column-start: 4;
+	justify-self: end;
+}
+
+.register-btn:hover {
+	background: #4d6a8c;
+}
+
 .btn-cancel {
 	background: white;
 	border: 1px solid #ccc;

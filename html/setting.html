@@ -44,13 +44,15 @@
 		<!-- 오른쪽 위 로그인 안내 -->
 		<div class="user-bar" id="userBar"></div>
 		
-		<header class="top-menu">
-			<button class="menu-btn active">사용자 관리</button> 
-			<button class="menu-btn" onclick="location.href='approval.html'">자동 제안 및 승인</button> 
-			<button class="menu-btn" onclick="location.href='roles.html'">권한 관리</button>
-		</header>
-		
-		<button class="small-btn" onclick="openUser(-1)">사용자 등록</button>
+		<div class="setting-top-row">
+			<header class="top-menu">
+				<button class="menu-btn active">사용자 관리</button> 
+				<button class="menu-btn" onclick="location.href='approval.html'">자동 제안 및 승인</button> 
+				<button class="menu-btn" onclick="location.href='roles.html'">권한 관리</button>
+			</header>
+			
+			<button class="small-btn" onclick="openUser(-1)">사용자 등록</button>
+		</div>
 		<!-- 출고 입력(표)  -->
 		
 		<section class= "table-box">
@@ -61,7 +63,6 @@
 						<th>아이디</th> 
 						<th>이름</th> 
 						<th>역할</th>
-						<th>담당 창고</th>
 						<th>계정 생성일</th>
 						<th>상태</th>
 						<th>관리</th>
@@ -77,6 +78,21 @@
 	</main>
 	
 	</div>
+
+<!-- 담당 창고 팝업: 표에서는 빼고, 줄을 누르면 여기에 따로 보여줍니다 -->
+<div class="modal-overlay" id="whListModal">
+	<div class="modal-box wh-list-box">
+
+		<div class="modal-header">
+			<h3 id="whListTitle">담당 창고</h3>
+			<button class="modal-close" onclick="closeWhList()"> x </button>
+		</div>
+
+		<section class="modal-content">
+			<div id="whListArea"></div>
+		</section>
+	</div>
+</div>
 
 <!-- 사용자 추가/수정 모달 -->
 <div class="modal-overlay" id="usModal">
@@ -264,7 +280,7 @@
 		let html = "";
 
 		if (usIds.length == 0) {
-			document.querySelector("#usBody").innerHTML = "<tr><td colspan='8'>등록된 사용자가 없습니다.</td></tr>";
+			document.querySelector("#usBody").innerHTML = "<tr><td colspan='7'>등록된 사용자가 없습니다.</td></tr>";
 			return;
 		}
 
@@ -278,15 +294,14 @@
 				btn = "<button class='edit-btn' onclick='doEnable(" + i + ")'>되살리기</button>";
 			}
 
-			html = html + "<tr>";
+			html = html + "<tr class='row-clickable' onclick='openWhList(" + i + ")'>";
 			html = html + "<td>" + (i + 1) + "</td>";
 			html = html + "<td>" + usNames[i] + "</td>";
 			html = html + "<td>" + usReals[i] + "</td>";
 			html = html + "<td>" + usRoles[i] + "</td>";
-			html = html + "<td>" + usWhs[i] + "</td>";
 			html = html + "<td>" + usDates[i] + "</td>";
 			html = html + "<td>" + state + "</td>";
-			html = html + "<td>";
+			html = html + "<td onclick='event.stopPropagation()'>";
 			html = html + "<button class='edit-btn' onclick='openUser(" + i + ")'>수정</button>";
 			html = html + btn;
 			html = html + "</td>";
@@ -294,6 +309,61 @@
 		}
 
 		document.querySelector("#usBody").innerHTML = html;
+	}
+
+
+	/* ---------- 담당 창고 팝업 ---------- */
+
+	function openWhList(index) {
+
+		document.querySelector("#whListTitle").innerHTML = usReals[index] + " (" + usNames[index] + ") 담당 창고";
+
+		let html = "";
+
+		if (usRoles[index] == "ADMIN") {
+			html = "<p class='wh-empty'>관리자는 모든 창고에 접근할 수 있습니다.</p>";
+
+		} else if (usWhIds[index] == null || usWhIds[index].length == 0) {
+			html = "<p class='wh-empty'>배정된 창고가 없습니다.</p>";
+
+		} else {
+
+			let ids = usWhIds[index];
+
+			for (let i = 0; i < ids.length; i++) {
+
+				/* 창고 번호로 이름·크기 구분(대형/중형/소형)을 찾습니다 */
+				let label = "창고 " + ids[i];
+				let sizeClass = "";
+
+				for (let k = 0; k < warehouseIds.length; k++) {
+					if (warehouseIds[k] == ids[i]) {
+						label = warehouseNames[k];
+
+						if (warehouseBaseNames[k] == "대형") {
+							sizeClass = " wh-tag-large";
+						} else if (warehouseBaseNames[k] == "중형") {
+							sizeClass = " wh-tag-medium";
+						} else {
+							sizeClass = " wh-tag-small";
+						}
+					}
+				}
+
+				html = html + "<div class='wh-tag" + sizeClass + "'>";
+				html = html + "<span class='wh-tag-dot'></span>";
+				html = html + label;
+				html = html + "</div>";
+			}
+		}
+
+		document.querySelector("#whListArea").innerHTML = html;
+
+		openModal("#whListModal");
+	}
+
+	function closeWhList() {
+		closeModal("#whListModal");
 	}
 
 

@@ -14,6 +14,86 @@
 	background: rgb(0, 128, 0);
 }
 
+/* 탭(사용자 관리/자동 제안 및 승인/권한 관리)과 "사용자 등록" 버튼을
+   같은 줄에 나란히 놓습니다 - 탭은 왼쪽, 버튼은 오른쪽. */
+.setting-top-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 25px;
+}
+
+.setting-top-row .top-menu {
+	margin-bottom: 0;
+}
+
+.setting-top-row .small-btn {
+	margin-left: 0;
+}
+
+/* 담당 창고는 표에서 빼고 줄을 눌러야 보이는 팝업으로 옮겼습니다.
+   회색 호버 배경은 common.css의 tbody tr:hover가 이미 해주니
+   커서만 손가락으로 바꿔서 누를 수 있다는 걸 알려줍니다. */
+.row-clickable {
+	cursor: pointer;
+}
+
+/* 담당 창고 팝업 - 등록/수정 모달보다 훨씬 작게.
+   .modal-box(뒤쪽에 정의됨) 보다 확실히 이기도록 두 클래스를 같이 씁니다. */
+.modal-box.wh-list-box {
+	width: 460px;
+	height: auto;
+}
+
+.wh-list-box .modal-content {
+	padding: 24px 28px 28px;
+}
+
+/* 창고 태그 - 메인 화면 도넛차트에서 쓰는 대형/중형/소형 색을 그대로 맞춰서
+   어느 크기의 창고를 담당하는지 색만 봐도 알 수 있게 합니다. */
+#whListArea {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 10px;
+}
+
+.wh-tag {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 10px 14px;
+	border-radius: 10px;
+	background: #f7f7f5;
+	font-size: 14px;
+	font-weight: 700;
+	color: #333;
+}
+
+.wh-tag-dot {
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	flex: 0 0 auto;
+}
+
+.wh-tag-large .wh-tag-dot {
+	background: #D8C3A5;
+}
+
+.wh-tag-medium .wh-tag-dot {
+	background: #347A55;
+}
+
+.wh-tag-small .wh-tag-dot {
+	background: #1f2628;
+}
+
+.wh-empty {
+	grid-column: 1 / -1;
+	color: #999;
+	font-size: 14px;
+}
+
 
 /*반품/폐기 등록 모달  */
 .modal-overlay{
