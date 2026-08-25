@@ -98,7 +98,9 @@ public class InboundService {
             Long lotId = stockLotDao.insert(conn, lot);
 
             boolean alertCreated = false;
-            if (willExceedCapacityMax) {
+            // 이미 미해결 재고초과 알림이 있으면 중복으로 또 만들지 않는다(OutboundService의
+            // 재고부족 쪽과 같은 이유 — 한 품목에 여러 번 나눠 입고될 때 매번 새로 만들지 않게).
+            if (willExceedCapacityMax && !alertDao.existsUnresolvedByItemIdAndType(conn, itemId, "재고초과")) {
                 Alert alert = new Alert();
                 alert.setItemId(itemId);
                 alert.setAlertType("재고초과");

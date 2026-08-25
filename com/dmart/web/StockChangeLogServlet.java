@@ -77,6 +77,7 @@ public class StockChangeLogServlet extends HttpServlet {
         try {
             StockLotAdjustmentService.RestoreResult result =
                     adjustmentService.restore(logId, AuthUtil.getUserId(req));
+            EventBus.publish("auditLog");
             ApiResponse.success(resp, 200, JsonUtil.object(
                     "lotId", result.lotId,
                     "restoredQuantity", result.restoredQuantity,

@@ -155,6 +155,9 @@ CREATE TABLE APPROVAL (
     approved_by    BIGINT,
     requested_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     approved_at    DATETIME,
+    fulfilled_qty  INT,                                   -- 실제로 처리된 수량(2026-08-25 추가). NULL=아직 대기/반려라 해당 없음.
+                                                            -- 발주: 성공하면 requested_qty와 같음, 실패하면 0(전부 아니면 전무)
+                                                            -- 출고: 실제로 나간 수량(요청보다 적을 수 있음)
     CONSTRAINT fk_approval_item FOREIGN KEY (item_id) REFERENCES ITEM(item_id),
     CONSTRAINT fk_approval_alert FOREIGN KEY (alert_id) REFERENCES ALERT(alert_id),
     CONSTRAINT fk_approval_partner FOREIGN KEY (partner_id) REFERENCES PARTNER(partner_id),
@@ -162,6 +165,23 @@ CREATE TABLE APPROVAL (
     CONSTRAINT fk_approval_approved_by FOREIGN KEY (approved_by) REFERENCES APP_USER(user_id),
     CONSTRAINT chk_approval_status CHECK (status IN ('대기', '승인', '반려'))
 );
+
+-- ========== 시스템 켜짐/꺼짐 토글 ==========
+
+-- 시뮬레이터 / 자동관리 버튼의 on-off 상태. 톰캣이 재시작돼도, 팀원 누가 봐도 같은 상태를
+-- 보게 DB에 저장 (BackgroundTaskListener가 몇 초 간격으로 이 값을 읽어서 동작 여부를 결정).
+CREATE TABLE SYSTEM_TOGGLE (
+    toggle_name VARCHAR(30) PRIMARY KEY,               -- SIMULATOR / AUTO_MANAGE
+    is_on       BOOLEAN  NOT NULL DEFAULT FALSE,
+    updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+INSERT INTO SYSTEM_TOGGLE (toggle_name, is_on) VALUES ('SIMULATOR', FALSE), ('AUTO_MANAGE', FALSE);
+
+-- 데이터 초기화(DataResetService) 기준점. STOCK_LOT/OUTBOUND/RETURN_DISPOSAL/ALERT/APPROVAL
+-- 5개 테이블 각각을 그대로 복제해 SNAPSHOT_<이름>으로 박제해 둔다(2026-08-25, captureBaseline()
+-- 1회 실행). 정적 DDL이 아니라 런타임에 "CREATE TABLE ... AS SELECT"로 생기는 테이블이라 여기엔
+-- 스키마를 따로 적지 않음 — DataResetService.java 참고.
 
 -- ========== 담당 창고 배정 (N:M) ==========
 

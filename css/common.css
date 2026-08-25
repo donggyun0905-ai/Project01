@@ -538,3 +538,42 @@ td .delete-btn {
 .wait-badge:hover {
 	background: #c2862f;
 }
+
+/* 시뮬레이터/자동관리/데이터 초기화 (관리자에게만 보입니다) */
+.sys-toggle-btn {
+	display: inline-block;
+	padding: 3px 12px;
+	border-radius: 12px;
+	border: 1px solid #d8d8d8;
+	background: #f5f5f5;
+	color: #555;
+	font-size: 12px;
+	font-weight: bold;
+	cursor: pointer;
+}
+
+.sys-toggle-btn:hover {
+	background: #ececec;
+}
+
+.sys-toggle-btn.on {
+	background: #16a34a;
+	border-color: #16a34a;
+	color: #ffffff;
+}
+
+.sys-reset-btn {
+	display: inline-block;
+	padding: 3px 12px;
+	border-radius: 12px;
+	border: 1px solid #e5b8b8;
+	background: #fdecec;
+	color: #b42318;
+	font-size: 12px;
+	font-weight: bold;
+	cursor: pointer;
+}
+
+.sys-reset-btn:hover {
+	background: #fadada;
+}

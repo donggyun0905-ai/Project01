@@ -93,6 +93,7 @@ public class StockLotServlet extends HttpServlet {
 
         try {
             StockLotAdjustmentService.AdjustResult result = adjustmentService.adjust(lotId, quantity, status, reason, changedBy);
+            EventBus.publish("auditLog");
             ApiResponse.success(resp, 200, JsonUtil.object(
                     "lotId", result.lotId,
                     "quantity", result.quantity,
@@ -123,6 +124,7 @@ public class StockLotServlet extends HttpServlet {
 
         try {
             Long resultLotId = adjustmentService.delete(lotId, reason, AuthUtil.getUserId(req));
+            EventBus.publish("auditLog");
             ApiResponse.success(resp, 200, JsonUtil.object("lotId", resultLotId));
         } catch (IllegalArgumentException e) {
             ApiResponse.error(resp, 400, "VALIDATION_ERROR", e.getMessage());

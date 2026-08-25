@@ -58,6 +58,7 @@ public class InboundServlet extends HttpServlet {
         try {
             InboundService.InboundResult result =
                     inboundService.inbound(itemId, zoneId, partnerId, quantity, inboundDate, createdBy);
+            EventBus.publish("inbound");
             ApiResponse.success(resp, 201, JsonUtil.object(
                     "lotId", result.lotId,
                     "expiryDate", result.expiryDate,

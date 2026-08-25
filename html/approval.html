@@ -846,6 +846,30 @@
 	/* 오른쪽 위에 로그인한 사람을 보여 줍니다 */
 	drawUserBar();
 
+
+	/* ============================================================
+	   서버가 데이터 바뀔 때마다 바로 알려주는 실시간 연결(connectRealtimeRefresh,
+	   common.js)을 받으면 바로 다시 받아오고, 연결이 끊기거나 신호를 놓쳐도
+	   5초마다 한 번씩은 따라잡도록 폴링도 안전망으로 같이 둡니다(alert.html과
+	   동일한 패턴). 승인 상세/신규 요청 모달을 보고 있는 중에는 그 내용이
+	   갑자기 바뀌면 안 되니 건너뜁니다.
+	   ============================================================ */
+	function refreshIfIdle() {
+		let apModal = document.querySelector("#apModal");
+		let newModal = document.querySelector("#newModal");
+		let modalOpen = apModal.className.indexOf("active") != -1 || newModal.className.indexOf("active") != -1;
+		if (modalOpen == false) {
+			loadData();
+			loadConsolidationAlerts();
+		}
+	}
+
+	/* 승인 자체("approval")뿐 아니라, 승인 대기중인 발주 요청이 새로 생기는 계기인
+	   출고/반품폐기("outbound"/"disposal")와, 창고정리추천을 여기서 해결 처리할 수도
+	   있으니 "alert"도 같이 구독합니다. */
+	connectRealtimeRefresh(refreshIfIdle, ["approval", "alert", "outbound", "disposal"]);
+	setInterval(refreshIfIdle, 5000);
+
 </script>
 </body>
 </html>

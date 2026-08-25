@@ -15,6 +15,7 @@ public class Approval {
     private Long approvedBy;
     private LocalDateTime requestedAt;
     private LocalDateTime approvedAt;
+    private Integer fulfilledQty; // 실제로 처리된 수량. NULL=아직 대기/반려라 해당 없음
 
     public Approval() {
     }
@@ -123,11 +124,20 @@ public class Approval {
         this.approvedAt = approvedAt;
     }
 
+    public Integer getFulfilledQty() {
+        return fulfilledQty;
+    }
+
+    public void setFulfilledQty(Integer fulfilledQty) {
+        this.fulfilledQty = fulfilledQty;
+    }
+
     @Override
     public String toString() {
         return "Approval{approvalId=" + approvalId + ", itemId=" + itemId + ", alertId=" + alertId
                 + ", requestType='" + requestType + "', requestedQty=" + requestedQty + ", partnerId=" + partnerId
                 + ", status='" + status + "', requestedBy=" + requestedBy + ", approvedBy=" + approvedBy
-                + ", requestedAt=" + requestedAt + ", approvedAt=" + approvedAt + "}";
+                + ", requestedAt=" + requestedAt + ", approvedAt=" + approvedAt
+                + ", fulfilledQty=" + fulfilledQty + "}";
     }
 }

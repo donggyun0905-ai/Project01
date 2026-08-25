@@ -190,6 +190,7 @@ public class ApprovalService {
             try (Connection conn = DBConnection.getConnection()) {
                 StockLot recent = stockLotDao.findMostRecentNormalByItemId(conn, approval.getItemId());
                 if (recent == null) {
+                    updateFulfilledQty(approval.getApprovalId(), 0);
                     return DecisionResult.inboundExecuted(approval.getApprovalId(), true,
                             "참고할 기존 로트가 없어 자동 입고 실행 불가 — POST /api/inbound로 수동 처리 필요", null);
                 }
@@ -201,8 +202,10 @@ public class ApprovalService {
 
             InboundService.InboundResult result = inboundService.inbound(
                     approval.getItemId(), zoneId, partnerId, approval.getRequestedQty(), LocalDate.now(), approvedBy);
+            updateFulfilledQty(approval.getApprovalId(), approval.getRequestedQty());
             return DecisionResult.inboundExecuted(approval.getApprovalId(), false, null, result.lotId);
         } catch (SQLException | RuntimeException e) {
+            updateFulfilledQty(approval.getApprovalId(), 0);
             return DecisionResult.inboundExecuted(approval.getApprovalId(), true, e.getMessage(), null);
         }
     }
@@ -257,6 +260,7 @@ public class ApprovalService {
             System.err.println("승인(approvalId=" + approval.getApprovalId() + ") 자동 출고 추천 조회 실패: " + e.getMessage());
         }
 
+        updateFulfilledQty(approval.getApprovalId(), fulfilled);
         return DecisionResult.outboundExecuted(approval.getApprovalId(), outboundIds, requestedQty,
                 fulfilled, shortageApprovalId);
     }
@@ -287,8 +291,9 @@ public class ApprovalService {
         int extra = recentLot.getInitialQuantity() != null ? recentLot.getInitialQuantity() : 0;
         int autoQty = shortfall + extra;
 
+        Long shortageApprovalId = null;
         try {
-            Long shortageApprovalId = createAutoApprovedShortageApproval(itemId, autoQty, approvedBy);
+            shortageApprovalId = createAutoApprovedShortageApproval(itemId, autoQty, approvedBy);
 
             InboundService.InboundResult inboundResult = inboundService.inbound(
                     itemId, recentLot.getZoneId(), recentLot.getPartnerId(), autoQty, LocalDate.now(), approvedBy);
@@ -297,12 +302,18 @@ public class ApprovalService {
                     "품목(itemId=" + itemId + ") 출고 부족분을 승인 없이 자동으로 입고 처리했습니다 ("
                             + autoQty + "개, 그중 여유분 " + extra + "개, 로트 lotId=" + inboundResult.lotId + ")");
 
+            updateFulfilledQty(shortageApprovalId, autoQty);
             return shortageApprovalId;
         } catch (SQLException | RuntimeException e) {
             System.err.println("품목(itemId=" + itemId + ") 부족분 자동 입고 처리 실패: " + e.getMessage());
             createAlert(itemId, "자동실행실패",
                     "품목(itemId=" + itemId + ") 출고 부족분(" + shortfall
                             + "개) 자동 입고 처리 중 오류가 발생했습니다: " + e.getMessage());
+            // shortageApprovalId row가 이미 만들어졌을 수도 있음(발주 기록은 승인 상태 그대로 두고
+            // 실제로는 아무것도 안 들어왔다는 것만 남긴다) - null이면(insert 자체가 실패) 남길 게 없음.
+            if (shortageApprovalId != null) {
+                updateFulfilledQty(shortageApprovalId, 0);
+            }
             return null;
         }
     }
@@ -323,6 +334,15 @@ public class ApprovalService {
             shortage.setApprovedAt(LocalDateTime.now());
             return approvalDao.insert(conn, shortage);
         });
+    }
+
+    // 승인 건이 실제로 얼마나 처리됐는지 기록한다(실패해도 전체 흐름을 막을 이유가 없어 예외를 던지지 않고 로그만 남김).
+    private void updateFulfilledQty(Long approvalId, Integer fulfilledQty) {
+        try (Connection conn = DBConnection.getConnection()) {
+            approvalDao.updateFulfilledQty(conn, approvalId, fulfilledQty);
+        } catch (SQLException e) {
+            System.err.println("승인(approvalId=" + approvalId + ") 처리 수량 기록 실패: " + e.getMessage());
+        }
     }
 
     // 정보 전달용 알림 하나를 남긴다(실패해도 전체 흐름을 막을 이유가 없어 예외를 던지지 않고 로그만 남김).

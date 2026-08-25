@@ -118,7 +118,9 @@ public class ReturnDisposalService {
             Item item = itemDao.findById(conn, lot.getItemId());
             if (item != null && item.getThresholdMin() != null) {
                 int totalAfter = stockLotDao.sumQuantityByItemId(conn, lot.getItemId());
-                if (totalAfter < item.getThresholdMin()) {
+                // OutboundService와 같은 이유 — 이미 미해결 재고부족 알림이 있으면 중복으로 또 만들지 않는다.
+                if (totalAfter < item.getThresholdMin()
+                        && !alertDao.existsUnresolvedByItemIdAndType(conn, lot.getItemId(), "재고부족")) {
                     Alert shortageAlert = new Alert();
                     shortageAlert.setItemId(lot.getItemId());
                     shortageAlert.setAlertType("재고부족");
