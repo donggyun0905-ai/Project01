@@ -186,3 +186,9 @@
 .tag-재고초과{ background: #e3f0ff; color: #2570c4; }
 .tag-이상출고{ background: #fff2e0; color: #cc8400; }
 .tag-예측알림{ background: #eae6ff; color: #5b45c4; }
+
+/* 아래 3개는 시스템(자동입고/자동관리/창고정리추천)이 만드는 알림인데,
+   여기 색 정의가 빠져 있어서 캡슐 배경 없이 밋밋하게 보였습니다. */
+.tag-자동입고{ background: #e3f7e8; color: #1f9254; }
+.tag-자동실행실패{ background: #fde2e2; color: #c23c3c; }
+.tag-창고정리추천{ background: #eafaf6; color: #158a72; }

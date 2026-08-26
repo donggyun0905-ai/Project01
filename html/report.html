@@ -49,51 +49,62 @@
 			<button class="menu-btn active">보고서 및 내보내기</button> 
 		</header>
 		
-		<section class="reportbox"> <!-- 일일 보고서 -->
-			<h3>일일 보고서</h3>
-			
-			<div class="form-group">
-				<label>기준일</label>
-				<div class="date-range">
-					<input type="date" id="reportDate">
+		<!-- 왼쪽 : 일일 보고서(문서), 오른쪽 : 데이터 내보내기.
+		     문서를 전체 폭으로 넙적하게 펼치지 않고 옆으로 붙여서 좁혀 둡니다. -->
+		<div class="report-layout">
+
+		<!-- 하나의 보고서 문서처럼 보이게 - 카드 여러 개로 흩어놓지 않고
+		     한 틀 안에 전일 대비 / TOP 출고 품목 / 부족 품목을 순서대로 담습니다.
+		     기준일을 날짜별로 다른 문서를 펼쳐보는 느낌으로 크게 보여줍니다. -->
+		<section class="report-doc">
+
+			<div class="report-doc-header">
+				<div>
+					<div class="report-doc-eyebrow">일일 보고서</div>
+					<h2 id="reportTitleDate">-</h2>
+				</div>
+
+				<div class="report-doc-actions">
+					<input type="date" id="reportDate" onchange="makeReport()">
+					<button class="pdf-btn" onclick="exportDailyPdf()">PDF로 다운로드</button>
 				</div>
 			</div>
 
-			<!-- 왼쪽 : 기준일 바꾸면 같이 바뀌는 것들 (전일 대비 / TOP 출고 품목)
-			     오른쪽 : 기준일이랑 상관없이 "지금" 기준으로 항상 같은 부족 품목
-			     서로 성격이 달라서 얇은 선으로 나눠 구분했습니다. -->
-			<div class="report-columns">
-
-				<div class="report-col">
-					<div class="form-group">
-						<label>전일 대비</label>
-						<div class="top-itemlist" id="sumArea"></div>
+			<div class="doc-section">
+				<h4 class="doc-section-title">전일 대비</h4>
+				<div class="doc-stat-row">
+					<div class="doc-stat">
+						<span class="doc-stat-name">입고량</span>
+						<span class="doc-stat-num"><span id="inCountText">-</span> EA</span>
+						<div id="inDiffArea"></div>
 					</div>
-
-					<div class="form-group">
-						<label>TOP 출고 품목</label>
-						<div class="top-itemlist" id="topArea"></div>
+					<div class="doc-stat">
+						<span class="doc-stat-name">출고량</span>
+						<span class="doc-stat-num"><span id="outCountText">-</span> EA</span>
+						<div id="outDiffArea"></div>
 					</div>
 				</div>
+			</div>
 
-				<div class="report-col report-col-divider">
-					<div class="form-group align-top">
-						<label>부족 품목</label>
-						<div class="top-itemlist scrollable" id="lowArea"></div>
-					</div>
+			<div class="doc-section doc-section-last doc-section-row">
+
+				<div class="doc-col">
+					<h4 class="doc-section-title">TOP 출고 품목</h4>
+					<div id="topArea"></div>
+				</div>
+
+				<div class="doc-col">
+					<h4 class="doc-section-title">부족 품목</h4>
+					<div class="scrollable-list" id="lowArea"></div>
 				</div>
 
 			</div>
-			
-			<div class="btn-row">
-				<button class="ghost" onclick="exportDailyPdf()">PDF로 다운로드</button>
-				<button class="make" onclick="makeReport()">보고서 생성하기</button>
-			</div>
+
 		</section>
 		
-		<section class="report"> <!-- 데이터 내보내기 -->
+		<section class="report report-side"> <!-- 데이터 내보내기 -->
 			<h3>데이터 내보내기</h3>
-			
+
 			<div class="form-group">
 				<label>데이터</label>
 				<select id="dataType" onchange="changeDataType()">
@@ -134,11 +145,11 @@
 				</div>
 			</div>
 			
-			<div class="form-group">
+			<div class="form-group last-form-group">
 				<label>형식</label>
-				<div class="radio-group">
-					<label><input type="radio" name="format" value="CSV" checked>CSV</label>
-					<label><input type="radio" name="format" value="Excel">Excel</label>
+				<div class="format-toggle">
+					<button type="button" class="format-btn active" id="fmtCsvBtn" onclick="pickFormat('CSV')">CSV</button>
+					<button type="button" class="format-btn" id="fmtExcelBtn" onclick="pickFormat('Excel')">Excel</button>
 				</div>
 			</div>
 			
@@ -146,8 +157,9 @@
 			
 			<button class="push" onclick="doExport()">내보내기</button>
 		</section>
-		
-		
+
+		</div>
+
 	</main>
 	
 	</div>
@@ -226,7 +238,8 @@
 	}
 
 
-	/* 보고서 생성 버튼 */
+	/* 기준일이 바뀌면(날짜 입력 onchange) 그 날짜로 다시 불러옵니다.
+	   문서 제목도 같이 바꿔서 "다른 날짜의 문서를 펼쳐본" 느낌이 나게 합니다. */
 	function makeReport() {
 
 		let day = document.querySelector("#reportDate").value;
@@ -236,6 +249,7 @@
 			return;
 		}
 
+		document.querySelector("#reportTitleDate").innerHTML = day;
 		loadReportData(day);
 	}
 
@@ -243,61 +257,86 @@
 	/* 가져온 자료로 보고서를 그립니다 (단위는 서버가 EA로 통일해서 줍니다) */
 	function drawReport() {
 
-		/* ---- 전일 대비 ---- */
+		/* ---- 전일 대비 : 메인 화면 요약카드와 같은 방식(숫자 + 증감 배지) ---- */
+		document.querySelector("#inCountText").innerHTML = addComma(inTotal);
+		document.querySelector("#outCountText").innerHTML = addComma(outTotal);
+		document.querySelector("#inDiffArea").innerHTML = makeDiffBadge(inDiff);
+		document.querySelector("#outDiffArea").innerHTML = makeDiffBadge(outDiff);
+
+		/* ---- TOP 출고 품목 : 순위를 동그란 배지로 보여줍니다 ---- */
 		let html = "";
-		html = html + makeSumRow("입고량", inTotal, inDiff);
-		html = html + makeSumRow("출고량", outTotal, outDiff);
-		document.querySelector("#sumArea").innerHTML = html;
-
-		/* ---- 부족 품목 ---- */
-		html = "";
-
-		if (lowNames.length == 0) {
-			html = "<p>해당 없음</p>";
-		} else {
-			for (let i = 0; i < lowNames.length; i++) {
-				html = html + '<div class="top-item">';
-				html = html + "<span>" + lowNames[i] + "</span>";
-				html = html + "<span>" + lowStocks[i] + "EA / 최소 " + lowMins[i] + "EA</span>";
-				html = html + "</div>";
-			}
-		}
-		document.querySelector("#lowArea").innerHTML = html;
-
-		/* ---- 많이 나간 품목 ---- */
-		html = "";
 
 		if (topNames.length == 0) {
-			html = "<p>해당 없음</p>";
+			html = "<p class='panel-empty'>해당 없음</p>";
 		} else {
+
+			let maxQty = 0;
+			for (let i = 0; i < topQtys.length; i++) {
+				if (topQtys[i] > maxQty) {
+					maxQty = topQtys[i];
+				}
+			}
+
 			for (let i = 0; i < topNames.length; i++) {
-				html = html + '<div class="top-item">';
-				html = html + "<span>" + (i + 1) + ". " + topNames[i] + "</span>";
-				html = html + "<span>" + addComma(topQtys[i]) + "EA</span>";
+
+				let percent = 0;
+				if (maxQty > 0) {
+					percent = Math.round(topQtys[i] / maxQty * 100);
+				}
+
+				html = html + "<div class='rank-row'>";
+				html = html + "<span class='rank-badge'>" + (i + 1) + "</span>";
+				html = html + "<div class='rank-body'>";
+				html = html + "<div class='rank-top'>";
+				html = html + "<span class='rank-name'>" + topNames[i] + "</span>";
+				html = html + "<span class='rank-qty'>" + addComma(topQtys[i]) + " EA</span>";
+				html = html + "</div>";
+				html = html + "<div class='rank-bar'><div class='rank-bar-fill' style='width:" + percent + "%'></div></div>";
+				html = html + "</div>";
 				html = html + "</div>";
 			}
 		}
 		document.querySelector("#topArea").innerHTML = html;
+
+		/* ---- 부족 품목 : 현재/최소 비율을 작은 막대로 같이 보여줍니다 ---- */
+		html = "";
+
+		if (lowNames.length == 0) {
+			html = "<p class='panel-empty'>해당 없음</p>";
+		} else {
+			for (let i = 0; i < lowNames.length; i++) {
+
+				let percent = 0;
+				if (lowMins[i] > 0) {
+					percent = Math.round(lowStocks[i] / lowMins[i] * 100);
+				}
+				if (percent > 100) {
+					percent = 100;
+				}
+
+				html = html + "<div class='low-row'>";
+				html = html + "<div class='low-top'>";
+				html = html + "<span class='low-name'>" + lowNames[i] + "</span>";
+				html = html + "<span class='low-qty'>" + lowStocks[i] + " / 최소 " + lowMins[i] + " EA</span>";
+				html = html + "</div>";
+				html = html + "<div class='low-bar'><div class='low-bar-fill' style='width:" + percent + "%'></div></div>";
+				html = html + "</div>";
+			}
+		}
+		document.querySelector("#lowArea").innerHTML = html;
 	}
 
 
-	/* 전일 대비 한 줄을 만듭니다 */
-	function makeSumRow(name, total, diff) {
-
-		let html = '<div class="top-item">';
-		html = html + "<span>" + name + "</span>";
-		html = html + "<span>" + addComma(total) + "EA</span>";
+	/* 증감 배지 - 메인 화면 카드의 ▲/▼ 배지와 같은 규칙 */
+	function makeDiffBadge(diff) {
 
 		if (diff > 0) {
-			html = html + "<span>▲ " + diff + "%</span>";
-		} else if (diff < 0) {
-			html = html + "<span>▼ " + (diff * -1) + "%</span>";
-		} else {
-			html = html + "<span>-</span>";
+			return "<span class='diff diff-up'>▲ " + diff + "% 전일 대비</span>";
 		}
-
-		html = html + "</div>";
-		return html;
+		if (diff < 0) {
+			return "<span class='diff diff-down'>▼ " + (diff * -1) + "% 전일 대비</span>";
+		}
+		return "";
 	}
 
 
@@ -337,6 +376,18 @@
 	}
 
 
+	/* CSV / Excel 형식 토글 (라디오 버튼 대신 버튼 두 개로) */
+	let pickedFormat = "CSV";
+
+	function pickFormat(fmt) {
+
+		pickedFormat = fmt;
+
+		document.querySelector("#fmtCsvBtn").className = (fmt == "CSV") ? "format-btn active" : "format-btn";
+		document.querySelector("#fmtExcelBtn").className = (fmt == "Excel") ? "format-btn active" : "format-btn";
+	}
+
+
 	function doExport() {
 
 		let type = document.querySelector("#dataType").value;
@@ -353,17 +404,7 @@
 			return;
 		}
 
-		/* 라디오 버튼 중에 고른 값을 찾습니다 */
-		let fileType = "CSV";
-		let radios = document.getElementsByName("format");
-
-		for (let i = 0; i < radios.length; i++) {
-			if (radios[i].checked == true) {
-				fileType = radios[i].value;
-			}
-		}
-
-		let ext = (fileType == "Excel") ? "excel" : "csv";
+		let ext = (pickedFormat == "Excel") ? "excel" : "csv";
 		let path = "";
 
 		if (type == "inout") {
@@ -391,6 +432,7 @@
 
 	/* 화면이 열릴 때 오늘 날짜를 기준일에 넣어 둡니다 */
 	document.querySelector("#reportDate").value = getToday();
+	document.querySelector("#reportTitleDate").innerHTML = getToday();
 	loadReportData(getToday());
 
 	/* 내보내기 기간도 최근 일주일로 기본값을 넣어 둡니다 */

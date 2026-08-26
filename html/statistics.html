@@ -63,7 +63,7 @@
 			</div>
 		</section>
 
-		<!-- 회전율 / 거래처 순위 / 입출고 집계 -->
+		<!-- 회전율 / 거래처 순위 -->
 		<section class="panel-wrap">
 
 			<div class="card">
@@ -79,6 +79,11 @@
 				</div>
 				<div id="rankArea"></div>
 			</div>
+
+		</section>
+
+		<!-- 입출고량 집계 - 가로로 넓게, 아래 한 줄 전체를 씁니다 -->
+		<section class="panel-wrap-full">
 
 			<div class="card">
 				<div class="card-header">
@@ -243,16 +248,22 @@
 			return;
 		}
 
-		// 가장 큰 값을 찾는다 (이 값을 100%로 잡고 나머지 길이를 정한다)
+		// 가장 큰 값을 찾는다 (이 값을 100%로 잡고 나머지 길이를 정한다).
+		// 서버는 6개까지 주지만, 칸을 짧게 유지하려고 화면에는 상위 5개만 보여줍니다.
+		let showCount = turnNames.length;
+		if (showCount > 5) {
+			showCount = 5;
+		}
+
 		let maxRate = 0;
-		for (let i = 0; i < turnRates.length; i++) {
+		for (let i = 0; i < showCount; i++) {
 			if (turnRates[i] > maxRate) {
 				maxRate = turnRates[i];
 			}
 		}
 
 		let html = "";
-		for (let i = 0; i < turnNames.length; i++) {
+		for (let i = 0; i < showCount; i++) {
 			// 막대 길이를 퍼센트로 계산한다
 			let percent = 0;
 			if (maxRate > 0) {
@@ -359,7 +370,26 @@
 			document.querySelector("#btnMonth").className = "active";
 		}
 
-		loadLineChart();
+		/* 단위에 맞게 조회 기간도 같이 넓혀줍니다. 안 그러면 예전처럼
+		   기간(예: 최근 7일)은 그대로인 채 "주/월로 나눠 달라"고만 하게 돼서,
+		   나눌 수 있는 게 1~2개뿐이라 그래프에 점이 몇 개 안 찍힙니다.
+		   일 = 최근 7일 / 주 = 최근 12주 / 월 = 최근 12개월(1년). */
+		let to = new Date();
+		let from = new Date();
+
+		if (unit == "일") {
+			from.setDate(from.getDate() - 6);       // 오늘 포함 7일
+		} else if (unit == "주") {
+			from.setDate(from.getDate() - 7 * 12);  // 최근 12주
+		} else {
+			from.setMonth(from.getMonth() - 12);    // 최근 12개월
+		}
+
+		document.querySelector("#toDate").value = getDateText(to);
+		document.querySelector("#fromDate").value = getDateText(from);
+
+		// 기간 입력칸을 같이 쓰는 거래처 TOP5, 재고 회전율도 넓어진 기간에 맞춰 다시 받아옵니다
+		loadData();
 	}
 
 	/* =========================================================

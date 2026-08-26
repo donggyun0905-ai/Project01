@@ -1,38 +1,27 @@
-/* 보고서 내보내기*/
-h3 {
-	margin-bottom: 20px;
-}
+/* 보고서 내보내기 */
 
 .form-group{
 	display: flex;
 	align-items: center;
-	gap: 50px;
-	margin-bottom: 30px;
+	gap: 30px;
+	margin-bottom: 32px;
+}
+
+.last-form-group {
+	margin-bottom: 0;
 }
 
 .form-group label {
 	width: 70px;
-	font-weight: 600;
-}
-
-/* 부족 품목처럼 내용이 몇 줄이 될지 알 수 없는 칸은 라벨을 위쪽에 고정합니다
-   (기본 form-group은 align-items: center라 내용이 길어지면 라벨이
-   가운데로 떠버려서, 이 클래스가 붙은 줄에서만 위쪽 정렬로 바꿉니다) */
-.form-group.align-top {
-	align-items: flex-start;
+	font-size: 15px;
+	font-weight: 700;
+	color: #222;
 }
 
 .form-group select{
 	width: 170px;
-	height: 36px;
-}
-
-.reportbox,
-.report {
-	background: white;
-	border-radius: 12px;
-	padding: 25px;
-	margin-bottom: 20px;
+	height: 40px;
+	font-size: 15px;
 }
 
 .date-range{
@@ -42,108 +31,369 @@ h3 {
 
 .date-range input{
 	width: 170px;
-	height: 36px;
+	height: 40px;
+	font-size: 15px;
 }
 
-.make,
-.push {
-	display: block;
-	margin-left: auto;
-	background: #9A7753;
+/* ============================================================
+   일일 보고서(왼쪽, 넓게) / 데이터 내보내기(오른쪽, 좁게)를
+   옆으로 나란히 둬서 문서가 화면 전체 폭으로 넙적하게 안 늘어나게 합니다.
+   ============================================================ */
+.report-layout {
+	display: flex;
+	gap: 24px;
+}
+
+.report-doc {
+	flex: 2;
+	min-width: 0;
+}
+
+.report-side {
+	flex: 1;
+	min-width: 280px;
+}
+
+/* 옆으로 좁아진 칸에서는 라벨을 옆이 아니라 위에 두는 게 훨씬 안 답답합니다 */
+.report-side .form-group {
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 8px;
+}
+
+.report-side .form-group label {
+	width: auto;
+}
+
+.report-side .date-range {
+	flex-direction: column;
+}
+
+.report-side select,
+.report-side .date-range input {
+	width: 100%;
+	height: 44px;
+	font-size: 16px;
+}
+
+/* ============================================================
+   일일 보고서 - 카드 여러 개로 흩어놓지 않고, 하나의 문서 안에
+   전일 대비 / TOP 출고 품목 / 부족 품목을 순서대로 담습니다.
+   "메인 화면을 또 보여주는 화면"이 아니라 "그 날짜 하나를 뽑아서
+   문서로 남기는 화면"이라는 게 느껴지게, 기준일을 문서 제목처럼
+   크게 보여줍니다.
+   ============================================================ */
+.report-doc {
+	background: white;
+	border-radius: 12px;
+	padding: 32px 36px;
+	margin-bottom: 24px;
+}
+
+.report-doc-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-end;
+	padding-bottom: 20px;
+	border-bottom: 2px solid #1f2628;
+	margin-bottom: 24px;
+}
+
+.report-doc-eyebrow {
+	font-size: 13px;
+	color: #999;
+	font-weight: 600;
+	margin-bottom: 4px;
+}
+
+.report-doc-header h2 {
+	font-size: 26px;
+}
+
+.report-doc-actions {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.report-doc-actions input[type="date"] {
+	width: 150px;
+	height: 38px;
+	padding: 0 10px;
+	border: 1px solid #ddd;
+	border-radius: 6px;
+}
+
+/* PDF 다운로드가 이 문서의 핵심 동작이라 눈에 띄게(채워진 버튼)로 둡니다.
+   보고서 생성은 이제 기준일을 바꾸는 순간 자동으로 되므로 버튼이 따로 없습니다. */
+.pdf-btn {
+	background: #1f2628;
 	color: white;
 	border: none;
 	border-radius: 8px;
-	padding: 8px 18px;
+	padding: 9px 20px;
+	font-weight: 600;
 	cursor: pointer;
 }
 
-.btn-row {
-	display: flex;
-	justify-content: flex-end;
-	gap: 12px;
-	margin-top: 10px;
+.doc-section {
+	padding-bottom: 24px;
+	margin-bottom: 24px;
+	border-bottom: 1px solid #ececec;
 }
 
-.report-columns {
-	display: flex;
-	gap: 30px;
+.doc-section-last {
+	border-bottom: none;
+	padding-bottom: 0;
+	margin-bottom: 0;
 }
 
-.report-col {
+.doc-section-title {
+	font-size: 13px;
+	font-weight: 700;
+	color: #999;
+	letter-spacing: 0.3px;
+	margin-bottom: 16px;
+}
+
+/* TOP 출고 품목 / 부족 품목을 옆으로 나란히 둡니다. 한쪽이 짧아도 옆 칸
+   높이에 맞춰 억지로 늘어나지 않게 align-items: flex-start를 씁니다.
+   위쪽 "전일 대비"(.doc-stat-row)의 세로선이랑 정확히 같은 위치에
+   오도록 똑같은 값(flex:1 + padding-left 40px + border-left)을 씁니다. */
+.doc-section-row {
+	display: flex;
+	align-items: flex-start;
+}
+
+.doc-col {
 	flex: 1;
-	min-width: 0; /* 안의 긴 텍스트가 flex 박스를 밀어내지 않게 */
+	min-width: 0;
+	padding-left: 40px;
+	border-left: 1px solid #ececec;
 }
 
-.report-col-divider {
-	border-left: 1px solid #e5e5e5;
-	padding-left: 30px;
+.doc-col:first-child {
+	padding-left: 0;
+	padding-right: 40px;
+	border-left: none;
 }
 
-/* 컬럼 안에서는 라벨-내용 간격을 좀 좁혀서 답답해 보이지 않게 합니다 */
-.report-col .form-group {
-	gap: 20px;
-}
-
-/* btn-row 안에서는 각 버튼이 이미 flex로 나란히 놓이니
-   개별 margin-left: auto는 필요 없어서 꺼 둡니다 */
-.btn-row .make,
-.btn-row .push,
-.btn-row .ghost {
-	display: inline-block;
-	margin-left: 0;
-}
-
-/* 보조 동작(PDF 다운로드 등)은 덜 강조되게 테두리만 있는 버튼으로 */
-.ghost {
-	background: white;
-	color: #9A7753;
-	border: 1px solid #9A7753;
-	border-radius: 8px;
-	padding: 8px 18px;
-	cursor: pointer;
-}
-
-.top-itemlist{
+/* ---- 전일 대비 ---- */
+.doc-stat-row {
 	display: flex;
-	flex-direction: column;
-	gap: 8px;
 }
 
-/* 목록이 길어질 수 있는 칸(부족 품목)은 카드 안에서 스크롤되게 높이를 제한합니다 */
-.top-itemlist.scrollable {
-	max-height: 260px;
-	overflow-y: auto;
-	padding-right: 6px;
+.doc-stat {
+	flex: 1;
+	padding-left: 40px;
+	border-left: 1px solid #ececec;
 }
 
-.top-item{
+.doc-stat:first-child {
+	padding-left: 0;
+	padding-right: 40px;
+	border-left: none;
+}
+
+.doc-stat-name {
+	display: block;
+	font-size: 14px;
+	color: #666;
+	margin-bottom: 6px;
+}
+
+.doc-stat-num {
+	font-size: 24px;
+	font-weight: bold;
+}
+
+.diff {
+	display: inline-block;
+	margin-top: 8px;
+	padding: 3px 10px;
+	border-radius: 20px;
+	font-size: 12px;
+	font-weight: bold;
+}
+
+.diff-up{ background: #e5f7ee; color: #2a9a63; }
+.diff-down{ background: #ffe5e3; color: #d9453b; }
+
+.panel-empty {
+	color: #999;
+	font-size: 13px;
+	padding: 4px 0;
+}
+
+/* ---- TOP 출고 품목 : 순위 배지 + 막대 ---- */
+.rank-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	padding: 8px 0;
+}
+
+.rank-row + .rank-row {
+	border-top: 1px solid #f2f2f2;
+}
+
+.rank-badge {
+	flex: 0 0 auto;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	background: #1f2628;
+	color: white;
+	font-size: 12px;
+	font-weight: bold;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-top: 1px;
+}
+
+.rank-body {
+	flex: 1;
+	min-width: 0;
+}
+
+.rank-top {
 	display: flex;
 	justify-content: space-between;
-	align-items: center;
-	gap: 25px;
-	background: #f7f5f2;
-	border-radius: 8px;
-	padding: 10px 14px;
+	gap: 10px;
+	margin-bottom: 6px;
 }
 
-.top-item span:last-child {
-	color: #6b6b6b;
+.rank-name {
+	font-size: 14px;
+	font-weight: 600;
+	color: #222;
+	overflow: hidden;
+	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.radio-group{
-	display: flex;
-	gap: 30px;
-	margin-left: 20px;
+.rank-qty {
+	flex: 0 0 auto;
+	font-size: 13px;
+	color: #6b6b6b;
 }
 
-.radio-group label{
-	display: flex;
-	align-items: center;
-	gap: 8px;
+.rank-bar {
+	height: 5px;
+	background: #ececec;
+	border-radius: 999px;
+	overflow: hidden;
 }
 
-.radio-group input{
-	width: 18px;
-	height: 18px;
+.rank-bar-fill {
+	height: 100%;
+	background: #1f2628;
+	border-radius: 999px;
+}
+
+/* ---- 부족 품목 : 현재/최소 막대 (빨강 - 다른 화면에서도 재고부족은 항상 빨강)
+
+   몇 개든 딱 5줄 높이만큼만 보이고, 그보다 많으면 스크롤로 나머지를 봅니다.
+   한 줄 높이(패딩+글자+막대)를 계산해서 5번째 줄 밑에서 딱 잘리게 맞췄습니다
+   (어중간하게 6번째 줄이 살짝 보이지 않도록). ---- */
+.scrollable-list {
+	max-height: 240px;
+	overflow-y: auto;
+	padding-right: 4px;
+}
+
+.low-row {
+	padding: 8px 0;
+}
+
+.low-row + .low-row {
+	border-top: 1px solid #f2f2f2;
+}
+
+.low-top {
+	display: flex;
+	justify-content: space-between;
+	gap: 10px;
+	margin-bottom: 6px;
+}
+
+.low-name {
+	font-size: 14px;
+	font-weight: 600;
+	color: #222;
+}
+
+.low-qty {
+	flex: 0 0 auto;
+	font-size: 13px;
+	color: #d9453b;
+	font-weight: 600;
+}
+
+.low-bar {
+	height: 5px;
+	background: #ececec;
+	border-radius: 999px;
+	overflow: hidden;
+}
+
+.low-bar-fill {
+	height: 100%;
+	background: #d9453b;
+	border-radius: 999px;
+}
+
+/* ============================================================
+   데이터 내보내기
+   ============================================================ */
+.report {
+	background: white;
+	border-radius: 12px;
+	padding: 25px;
+	margin-bottom: 20px;
+	display: flex;
+	flex-direction: column;
+}
+
+.report h3 {
+	font-size: 20px;
+	margin-bottom: 32px;
+}
+
+.push {
+	background: #1f2628;
+	color: white;
+	border: none;
+	border-radius: 8px;
+	padding: 9px 20px;
+	font-weight: 600;
+	cursor: pointer;
+	align-self: flex-end;
+	margin-top: auto;
+}
+
+.format-toggle {
+	display: inline-flex;
+	background: #f0efec;
+	border-radius: 8px;
+	padding: 3px;
+	gap: 3px;
+}
+
+.format-btn {
+	border: none;
+	background: none;
+	padding: 9px 24px;
+	border-radius: 6px;
+	font-size: 15px;
+	font-weight: 700;
+	color: #777;
+	cursor: pointer;
+}
+
+.format-btn.active {
+	background: white;
+	color: #1f2628;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
