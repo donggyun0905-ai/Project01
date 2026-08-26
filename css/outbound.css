@@ -319,3 +319,24 @@
 	color: #999;
 	font-size: 14px;
 }
+/* 출고 요청 등록 폼 - 표 위, 한 줄에 필드 4개 + 버튼 */
+.req-form {
+	display: flex;
+	align-items: flex-end;
+	gap: 16px;
+	background: #f7f7f5;
+	border-radius: 10px;
+	padding: 16px 18px;
+	margin-bottom: 18px;
+}
+
+.req-form .form-group {
+	flex: 1;
+	margin-bottom: 0;
+}
+
+.req-form .register-btn {
+	flex: 0 0 auto;
+	width: auto;
+	padding: 0 20px;
+}

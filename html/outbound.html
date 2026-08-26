@@ -134,7 +134,49 @@
 		<!-- 출고 요청 - 재고보다 많은 수량이 요청됐을 때(이상출고) 여기서 모아 보여줄 예정입니다.
 		     아직 그 기능을 담을 API/DB가 없어서 지금은 자리만 만들어 둡니다. -->
 		<div id="outRequestView">
-			<p class="tab-empty-note">출고 요청 기능은 준비 중입니다.</p>
+
+			<!-- 재고보다 많이 필요할 때 등록하는 곳입니다.
+			     새 API가 아니라 지금 있는 승인요청(POST /api/approvals, requestType="출고")을
+			     그대로 씁니다. 서버가 요청 수량을 재고랑 비교해서, 재고보다 많으면 자동으로
+			     "이상출고" 알림을 만들어 관리자 승인을 거치게 합니다. -->
+			<div class="req-form">
+				<div class="form-group">
+					<label>품목명</label>
+					<input type="text" id="reqName" list="itemList" onchange="changeReqItem()" onkeyup="changeReqItem()" placeholder="예: 두부">
+				</div>
+
+				<div class="form-group">
+					<label>품목 코드</label>
+					<input type="text" id="reqCode" readonly placeholder="품목을 고르면 채워집니다">
+				</div>
+
+				<div class="form-group">
+					<label>요청 수량</label>
+					<input type="number" id="reqQty" min="1" placeholder="예: 200">
+				</div>
+
+				<div class="form-group">
+					<label>목적지</label>
+					<select id="reqPartner"></select>
+				</div>
+
+				<button class="register-btn" onclick="saveOutboundRequest()">출고 요청 등록</button>
+			</div>
+
+			<table>
+				<thead>
+					<tr>
+						<th>NO</th>
+						<th>품목명</th>
+						<th>요청 수량</th>
+						<th>목적지</th>
+						<th>상태</th>
+						<th>요청일</th>
+					</tr>
+				</thead>
+				<tbody id="reqBody">
+				</tbody>
+			</table>
 		</div>
 		</section>
 		
@@ -263,6 +305,10 @@
 		document.querySelector("#outDate").value = getToday();
 
 		loadHistory();
+
+		/* 출고 요청 탭 초기화 */
+		fillPartner("#reqPartner", "CUSTOMER");
+		loadOutboundRequests();
 	}
 
 
@@ -771,9 +817,7 @@
 	}
 
 
-	/* 출고 이력 / 출고 요청 탭 전환.
-	   출고 요청은 아직 API가 없어서 지금은 자리만 있고, 나중에 DB/서버가 붙으면
-	   이 자리에서 loadRequestList() 같은 함수로 채우면 됩니다. */
+	/* 출고 이력 / 출고 요청 탭 전환 */
 	function changeOutboundTab(tab) {
 
 		if (tab == "history") {
@@ -787,6 +831,165 @@
 			document.querySelector("#outHistoryView").style.display = "none";
 			document.querySelector("#outRequestView").style.display = "block";
 		}
+	}
+
+
+	/* ============================================================
+	   출고 요청
+
+	   새 API가 아니라 지금 있는 승인요청(POST/GET /api/approvals)을 그대로 씁니다.
+	   requestType="출고"로 등록하면, 요청 수량이 재고보다 많을 때 서버가 알아서
+	   "이상출고" 알림을 만들어 관리자 승인을 거치게 합니다(ApprovalService.create 참고).
+	   유형(요청 종류) 거르기는 서버에 없는 조건이라 다른 화면들처럼 화면에서 거릅니다.
+	   ============================================================ */
+
+	function changeReqItem() {
+
+		let i = findItemByName(document.querySelector("#reqName").value);
+
+		if (i == -1) {
+			document.querySelector("#reqCode").value = "";
+			return;
+		}
+
+		document.querySelector("#reqCode").value = itemCodes[i];
+	}
+
+
+	function saveOutboundRequest() {
+
+		if (isBlank(["#reqName", "#reqQty"]) == true) {
+			alert("품목명과 요청 수량을 채워 주세요.");
+			return;
+		}
+
+		let itemId = getItemId(document.querySelector("#reqName").value);
+
+		if (itemId == -1) {
+			alert("등록되지 않은 품목입니다.\n후보 목록에서 골라 주세요.");
+			return;
+		}
+
+		let qty = document.querySelector("#reqQty").value * 1;
+
+		if (qty <= 0) {
+			alert("요청 수량은 1개 이상이어야 합니다.");
+			return;
+		}
+
+		let body = {
+			itemId: itemId,
+			requestType: "출고",
+			requestedQty: qty,
+			partnerId: getSelectValue("#reqPartner") * 1
+		};
+
+		apiSend("POST", "/api/approvals", body, afterSaveRequest);
+	}
+
+
+	function afterSaveRequest(data) {
+
+		clearInput(["#reqName", "#reqCode", "#reqQty"]);
+		alert("출고 요청이 등록되었습니다. (요청번호 " + data.approvalId + ")\n관리자 승인 후 처리됩니다.");
+		loadOutboundRequests();
+	}
+
+
+	/* 목록은 최근 요청부터 보이게 200건까지 받아서, 그중 출고(requestType="출고")만 화면에서 거릅니다 */
+	let reqIds = [];
+	let reqItemIds = [];
+	let reqQtys = [];
+	let reqPartnerIds = [];
+	let reqStatus = [];
+	let reqAbnormal = [];  // 이상출고(재고초과) 알림이 걸려서 온 요청인지
+	let reqDates = [];
+
+	function loadOutboundRequests() {
+		apiGet("/api/approvals?size=200", putOutboundRequests);
+	}
+
+	function putOutboundRequests(data) {
+
+		let list = data.items;
+
+		reqIds = [];
+		reqItemIds = [];
+		reqQtys = [];
+		reqPartnerIds = [];
+		reqStatus = [];
+		reqAbnormal = [];
+		reqDates = [];
+
+		for (let i = 0; i < list.length; i++) {
+
+			if (list[i].requestType != "출고") {
+				continue;
+			}
+
+			let last = reqIds.length;
+			reqIds[last] = list[i].approvalId;
+			reqItemIds[last] = list[i].itemId;
+			reqQtys[last] = list[i].requestedQty;
+			reqPartnerIds[last] = list[i].partnerId;
+			reqStatus[last] = list[i].status;
+			reqAbnormal[last] = list[i].alertId != null;
+
+			let t = list[i].requestedAt;
+			if (t == null) {
+				reqDates[last] = "";
+			} else {
+				reqDates[last] = t.replace("T", " ").substring(0, 16);
+			}
+		}
+
+		/* 최신 요청이 위로 오게 뒤집습니다 (서버가 오래된 순으로 줍니다) */
+		reqIds.reverse();
+		reqItemIds.reverse();
+		reqQtys.reverse();
+		reqPartnerIds.reverse();
+		reqStatus.reverse();
+		reqAbnormal.reverse();
+		reqDates.reverse();
+
+		drawOutboundRequests();
+	}
+
+	function drawOutboundRequests() {
+
+		let html = "";
+
+		if (reqIds.length == 0) {
+			html = "<tr><td colspan='6'>등록된 출고 요청이 없습니다.</td></tr>";
+		}
+
+		for (let i = 0; i < reqIds.length; i++) {
+
+			let statusHtml = reqStatus[i];
+
+			if (reqStatus[i] == "대기") {
+				statusHtml = "<span class='zone-warn'>대기</span>";
+			} else if (reqStatus[i] == "반려") {
+				statusHtml = "<span class='zone-full'>반려</span>";
+			}
+
+			/* 재고보다 많이 요청돼서 이상출고 알림이 걸린 건은 표시해 줍니다 */
+			let name = findItemName(reqItemIds[i]);
+			if (reqAbnormal[i] == true) {
+				name = name + " <span class='zone-over'>재고초과</span>";
+			}
+
+			html = html + "<tr>";
+			html = html + "<td>" + (i + 1) + "</td>";
+			html = html + "<td>" + name + "</td>";
+			html = html + "<td>" + addComma(reqQtys[i]) + "</td>";
+			html = html + "<td>" + findPartnerName(reqPartnerIds[i]) + "</td>";
+			html = html + "<td>" + statusHtml + "</td>";
+			html = html + "<td>" + reqDates[i] + "</td>";
+			html = html + "</tr>";
+		}
+
+		document.querySelector("#reqBody").innerHTML = html;
 	}
 
 
