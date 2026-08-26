@@ -65,11 +65,13 @@ public class UserServlet extends HttpServlet {
         String role = req.getParameter("role");
         String activeParam = req.getParameter("active");
         Boolean active = activeParam != null ? Boolean.valueOf(activeParam) : Boolean.TRUE; // 기본 active=true(10.1과 동일한 관례)
+        String usernameKeyword = blankToNull(req.getParameter("usernameKeyword"));
+        String nameKeyword = blankToNull(req.getParameter("nameKeyword"));
         Pagination pg = Pagination.from(req);
 
         try (Connection conn = DBConnection.getConnection()) {
-            List<AppUser> users = appUserDao.findPage(conn, role, active, pg.offset, pg.size);
-            int total = appUserDao.count(conn, role, active);
+            List<AppUser> users = appUserDao.findPage(conn, role, active, usernameKeyword, nameKeyword, pg.offset, pg.size);
+            int total = appUserDao.count(conn, role, active, usernameKeyword, nameKeyword);
             List<Object> data = new java.util.ArrayList<>();
             for (AppUser u : users) {
                 data.add(toJson(conn, u));
@@ -269,6 +271,10 @@ public class UserServlet extends HttpServlet {
                 "createdAt", user.getCreatedAt(),
                 "warehouseIds", warehouseIds
         );
+    }
+
+    private String blankToNull(String s) {
+        return (s == null || s.isBlank()) ? null : s;
     }
 
     private Long parseId(String pathInfo) {

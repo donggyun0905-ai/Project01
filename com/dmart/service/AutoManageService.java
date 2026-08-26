@@ -92,7 +92,7 @@ public class AutoManageService {
 
     private Long findSystemActorId() throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            List<AppUser> admins = appUserDao.findPage(conn, "ADMIN", true, 0, 1);
+            List<AppUser> admins = appUserDao.findPage(conn, "ADMIN", true, null, null, 0, 1);
             return admins.isEmpty() ? null : admins.get(0).getUserId();
         }
     }

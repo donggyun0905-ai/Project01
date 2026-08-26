@@ -70,7 +70,7 @@ public class SimulatorService {
     // ExpiryDisposalService와 같은 관례 — 시스템이 자동으로 남기는 기록은 첫 번째 활성 ADMIN 계정으로 귀속.
     private Long findSystemActorId() throws SQLException {
         try (Connection conn = DBConnection.getConnection()) {
-            List<AppUser> admins = appUserDao.findPage(conn, "ADMIN", true, 0, 1);
+            List<AppUser> admins = appUserDao.findPage(conn, "ADMIN", true, null, null, 0, 1);
             return admins.isEmpty() ? null : admins.get(0).getUserId();
         }
     }

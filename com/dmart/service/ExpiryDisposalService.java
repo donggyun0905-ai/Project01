@@ -26,7 +26,7 @@ public class ExpiryDisposalService {
         try (Connection conn = DBConnection.getConnection()) {
             // RETURN_DISPOSAL.processed_by가 NOT NULL이라 사람 계정 하나로 귀속시켜야 함 —
             // 시스템 전용 계정이 따로 없어서 활성 ADMIN 중 첫 번째를 대표로 사용.
-            List<AppUser> admins = appUserDao.findPage(conn, "ADMIN", true, 0, 1);
+            List<AppUser> admins = appUserDao.findPage(conn, "ADMIN", true, null, null, 0, 1);
             if (admins.isEmpty()) {
                 throw new IllegalStateException("자동 폐기 처리를 기록할 활성 ADMIN 계정이 없습니다");
             }

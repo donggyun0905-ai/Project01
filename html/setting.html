@@ -53,8 +53,22 @@
 			
 			<button class="small-btn" onclick="openUser(-1)">사용자 등록</button>
 		</div>
+
+		<!-- 검색 (item.html과 같은 방식) -->
+		<section class="search-box">
+			<div class="search-input-wrap">
+				<input type="text" id="us-search" placeholder="검색" onkeyup="pressEnter(event)">
+				<button type="button" class="search-btn" onclick="doSearch()"></button>
+			</div>
+
+			<select class="category-select" id="usSearchField">
+				<option>아이디</option>
+				<option>이름</option>
+			</select>
+		</section>
+
 		<!-- 출고 입력(표)  -->
-		
+
 		<section class= "table-box">
 			<table>
 				<colgroup>
@@ -205,7 +219,24 @@
 	   두 번 나눠 받아서 하나로 모읍니다.
 	   ------------------------------------------------------------ */
 	function loadData() {
-		apiGet("/api/users?active=true&size=200", putActiveUsers);
+		apiGet(userSearchPath("/api/users?active=true&size=200"), putActiveUsers);
+	}
+
+	/* 검색어가 있으면, 고른 컬럼에 맞는 파라미터를 붙입니다 */
+	function userSearchPath(path) {
+
+		let word = document.querySelector("#us-search").value;
+		let field = document.querySelector("#usSearchField").value;
+
+		if (word != "") {
+			if (field == "이름") {
+				path = path + "&nameKeyword=" + encodeURIComponent(word);
+			} else {
+				path = path + "&usernameKeyword=" + encodeURIComponent(word);
+			}
+		}
+
+		return path;
 	}
 
 	function putActiveUsers(data) {
@@ -221,7 +252,20 @@
 
 		addUsers(data.items);
 
-		apiGet("/api/users?active=false&size=200", putInactiveUsers);
+		apiGet(userSearchPath("/api/users?active=false&size=200"), putInactiveUsers);
+	}
+
+
+	/* 검색어는 서버가 걸러주는 조건이라 바뀌면 항상 다시 받아옵니다 */
+	function doSearch() {
+		loadData();
+	}
+
+
+	function pressEnter(e) {
+		if (e.keyCode == 13) {
+			doSearch();
+		}
 	}
 
 	function putInactiveUsers(data) {

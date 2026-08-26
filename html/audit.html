@@ -71,6 +71,16 @@
 				<input type="number" id="fLot" placeholder="예: 55" onkeyup="pressEnter(event)">
 			</div>
 
+			<div class="form-group">
+				<label>품목명</label>
+				<input type="text" id="fItemName" placeholder="검색 후 Enter" onkeyup="pressEnter(event)">
+			</div>
+
+			<div class="form-group">
+				<label>담당자</label>
+				<input type="text" id="fWho" placeholder="검색 후 Enter" onkeyup="pressEnter(event)">
+			</div>
+
 			<div class="form-group expiration-group">
 				<label>기간</label>
 				<div class="date-range">
@@ -241,6 +251,16 @@
 		}
 		if (to != "") {
 			path = path + "&to=" + to;
+		}
+
+		let itemName = document.querySelector("#fItemName").value;
+		if (itemName != "") {
+			path = path + "&keyword=" + encodeURIComponent(itemName);
+		}
+
+		let who = document.querySelector("#fWho").value;
+		if (who != "") {
+			path = path + "&changedByKeyword=" + encodeURIComponent(who);
 		}
 
 		apiGet(path, putLogs);

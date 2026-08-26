@@ -43,11 +43,13 @@ public class StockChangeLogServlet extends HttpServlet {
         String changeType = req.getParameter("changeType");
         LocalDate from = parseDateParam(req.getParameter("from"));
         LocalDate to = parseDateParam(req.getParameter("to"));
+        String keyword = blankToNull(req.getParameter("keyword"));
+        String changedByKeyword = blankToNull(req.getParameter("changedByKeyword"));
         Pagination pg = Pagination.from(req);
 
         try (Connection conn = DBConnection.getConnection()) {
-            List<StockChangeLog> logs = stockChangeLogDao.findPage(conn, lotId, changeType, from, to, pg.offset, pg.size);
-            int total = stockChangeLogDao.count(conn, lotId, changeType, from, to);
+            List<StockChangeLog> logs = stockChangeLogDao.findPage(conn, lotId, changeType, from, to, keyword, changedByKeyword, pg.offset, pg.size);
+            int total = stockChangeLogDao.count(conn, lotId, changeType, from, to, keyword, changedByKeyword);
             List<Object> data = new ArrayList<>();
             for (StockChangeLog log : logs) {
                 // 화면에서 품목명을 보여주려면 itemId가 필요한데 STOCK_CHANGE_LOG 자체엔
@@ -107,6 +109,10 @@ public class StockChangeLogServlet extends HttpServlet {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    private String blankToNull(String s) {
+        return (s == null || s.isBlank()) ? null : s;
     }
 
     private Long parseLongParam(String s) {

@@ -111,13 +111,16 @@ public class StockChangeLogDao {
     // 13번 목록 API용. lotId/changeType/기간 선택 필터(없으면 전체 감사 로그).
     // changeType/from/to는 화면(audit.html)에서 예전엔 "지금 페이지 안에서만" 걸러서
     // 페이지네이션과 안 맞았는데, 여기서 직접 걸러주면 total도 필터링된 기준으로 정확히 나온다.
+    // keyword(품목명)/changedByKeyword(담당자 이름)는 audit.html 검색창용 - 각각 필요할 때만
+    // STOCK_LOT+ITEM / APP_USER를 조인한다.
     public List<StockChangeLog> findPage(Connection conn, Long lotId, String changeType, LocalDate from, LocalDate to,
-                                          int offset, int limit) throws SQLException {
-        String sql = "SELECT * FROM STOCK_CHANGE_LOG" + whereClause(lotId, changeType, from, to)
-                + " ORDER BY changed_at DESC LIMIT ? OFFSET ?";
+                                          String keyword, String changedByKeyword, int offset, int limit) throws SQLException {
+        String sql = "SELECT scl.* FROM STOCK_CHANGE_LOG scl" + joinClause(keyword, changedByKeyword)
+                + whereClause(lotId, changeType, from, to, keyword, changedByKeyword)
+                + " ORDER BY scl.changed_at DESC LIMIT ? OFFSET ?";
         List<StockChangeLog> result = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = bindFilterParams(ps, 1, lotId, changeType, from, to);
+            int idx = bindFilterParams(ps, 1, lotId, changeType, from, to, keyword, changedByKeyword);
             ps.setInt(idx++, limit);
             ps.setInt(idx, offset);
             try (ResultSet rs = ps.executeQuery()) {
@@ -129,10 +132,12 @@ public class StockChangeLogDao {
         return result;
     }
 
-    public int count(Connection conn, Long lotId, String changeType, LocalDate from, LocalDate to) throws SQLException {
-        String sql = "SELECT COUNT(*) FROM STOCK_CHANGE_LOG" + whereClause(lotId, changeType, from, to);
+    public int count(Connection conn, Long lotId, String changeType, LocalDate from, LocalDate to,
+                      String keyword, String changedByKeyword) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM STOCK_CHANGE_LOG scl" + joinClause(keyword, changedByKeyword)
+                + whereClause(lotId, changeType, from, to, keyword, changedByKeyword);
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            bindFilterParams(ps, 1, lotId, changeType, from, to);
+            bindFilterParams(ps, 1, lotId, changeType, from, to, keyword, changedByKeyword);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getInt(1);
@@ -140,25 +145,43 @@ public class StockChangeLogDao {
         }
     }
 
-    private String whereClause(Long lotId, String changeType, LocalDate from, LocalDate to) {
+    private String joinClause(String keyword, String changedByKeyword) {
+        StringBuilder sb = new StringBuilder();
+        if (keyword != null) {
+            sb.append(" JOIN STOCK_LOT sl ON scl.lot_id = sl.lot_id JOIN ITEM i ON sl.item_id = i.item_id");
+        }
+        if (changedByKeyword != null) {
+            sb.append(" JOIN APP_USER u ON scl.changed_by = u.user_id");
+        }
+        return sb.toString();
+    }
+
+    private String whereClause(Long lotId, String changeType, LocalDate from, LocalDate to,
+                                String keyword, String changedByKeyword) {
         StringBuilder sb = new StringBuilder();
         if (lotId != null) {
-            sb.append(" AND lot_id = ?");
+            sb.append(" AND scl.lot_id = ?");
         }
         if (changeType != null) {
-            sb.append(" AND change_type = ?");
+            sb.append(" AND scl.change_type = ?");
         }
         if (from != null) {
-            sb.append(" AND DATE(changed_at) >= ?");
+            sb.append(" AND DATE(scl.changed_at) >= ?");
         }
         if (to != null) {
-            sb.append(" AND DATE(changed_at) <= ?");
+            sb.append(" AND DATE(scl.changed_at) <= ?");
+        }
+        if (keyword != null) {
+            sb.append(" AND i.item_name LIKE ?");
+        }
+        if (changedByKeyword != null) {
+            sb.append(" AND u.name LIKE ?");
         }
         return sb.length() == 0 ? "" : " WHERE 1=1" + sb;
     }
 
     private int bindFilterParams(PreparedStatement ps, int startIndex, Long lotId, String changeType,
-                                  LocalDate from, LocalDate to) throws SQLException {
+                                  LocalDate from, LocalDate to, String keyword, String changedByKeyword) throws SQLException {
         int idx = startIndex;
         if (lotId != null) {
             ps.setLong(idx++, lotId);
@@ -171,6 +194,12 @@ public class StockChangeLogDao {
         }
         if (to != null) {
             ps.setDate(idx++, Date.valueOf(to));
+        }
+        if (keyword != null) {
+            ps.setString(idx++, "%" + keyword + "%");
+        }
+        if (changedByKeyword != null) {
+            ps.setString(idx++, "%" + changedByKeyword + "%");
         }
         return idx;
     }
