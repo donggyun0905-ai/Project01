@@ -1,7 +1,9 @@
 package com.dmart.web;
 
+import com.dmart.dao.AlertDao;
 import com.dmart.dao.ApprovalDao;
 import com.dmart.db.DBConnection;
+import com.dmart.dto.Alert;
 import com.dmart.dto.Approval;
 import com.dmart.service.ApprovalService;
 import com.dmart.util.ApiResponse;
@@ -22,7 +24,6 @@ import java.sql.SQLException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 // API_명세.md 12번 참고. GET/POST는 로그인이면 되고, PATCH(승인/반려)는 ADMIN만.
 // AlertServlet과 동일하게 PATCH는 service()에서 따로 분기.
@@ -30,6 +31,7 @@ import java.util.stream.Collectors;
 public class ApprovalServlet extends HttpServlet {
 
     private final ApprovalDao approvalDao = new ApprovalDao();
+    private final AlertDao alertDao = new AlertDao();
     private final ApprovalService approvalService = new ApprovalService();
 
     @Override
@@ -50,7 +52,10 @@ public class ApprovalServlet extends HttpServlet {
         try (Connection conn = DBConnection.getConnection()) {
             List<Approval> approvals = approvalDao.findPage(conn, status, requestType, pg.offset, pg.size);
             int total = approvalDao.count(conn, status, requestType);
-            List<Object> data = approvals.stream().map(ApprovalServlet::toJson).collect(Collectors.toList());
+            List<Object> data = new java.util.ArrayList<>();
+            for (Approval approval : approvals) {
+                data.add(toJson(conn, approval));
+            }
             ApiResponse.success(resp, 200, pg.wrap(data, total));
         } catch (SQLException e) {
             getServletContext().log("승인 목록 조회 중 DB 오류", e);
@@ -84,7 +89,7 @@ public class ApprovalServlet extends HttpServlet {
             EventBus.publish("approval");
             try (Connection conn = DBConnection.getConnection()) {
                 Approval approval = approvalDao.findById(conn, approvalId);
-                ApiResponse.success(resp, 201, toJson(approval));
+                ApiResponse.success(resp, 201, toJson(conn, approval));
             }
         } catch (IllegalArgumentException e) {
             ApiResponse.error(resp, 400, "VALIDATION_ERROR", e.getMessage());
@@ -152,11 +157,20 @@ public class ApprovalServlet extends HttpServlet {
         }
     }
 
-    private static Map<String, Object> toJson(Approval approval) {
+    // alertType: alertId가 있으면 그 알림의 종류("이상출고"/"재고부족" 등)를 같이 내려준다 -
+    // 화면에서 requestType="출고"인데 alertType="이상출고"인 걸 구분해서 "이상출고"로 보여주기 위함
+    // (AutoManageService.isAbnormalOutboundDerived와 같은 판단 기준).
+    private Map<String, Object> toJson(Connection conn, Approval approval) throws SQLException {
+        String alertType = null;
+        if (approval.getAlertId() != null) {
+            Alert alert = alertDao.findById(conn, approval.getAlertId());
+            alertType = alert != null ? alert.getAlertType() : null;
+        }
         return JsonUtil.object(
                 "approvalId", approval.getApprovalId(),
                 "itemId", approval.getItemId(),
                 "alertId", approval.getAlertId(),
+                "alertType", alertType,
                 "requestType", approval.getRequestType(),
                 "requestedQty", approval.getRequestedQty(),
                 "partnerId", approval.getPartnerId(),

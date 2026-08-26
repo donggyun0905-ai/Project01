@@ -68,6 +68,7 @@
 					<option>전체</option>
 					<option>발주</option>
 					<option>출고</option>
+					<option>이상출고</option>
 				</select>
 			</div>
 			
@@ -252,6 +253,7 @@
 	let apIds = [];
 	let apItemIds = [];
 	let apTypes = [];
+	let apAlertTypes = [];
 	let apQtys = [];
 	let apPartnerIds = [];
 	let apRequesters = [];
@@ -302,6 +304,7 @@
 		apIds = [];
 		apItemIds = [];
 		apTypes = [];
+		apAlertTypes = [];
 		apQtys = [];
 		apPartnerIds = [];
 		apRequesters = [];
@@ -313,6 +316,7 @@
 			apIds[i] = list[i].approvalId;
 			apItemIds[i] = list[i].itemId;
 			apTypes[i] = list[i].requestType;
+			apAlertTypes[i] = list[i].alertType;
 			apQtys[i] = list[i].requestedQty;
 			apPartnerIds[i] = list[i].partnerId;
 			apStatus[i] = list[i].status;
@@ -341,7 +345,20 @@
 	}
 
 
-	/* 유형 거르기는 서버에 없는 조건이라 화면에서 걸러 냅니다 */
+	/* requestType은 DB에 "발주"/"출고"뿐이라, 재고보다 많이 달라는 이상출고 요청도 그냥
+	   "출고"로 저장됩니다. 실제로는 alertId가 "이상출고" 알림을 가리키는지로 구분하는데
+	   (AutoManageService.isAbnormalOutboundDerived와 같은 기준), 화면에서는 그런 건
+	   그냥 "출고"가 아니라 "이상출고"로 보여줍니다. */
+	function displayType(i) {
+		if (apTypes[i] == "출고" && apAlertTypes[i] == "이상출고") {
+			return "이상출고";
+		}
+		return apTypes[i];
+	}
+
+
+	/* 유형 거르기는 서버에 없는 조건이라 화면에서 걸러 냅니다.
+	   "출고"를 고르면 이상출고로 표시되는 건 빼고, 정상 출고만 보여줍니다. */
 	function getList() {
 
 		let type = document.querySelector("#fType").value;
@@ -349,7 +366,7 @@
 
 		for (let i = 0; i < apIds.length; i++) {
 
-			if (type != "전체" && apTypes[i] != type) {
+			if (type != "전체" && displayType(i) != type) {
 				continue;
 			}
 
@@ -377,7 +394,7 @@
 
 			html = html + "<tr>";
 			html = html + "<td>" + findItemName(apItemIds[i]) + "</td>";
-			html = html + "<td>" + apTypes[i] + "</td>";
+			html = html + "<td>" + displayType(i) + "</td>";
 			html = html + "<td>" + addComma(apQtys[i]) + findItemUnit(apItemIds[i]) + "</td>";
 			html = html + "<td>" + apRequesters[i] + "</td>";
 			html = html + "<td>" + apStatus[i] + "</td>";
@@ -477,9 +494,9 @@
 
 		openIndex = i;
 
-		document.querySelector("#apTitle").innerHTML = apTypes[i] + " 승인 요청";
+		document.querySelector("#apTitle").innerHTML = displayType(i) + " 승인 요청";
 		document.querySelector("#apItem").innerHTML = findItemName(apItemIds[i]);
-		document.querySelector("#apType").innerHTML = apTypes[i];
+		document.querySelector("#apType").innerHTML = displayType(i);
 		document.querySelector("#apQty").innerHTML = addComma(apQtys[i]) + findItemUnit(apItemIds[i]);
 		document.querySelector("#apPartner").innerHTML = findPartnerName(apPartnerIds[i]);
 		document.querySelector("#apWho").innerHTML = apRequesters[i];
