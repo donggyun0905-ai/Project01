@@ -154,8 +154,13 @@
 			</div>
 			
 			<div id="msgArea"></div>
-			
-			<button class="push" onclick="doExport()">내보내기</button>
+
+			<!-- 품목 데이터 엑셀화는 위 드롭다운(입출고 로그/알림 이력/통계 리포트)에 없는
+			     별개의 내보내기라, 형식/기간 선택과 무관하게 바로 다운로드되는 버튼을 따로 둡니다. -->
+			<div class="export-actions">
+				<button class="push" onclick="exportItemsExcel()">품목 데이터 엑셀화</button>
+				<button class="push" onclick="doExport()">내보내기</button>
+			</div>
 		</section>
 
 		</div>
@@ -337,6 +342,12 @@
 			return "<span class='diff diff-down'>▼ " + (diff * -1) + "% 전일 대비</span>";
 		}
 		return "";
+	}
+
+
+	/* 품목 데이터 엑셀화 (GET /api/export/items/excel) */
+	function exportItemsExcel() {
+		location.href = makeUrl("/api/export/items/excel");
 	}
 
 

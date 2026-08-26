@@ -558,6 +558,14 @@ td .delete-btn {
 	font-size: 15px;
 }
 
+/* 필드 선택 드롭다운 + 검색어 입력칸을 한 덩어리로 붙여서, .search-box 안에서
+   활성/비활성 같은 다른 필터나 등록 버튼과 시각적으로 구분되게 합니다 (item.html). */
+.search-group {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
 /* 쪽 번호 옆에 붙는 안내 글 (3 / 40 쪽) */
 .page-info {
 	margin-left: 10px;

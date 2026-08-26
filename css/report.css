@@ -373,6 +373,14 @@
 	margin-top: auto;
 }
 
+/* 품목 데이터 엑셀화 버튼을 "내보내기" 버튼 왼쪽에 나란히 둡니다 */
+.export-actions {
+	display: flex;
+	gap: 10px;
+	align-self: flex-end;
+	margin-top: auto;
+}
+
 .format-toggle {
 	display: inline-flex;
 	background: #f0efec;

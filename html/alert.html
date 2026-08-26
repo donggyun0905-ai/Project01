@@ -934,6 +934,7 @@
 	let checkedList = [];
 	let checkIndex = 0;
 	let checkDone = 0;
+	let checkFailed = [];
 
 
 	/* 맨 위 체크박스를 누르면 화면에 보이는 것을 전부 고릅니다 */
@@ -998,6 +999,7 @@
 
 		checkIndex = 0;
 		checkDone = 0;
+		checkFailed = [];
 		sendOneResolve();
 	}
 
@@ -1007,7 +1009,7 @@
 		/* 다 보냈으면 마무리합니다 */
 		if (checkIndex >= checkedList.length) {
 			loadData();
-			alert("알림 " + checkDone + "건을 해결 처리했습니다.");
+			showResolveResult();
 			return;
 		}
 
@@ -1024,10 +1026,31 @@
 	}
 
 
-	/* 한 건이 실패해도 나머지는 계속 보냅니다 */
+	/* 재고부족/재고초과는 실제로 재고 수치가 정상 범위로 돌아와야만 서버가 해결 처리를
+	   허락합니다(진짜 해결된 게 아니면 409로 거절) - 그런 건 여기서 걸러져서 처리되지
+	   않은 채로 남고, 한 건이 이렇게 막혀도 나머지는 계속 보냅니다. */
 	function failOneResolve(message) {
+		let i = checkedList[checkIndex];
+		let k = findItem(alertItemIds[i]);
+		let name = (k != -1) ? myItemNames[k] : ("품목 " + alertItemIds[i]);
+		checkFailed[checkFailed.length] = name + "(" + types[i] + ") - " + message;
 		checkIndex = checkIndex + 1;
 		sendOneResolve();
+	}
+
+
+	function showResolveResult() {
+
+		let msg = "알림 " + checkDone + "건을 해결 처리했습니다.";
+
+		if (checkFailed.length > 0) {
+			msg = msg + "\n\n다음 " + checkFailed.length + "건은 아직 해결되지 않았습니다!\n";
+			for (let k = 0; k < checkFailed.length; k++) {
+				msg = msg + "- " + checkFailed[k] + "\n";
+			}
+		}
+
+		alert(msg);
 	}
 
 

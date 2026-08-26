@@ -68,20 +68,6 @@ td .action-buttons {
 	background: #1b3aa0;
 }
 
-/* 품목 데이터 엑셀화 버튼 - 등록 버튼과 헷갈리지 않게 초록으로 구분 */
-.export-btn {
-	background: #15803d;
-	width: 180px;
-}
-
-.export-btn:hover {
-	background: #166534;
-}
-
-.export-btn:active {
-	background: #14532d;
-}
-
 /* 재고 상세 모달 (로트가 여러 줄이라 조금 넓게) */
 .lot-modal {
 	width: 720px;

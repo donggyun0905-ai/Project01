@@ -1,10 +1,13 @@
 package com.dmart.web;
 
 import com.dmart.dao.AlertDao;
+import com.dmart.dao.ItemDao;
+import com.dmart.dao.StockLotDao;
 import com.dmart.dao.UserWarehouseDao;
 import com.dmart.dao.ZoneDao;
 import com.dmart.db.DBConnection;
 import com.dmart.dto.Alert;
+import com.dmart.dto.Item;
 import com.dmart.dto.UserWarehouse;
 import com.dmart.dto.Zone;
 import com.dmart.util.ApiResponse;
@@ -46,6 +49,8 @@ public class AlertServlet extends HttpServlet {
     private final AlertDao alertDao = new AlertDao();
     private final ZoneDao zoneDao = new ZoneDao();
     private final UserWarehouseDao userWarehouseDao = new UserWarehouseDao();
+    private final ItemDao itemDao = new ItemDao();
+    private final StockLotDao stockLotDao = new StockLotDao();
 
     @Override
     protected void service(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -151,6 +156,13 @@ public class AlertServlet extends HttpServlet {
                 ApiResponse.error(resp, 404, "NOT_FOUND", "존재하지 않는 alertId입니다: " + alertId);
                 return;
             }
+
+            String blocker = checkStillUnresolved(conn, alert);
+            if (blocker != null) {
+                ApiResponse.error(resp, 409, "CONFLICT", blocker);
+                return;
+            }
+
             alert.setIsResolved(true);
             alertDao.update(conn, alert);
             EventBus.publish("alert");
@@ -159,6 +171,29 @@ public class AlertServlet extends HttpServlet {
             getServletContext().log("알림 처리 중 DB 오류", e);
             ApiResponse.error(resp, 500, "INTERNAL_ERROR", "서버 오류가 발생했습니다");
         }
+    }
+
+    // 재고부족/재고초과는 사람이 "확인했다"가 아니라 실제 재고 수치가 정상 범위로 돌아와야
+    // 진짜 해결된 것이다(AlertResolutionService.reevaluate와 같은 기준). 그 상태가 여전히
+    // 그대로면 체크박스로 강제 해결 처리되지 않게 막는다. 다른 알림 종류(이상출고/창고정리추천/
+    // 자동입고/자동실행실패)는 "검토함" 자체가 해결 조건이라 이 체크 대상이 아니다.
+    private String checkStillUnresolved(Connection conn, Alert alert) throws SQLException {
+        String type = alert.getAlertType();
+        if (!"재고부족".equals(type) && !"재고초과".equals(type)) {
+            return null;
+        }
+        Item item = itemDao.findById(conn, alert.getItemId());
+        if (item == null) {
+            return null; // 품목이 없어졌으면 더 확인할 게 없으니 해결 처리 허용
+        }
+        int total = stockLotDao.sumQuantityByItemId(conn, alert.getItemId());
+        if ("재고부족".equals(type) && item.getThresholdMin() != null && total < item.getThresholdMin()) {
+            return "아직 재고가 부족해서 해결 처리할 수 없습니다 (현재 " + total + "개, 기준 " + item.getThresholdMin() + "개 이상)";
+        }
+        if ("재고초과".equals(type) && item.getCapacityMax() != null && total > item.getCapacityMax()) {
+            return "아직 재고가 초과 상태라 해결 처리할 수 없습니다 (현재 " + total + "개, 기준 " + item.getCapacityMax() + "개 이하)";
+        }
+        return null;
     }
 
     // "/{alertId}/resolve" 형태만 허용

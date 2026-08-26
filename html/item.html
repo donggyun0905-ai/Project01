@@ -51,34 +51,33 @@
 			<button class="menu-btn" onclick="location.href='audit.html'">감사로그</button>
 		</header>
 		
-		<!-- 검색하는 부분 -->
+		<!-- 검색하는 부분 - "무엇을 고를지"(필드) 먼저, "무엇을 넣을지"(검색어)를 그다음에
+		     두어 자연스러운 순서로 정리. 활성/비활성 필터와 등록 버튼은 검색과는 다른
+		     동작이라 오른쪽에 간격을 두고 따로 뺐습니다. -->
 		<section class="search-box">
-			<label for="item-search">품목명</label>
-			<div class="search-input-wrap">
-				<input type="text" id="item-search" placeholder="검색" onkeyup="pressEnter(event)">
-				<button type="button" class="search-btn" onclick="doSearch()"></button>
+			<div class="search-group">
+				<select class="category-select" id="searchField" onchange="doSearch()">
+					<option>전체</option>
+					<option>품목 코드</option>
+					<option>품목명</option>
+					<option>카테고리</option>
+					<option>단위</option>
+				</select>
+
+				<div class="search-input-wrap">
+					<input type="text" id="item-search" placeholder="검색" onkeyup="pressEnter(event)">
+					<button type="button" class="search-btn" onclick="doSearch()"></button>
+				</div>
 			</div>
-			
-			<select class="category-select" id="searchField" onchange="doSearch()">
-	       	 	<option>전체</option>
-	       	 	<option>품목 코드</option>
-	       	 	<option>품목명</option>
-	       	 	<option>카테고리</option>
-	       	 	<option>단위</option>
-	    		</select>
-	    	
+
 			<!-- 활성 / 비활성 골라 보기 -->
 			<select class="category-select" id="activeFilter" onchange="doSearch()">
 				<option value="true">사용 중</option>
 				<option value="false">비활성</option>
 			</select>
-			
+
 			<!-- 품목 등록 (F-01) -->
 			<button class="register-btn" onclick="openItem(-1)">품목 등록</button>
-
-			<!-- 품목 데이터 엑셀화 - report.html의 PDF 다운로드 버튼과 같은 방식(세션 쿠키가
-			     그대로 따라가는 location.href 이동)으로 서버가 만든 파일을 그대로 받습니다. -->
-			<button class="register-btn export-btn" onclick="exportItemsExcel()">엑셀로 내보내기</button>
 		</section>
 		
 		<!-- 품목 목록(표)  -->
@@ -347,12 +346,6 @@
 		if (e.keyCode == 13) {
 			doSearch();
 		}
-	}
-
-
-	/* 품목 데이터 엑셀화 (GET /api/export/items/excel) */
-	function exportItemsExcel() {
-		location.href = makeUrl("/api/export/items/excel");
 	}
 
 
