@@ -255,6 +255,7 @@ tbody tr:hover{
 	background: #e5e5e5;
 	cursor: pointer;
 	font-size: 13px;
+	white-space: nowrap;
 }
 
 .edit-btn:hover,
