@@ -16,6 +16,10 @@ public class DailyReportDao {
 
 	// 전일 대비 입출고 증감량 / 증감률
 	public DailyComparison selectDailyComparison(Connection conn, LocalDate date) throws SQLException{
+		// parent_lot_id IS NULL - 재고이동/반품/폐기로 원본 로트에서 분할된 로트는 원본의
+		// inbound_date를 그대로 물려받는데, 그 분할본까지 세면 원본 로트와 같은 날짜에
+		// "입고"가 두 번 잡히는 이중계산이 된다(분할은 새로 들어온 재고가 아니라 있던 걸
+		// 나눈 것뿐이라서 입고량에 넣으면 안 됨).
 		String sql = "SELECT COALESCE(SUM(CASE WHEN inbound_date = ? "
 				+ "THEN initial_quantity ELSE 0 END), 0) AS today_inbound, "
 				+ "COALESCE(SUM(CASE WHEN inbound_date = DATE_SUB(?, INTERVAL 1 DAY) "
@@ -26,7 +30,8 @@ public class DailyReportDao {
 				+ "FROM outbound WHERE outbound_date = DATE_SUB(?, INTERVAL 1 DAY)) "
 				+ "AS yesterday_outbound "
 				+ "FROM stock_lot "
-				+ "WHERE inbound_date IN (?, DATE_SUB(?, INTERVAL 1 DAY))";
+				+ "WHERE inbound_date IN (?, DATE_SUB(?, INTERVAL 1 DAY)) "
+				+ "AND parent_lot_id IS NULL";
 		
 		try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
 			pstmt.setObject(1, date);
