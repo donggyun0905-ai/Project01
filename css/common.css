@@ -181,9 +181,18 @@ body {
 	border-radius: 12px;
 } 
 
+/* table-layout: fixed - 컬럼 폭을 그 페이지에 있는 내용 길이로 자동 계산하지 않고
+   <colgroup>에 정해둔 비율로 고정합니다. 안 그러면 1쪽 내용과 2쪽 내용의 길이가
+   달라서 같은 표인데 쪽마다 컬럼 폭이 들쭉날쭉해지는 문제가 있었습니다. */
 table{
 	width: 100%;
 	border-collapse: collapse;
+	table-layout: fixed;
+}
+
+/* 폭이 고정되면 긴 내용은 넘치는 대신 셀 안에서 줄바꿈됩니다(행이 늘어남) */
+td, th{
+	overflow-wrap: break-word;
 }
 
 thead{

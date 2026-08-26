@@ -249,12 +249,7 @@
 	background: #f5f5f5;
 }
 
-.lot-table-wrap th:nth-child(1) { width: 6%; }   /* 순서 */
-.lot-table-wrap th:nth-child(2) { width: 14%; }  /* 로트번호 */
-.lot-table-wrap th:nth-child(3) { width: 20%; }  /* 창고/구역 */
-.lot-table-wrap th:nth-child(4) { width: 14%; }  /* 입고일 */
-.lot-table-wrap th:nth-child(5) { width: 22%; }  /* 유통기한 */
-.lot-table-wrap th:nth-child(6) { width: 24%; }  /* 출고 수량 */
+/* 컬럼 폭은 이제 html의 <colgroup>에서 고정합니다 (common.css의 table-layout: fixed 참고) */
 
 /* 출고 LOT 모달 - 담당자가 로트별 수량을 직접 조정할 때 쓰는 입력칸 */
 .lot-qty-input {

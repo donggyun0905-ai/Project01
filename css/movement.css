@@ -142,11 +142,7 @@
 	background: #f5f5f5;
 }
 
-.move-modal th:nth-child(1) { width: 8%; }   /* 순서 */
-.move-modal th:nth-child(2) { width: 18%; }  /* 로트번호 */
-.move-modal th:nth-child(3) { width: 18%; }  /* 입고일 */
-.move-modal th:nth-child(4) { width: 26%; }  /* 유통기한 */
-.move-modal th:nth-child(5) { width: 30%; }  /* 이동 수량 */
+/* 컬럼 폭은 이제 html의 <colgroup>에서 고정합니다 (common.css의 table-layout: fixed 참고) */
 
 .move-lot-qty-input {
 	width: 90px;
