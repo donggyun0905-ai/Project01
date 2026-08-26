@@ -459,6 +459,35 @@ td .delete-btn {
 	margin-bottom: 12px;
 }
 
+/* 한 표 영역 안에서 버튼으로 여러 표를 바꿔 보는 탭 (출고 등록에서 시작, 여러 화면에서 공용) */
+.table-tabs {
+	display: flex;
+	gap: 6px;
+	margin-bottom: 14px;
+}
+
+.tab-btn {
+	padding: 10px 18px;
+	border: 1px solid #d8d8d8;
+	border-radius: 8px;
+	background: #f5f5f5;
+	color: #555;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: 0.15s;
+}
+
+.tab-btn:hover {
+	background: #ececec;
+}
+
+.tab-btn.active {
+	background: rgb(0, 128, 255);
+	border-color: rgb(0, 128, 255);
+	color: #fff;
+}
+
 /* 쪽 번호 옆에 붙는 안내 글 (3 / 40 쪽) */
 .page-info {
 	margin-left: 10px;

@@ -74,12 +74,33 @@
 			<button class="register-btn" onclick="openNew()">승인 요청 등록</button>
 		</section>
 
-		<!-- 창고정리추천 - 구역 간 이동이 필요한 알림들을 여기서 바로 실행합니다.
-		     이건 발주/출고와 달리 대기/승인 상태가 있는 "요청"이 아니라 바로 실행하는
-		     조치라서, 위 승인요청 표와는 따로 둡니다. -->
-		<section class="table-box" id="consolBox" style="display:none;">
-			<h4 class="page-title">창고 정리 추천</h4>
-			<table>
+		<!-- "승인 요청" / "창고 정리 추천"을 눌러서 바꿔 보는 탭입니다 (출고 등록 화면과 같은 방식).
+		     창고정리추천은 발주/출고와 달리 대기/승인 상태가 있는 "요청"이 아니라 바로 실행하는
+		     조치라서 표 구성 자체는 다르지만, switchTab()이 같은 표 영역 안에서 둘을 바꿔 보여줍니다. -->
+		<section class="table-box">
+		<div class="table-tabs">
+			<button class="tab-btn active" id="tabRequestBtn" onclick="switchTab('request')">승인 요청</button>
+			<button class="tab-btn" id="tabConsolBtn" onclick="switchTab('consol')">창고 정리 추천</button>
+		</div>
+
+			<table id="requestTable">
+				<thead>
+					<tr>
+						<th>품목</th>
+						<th>유형</th>
+						<th>요청 수량</th>
+						<th>요청자</th>
+						<th>상태</th>
+						<th>관리</th>
+					</tr>
+				</thead>
+
+				<!-- 표 내용은 drawList()가 채웁니다 -->
+				<tbody id="apBody">
+				</tbody>
+			</table>
+
+			<table id="consolTable" style="display:none;">
 				<thead>
 					<tr>
 						<th>품목</th>
@@ -89,28 +110,8 @@
 				</thead>
 				<tbody id="consolBody"></tbody>
 			</table>
-		</section>
 
-		<!-- (표)  -->
-		<section class= "table-box">
-			<table>
-				<thead>
-					<tr>
-						<th>품목</th>
-						<th>유형</th> 
-						<th>요청 수량</th> 
-						<th>요청자</th>
-						<th>상태</th>
-						<th>관리</th>
-					</tr>				
-				</thead>
-				
-				<!-- 표 내용은 drawList()가 채웁니다 -->
-				<tbody id="apBody">
-				</tbody>
-			</table>
-		
-			<!-- 쪽 번호 -->
+			<!-- 쪽 번호 - 창고정리추천은 페이지 나눔이 없어서 승인 요청 탭에서만 보입니다 -->
 			<div class="paging" id="paging"></div>
 		</section>
 		
@@ -247,6 +248,7 @@
 	let nowPage = 1;
 	let totalCount = 0;
 	let openIndex = -1;
+	let nowTab = "request";
 
 
 	function startUp() {
@@ -385,6 +387,30 @@
 	function changeFilter() {
 		nowPage = 1;
 		loadData();
+	}
+
+
+	/* ============================================================
+	   "승인 요청" / "창고 정리 추천" 탭 전환 (출고 등록 화면과 같은 방식)
+
+	   창고정리추천은 페이지 나눔이 없어서, 탭이 바뀌면 쪽 번호도 같이 보이거나
+	   숨겨줍니다. 탭을 누를 때마다 그 탭 데이터를 새로 받아와서 항상 최신으로 봅니다.
+	   ============================================================ */
+	function switchTab(tab) {
+
+		nowTab = tab;
+
+		document.querySelector("#tabRequestBtn").className = (tab == "request") ? "tab-btn active" : "tab-btn";
+		document.querySelector("#tabConsolBtn").className = (tab == "consol") ? "tab-btn active" : "tab-btn";
+		document.querySelector("#requestTable").style.display = (tab == "request") ? "" : "none";
+		document.querySelector("#consolTable").style.display = (tab == "consol") ? "" : "none";
+		document.querySelector("#paging").style.display = (tab == "request") ? "" : "none";
+
+		if (tab == "request") {
+			loadData();
+		} else {
+			loadConsolidationAlerts();
+		}
 	}
 
 
@@ -715,14 +741,18 @@
 
 	function drawConsolidationList() {
 
-		let box = document.querySelector("#consolBox");
-
+		/* 탭을 아직 안 눌러도 대기 건수를 알 수 있게, 탭 버튼에 개수를 같이 보여줍니다 */
+		let tabBtn = document.querySelector("#tabConsolBtn");
 		if (consolAlertIds.length == 0) {
-			box.style.display = "none";
-			return;
+			tabBtn.innerHTML = "창고 정리 추천";
+		} else {
+			tabBtn.innerHTML = "창고 정리 추천 (" + consolAlertIds.length + ")";
 		}
 
-		box.style.display = "";
+		if (consolAlertIds.length == 0) {
+			document.querySelector("#consolBody").innerHTML = "<tr><td colspan='3'>정리할 항목이 없습니다.</td></tr>";
+			return;
+		}
 
 		let html = "";
 
