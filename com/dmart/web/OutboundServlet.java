@@ -134,11 +134,12 @@ public class OutboundServlet extends HttpServlet {
 
     private void doList(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         Long itemId = parseLongParam(req.getParameter("itemId"));
+        String keyword = blankToNull(req.getParameter("keyword"));
         Pagination pg = Pagination.from(req);
 
         try (Connection conn = DBConnection.getConnection()) {
-            List<Outbound> list = outboundDao.findPage(conn, itemId, pg.offset, pg.size);
-            int total = outboundDao.count(conn, itemId);
+            List<Outbound> list = outboundDao.findPage(conn, itemId, keyword, pg.offset, pg.size);
+            int total = outboundDao.count(conn, itemId, keyword);
             List<Object> data = new ArrayList<>();
             for (Outbound outbound : list) {
                 // 화면에서 품목명/구역을 보여주려면 itemId/zoneId가 필요한데 OUTBOUND 자체엔
@@ -184,6 +185,10 @@ public class OutboundServlet extends HttpServlet {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    private String blankToNull(String s) {
+        return (s == null || s.isBlank()) ? null : s;
     }
 
     private Integer parseIntParam(String s) {

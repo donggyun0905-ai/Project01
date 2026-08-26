@@ -52,7 +52,7 @@ public class AutoManageService {
 
         List<Approval> pending;
         try (Connection conn = DBConnection.getConnection()) {
-            pending = approvalDao.findPage(conn, "대기", null, 0, 500);
+            pending = approvalDao.findPage(conn, "대기", null, null, 0, 500);
         }
         // findPage는 최신순(DESC)으로 주는데, 자동관리는 가장 오래 기다린 것부터 순서대로
         // 처리하는 게 실제 업무 순서에 맞아서 오래된 순으로 다시 정렬한다.

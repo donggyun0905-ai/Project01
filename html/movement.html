@@ -111,6 +111,19 @@
 
 		<section class= "table-box">
 		<h4 class="table-title">이동 이력 목록</h4>
+
+		<!-- 검색 (item.html과 같은 방식) -->
+		<div class="search-box">
+			<div class="search-input-wrap">
+				<input type="text" id="mv-search" placeholder="검색" onkeyup="pressEnter(event)">
+				<button type="button" class="search-btn" onclick="doSearch()"></button>
+			</div>
+
+			<select class="category-select" id="mvSearchField">
+				<option>품목명</option>
+			</select>
+		</div>
+
 		<!-- 기간으로 거르기 (명세서 S-07) - 서버(GET /api/transfers?from=&to=)가 직접 걸러줍니다 -->
 		<div class="list-filter">
 			<label>기간</label>
@@ -836,15 +849,33 @@
 			url = url + "&to=" + to;
 		}
 
+		let word = document.querySelector("#mv-search").value;
+		if (word != "") {
+			url = url + "&keyword=" + encodeURIComponent(word);
+		}
+
 		apiGet(url, putHistory);
 	}
 
 
-	/* 기간을 바꾸면 1페이지부터 다시 봅니다 (이전 필터로 보던 페이지 번호가
+	/* 기간/검색어를 바꾸면 1페이지부터 다시 봅니다 (이전 필터로 보던 페이지 번호가
 	   새 필터에서는 안 맞을 수 있어서) */
 	function changeFilter() {
 		nowPage = 1;
 		loadHistory();
+	}
+
+
+	function doSearch() {
+		nowPage = 1;
+		loadHistory();
+	}
+
+
+	function pressEnter(e) {
+		if (e.keyCode == 13) {
+			doSearch();
+		}
 	}
 
 

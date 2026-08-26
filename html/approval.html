@@ -71,7 +71,12 @@
 					<option>이상출고</option>
 				</select>
 			</div>
-			
+
+			<div class="form-group">
+				<label>품목명</label>
+				<input type="text" id="fName" placeholder="검색 후 Enter" onkeyup="pressEnter(event)">
+			</div>
+
 			<button class="register-btn" onclick="openNew()">승인 요청 등록</button>
 		</section>
 
@@ -292,7 +297,21 @@
 			path = path + "&status=" + encodeURIComponent(status);
 		}
 
+		let word = document.querySelector("#fName").value;
+		if (word != "") {
+			path = path + "&keyword=" + encodeURIComponent(word);
+		}
+
 		apiGet(path, putApprovals);
+	}
+
+
+	/* 품목명 검색은 서버가 걸러주는 조건이라 바뀌면 항상 다시 받아옵니다 */
+	function pressEnter(e) {
+		if (e.keyCode == 13) {
+			nowPage = 1;
+			loadData();
+		}
 	}
 
 

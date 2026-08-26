@@ -61,6 +61,7 @@ public class AlertServlet extends HttpServlet {
         String resolvedParam = req.getParameter("resolved");
         Boolean resolved = resolvedParam != null ? Boolean.valueOf(resolvedParam) : null;
         Long itemId = parseLongParam(req.getParameter("itemId"));
+        String keyword = blankToNull(req.getParameter("keyword"));
         Pagination pg = Pagination.from(req);
 
         try (Connection conn = DBConnection.getConnection()) {
@@ -69,13 +70,13 @@ public class AlertServlet extends HttpServlet {
 
             if (AuthUtil.isAdmin(req)) {
                 // ADMIN은 거를 게 없으니 원래대로 SQL이 직접 페이지를 나눠 준다(이 목록이 커져도 가벼움).
-                page = alertDao.findPage(conn, resolved, itemId, pg.offset, pg.size);
-                total = alertDao.count(conn, resolved, itemId);
+                page = alertDao.findPage(conn, resolved, itemId, keyword, pg.offset, pg.size);
+                total = alertDao.count(conn, resolved, itemId, keyword);
             } else {
                 // 창고정리추천은 message 안의 zoneId를 읽어 걸러야 해서 SQL만으로는 안 되므로,
                 // 조건에 맞는 전체를 받아 자바에서 거른 뒤 그 결과 기준으로 직접 페이지를 자른다
                 // (LIMIT/OFFSET을 먼저 걸고 나중에 거르면 total과 실제 개수가 어긋나는 문제가 생김).
-                List<Alert> matching = alertDao.findAllMatching(conn, resolved, itemId);
+                List<Alert> matching = alertDao.findAllMatching(conn, resolved, itemId, keyword);
                 List<Long> allowedWarehouseIds = userWarehouseDao.findByUserId(conn, AuthUtil.getUserId(req)).stream()
                         .map(UserWarehouse::getWarehouseId)
                         .collect(Collectors.toList());
@@ -185,6 +186,10 @@ public class AlertServlet extends HttpServlet {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    private String blankToNull(String s) {
+        return (s == null || s.isBlank()) ? null : s;
     }
 
     private static Map<String, Object> toJson(Alert alert) {

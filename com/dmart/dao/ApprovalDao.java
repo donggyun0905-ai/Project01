@@ -115,11 +115,13 @@ public class ApprovalDao {
 
     // 12번 목록 API용. status/requestType 선택 필터.
     // requestType은 outbound.html의 "출고 요청" 탭처럼 발주/출고 중 한쪽만 보고 싶을 때 씀.
-    public List<Approval> findPage(Connection conn, String status, String requestType, int offset, int limit) throws SQLException {
-        String sql = "SELECT * FROM APPROVAL" + whereClause(status, requestType) + " ORDER BY requested_at DESC LIMIT ? OFFSET ?";
+    // keyword(품목명 검색)가 있을 때만 ITEM을 조인한다(APPROVAL엔 item_name이 없음).
+    public List<Approval> findPage(Connection conn, String status, String requestType, String keyword, int offset, int limit) throws SQLException {
+        String sql = "SELECT a.* FROM APPROVAL a" + joinClause(keyword)
+                + whereClause(status, requestType, keyword) + " ORDER BY a.requested_at DESC LIMIT ? OFFSET ?";
         List<Approval> result = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = bindFilterParams(ps, 1, status, requestType);
+            int idx = bindFilterParams(ps, 1, status, requestType, keyword);
             ps.setInt(idx++, limit);
             ps.setInt(idx, offset);
             try (ResultSet rs = ps.executeQuery()) {
@@ -131,10 +133,10 @@ public class ApprovalDao {
         return result;
     }
 
-    public int count(Connection conn, String status, String requestType) throws SQLException {
-        String sql = "SELECT COUNT(*) FROM APPROVAL" + whereClause(status, requestType);
+    public int count(Connection conn, String status, String requestType, String keyword) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM APPROVAL a" + joinClause(keyword) + whereClause(status, requestType, keyword);
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            bindFilterParams(ps, 1, status, requestType);
+            bindFilterParams(ps, 1, status, requestType, keyword);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getInt(1);
@@ -142,24 +144,34 @@ public class ApprovalDao {
         }
     }
 
-    private String whereClause(String status, String requestType) {
+    private String joinClause(String keyword) {
+        return keyword != null ? " JOIN ITEM i ON a.item_id = i.item_id" : "";
+    }
+
+    private String whereClause(String status, String requestType, String keyword) {
         StringBuilder sb = new StringBuilder();
         if (status != null) {
-            sb.append(" AND status = ?");
+            sb.append(" AND a.status = ?");
         }
         if (requestType != null) {
-            sb.append(" AND request_type = ?");
+            sb.append(" AND a.request_type = ?");
+        }
+        if (keyword != null) {
+            sb.append(" AND i.item_name LIKE ?");
         }
         return sb.length() == 0 ? "" : " WHERE 1=1" + sb;
     }
 
-    private int bindFilterParams(PreparedStatement ps, int startIndex, String status, String requestType) throws SQLException {
+    private int bindFilterParams(PreparedStatement ps, int startIndex, String status, String requestType, String keyword) throws SQLException {
         int idx = startIndex;
         if (status != null) {
             ps.setString(idx++, status);
         }
         if (requestType != null) {
             ps.setString(idx++, requestType);
+        }
+        if (keyword != null) {
+            ps.setString(idx++, "%" + keyword + "%");
         }
         return idx;
     }

@@ -239,17 +239,21 @@ public class StockLotDao {
 
     // 10.1 목록 API용. warehouseId 필터는 ZONE과 조인해서 처리(STOCK_LOT엔 warehouse_id가 없음).
     // allowedWarehouseIds가 null이면 전체(ADMIN), 아니면 그 창고들 소속 구역의 로트만(STAFF) — 4번과 동일한 패턴.
+    // keyword(품목명)/partnerKeyword(공급처명)는 inbound.html 검색창용 - ITEM/PARTNER는 STOCK_LOT의
+    // item_id/partner_id가 NOT NULL FK라 INNER JOIN해도 원래 있던 로트가 빠지지 않는다.
     public List<StockLot> findPage(Connection conn, Long itemId, Long zoneId, Long warehouseId, String status,
+                                    String keyword, String partnerKeyword,
                                     List<Long> allowedWarehouseIds, boolean originOnly, int offset, int limit) throws SQLException {
         if (allowedWarehouseIds != null && allowedWarehouseIds.isEmpty()) {
             return new ArrayList<>();
         }
         String sql = "SELECT sl.* FROM STOCK_LOT sl JOIN ZONE z ON sl.zone_id = z.zone_id"
-                + whereClause(itemId, zoneId, warehouseId, status, allowedWarehouseIds, originOnly)
+                + joinClause(keyword, partnerKeyword)
+                + whereClause(itemId, zoneId, warehouseId, status, keyword, partnerKeyword, allowedWarehouseIds, originOnly)
                 + " ORDER BY sl.lot_id DESC LIMIT ? OFFSET ?";
         List<StockLot> result = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = bindFilterParams(ps, 1, itemId, zoneId, warehouseId, status, allowedWarehouseIds);
+            int idx = bindFilterParams(ps, 1, itemId, zoneId, warehouseId, status, keyword, partnerKeyword, allowedWarehouseIds);
             ps.setInt(idx++, limit);
             ps.setInt(idx, offset);
             try (ResultSet rs = ps.executeQuery()) {
@@ -262,14 +266,15 @@ public class StockLotDao {
     }
 
     public int count(Connection conn, Long itemId, Long zoneId, Long warehouseId, String status,
-                      List<Long> allowedWarehouseIds, boolean originOnly) throws SQLException {
+                      String keyword, String partnerKeyword, List<Long> allowedWarehouseIds, boolean originOnly) throws SQLException {
         if (allowedWarehouseIds != null && allowedWarehouseIds.isEmpty()) {
             return 0;
         }
         String sql = "SELECT COUNT(*) FROM STOCK_LOT sl JOIN ZONE z ON sl.zone_id = z.zone_id"
-                + whereClause(itemId, zoneId, warehouseId, status, allowedWarehouseIds, originOnly);
+                + joinClause(keyword, partnerKeyword)
+                + whereClause(itemId, zoneId, warehouseId, status, keyword, partnerKeyword, allowedWarehouseIds, originOnly);
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            bindFilterParams(ps, 1, itemId, zoneId, warehouseId, status, allowedWarehouseIds);
+            bindFilterParams(ps, 1, itemId, zoneId, warehouseId, status, keyword, partnerKeyword, allowedWarehouseIds);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getInt(1);
@@ -277,7 +282,19 @@ public class StockLotDao {
         }
     }
 
+    private String joinClause(String keyword, String partnerKeyword) {
+        StringBuilder sb = new StringBuilder();
+        if (keyword != null) {
+            sb.append(" JOIN ITEM i ON sl.item_id = i.item_id");
+        }
+        if (partnerKeyword != null) {
+            sb.append(" JOIN PARTNER p ON sl.partner_id = p.partner_id");
+        }
+        return sb.toString();
+    }
+
     private String whereClause(Long itemId, Long zoneId, Long warehouseId, String status,
+                                String keyword, String partnerKeyword,
                                 List<Long> allowedWarehouseIds, boolean originOnly) {
         StringBuilder sb = new StringBuilder();
         if (itemId != null) {
@@ -291,6 +308,12 @@ public class StockLotDao {
         }
         if (status != null) {
             sb.append(" AND sl.status = ?");
+        }
+        if (keyword != null) {
+            sb.append(" AND i.item_name LIKE ?");
+        }
+        if (partnerKeyword != null) {
+            sb.append(" AND p.name LIKE ?");
         }
         if (originOnly) {
             // parent_lot_id가 있는 로트는 이동/반품폐기로 원본 로트에서 분할되어 생긴 것이지
@@ -311,7 +334,8 @@ public class StockLotDao {
     }
 
     private int bindFilterParams(PreparedStatement ps, int startIndex, Long itemId, Long zoneId, Long warehouseId,
-                                  String status, List<Long> allowedWarehouseIds) throws SQLException {
+                                  String status, String keyword, String partnerKeyword,
+                                  List<Long> allowedWarehouseIds) throws SQLException {
         int idx = startIndex;
         if (itemId != null) {
             ps.setLong(idx++, itemId);
@@ -324,6 +348,12 @@ public class StockLotDao {
         }
         if (status != null) {
             ps.setString(idx++, status);
+        }
+        if (keyword != null) {
+            ps.setString(idx++, "%" + keyword + "%");
+        }
+        if (partnerKeyword != null) {
+            ps.setString(idx++, "%" + partnerKeyword + "%");
         }
         if (allowedWarehouseIds != null) {
             for (Long id : allowedWarehouseIds) {

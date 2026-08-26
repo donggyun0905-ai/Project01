@@ -41,13 +41,14 @@ public class TransferServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         Long itemId = parseLongParam(req.getParameter("itemId"));
+        String keyword = blankToNull(req.getParameter("keyword"));
         LocalDate from = parseDateParam(req.getParameter("from"));
         LocalDate to = parseDateParam(req.getParameter("to"));
         Pagination pg = Pagination.from(req);
 
         try (Connection conn = DBConnection.getConnection()) {
-            List<StockTransfer> list = stockTransferDao.findPage(conn, itemId, from, to, pg.offset, pg.size);
-            int total = stockTransferDao.count(conn, itemId, from, to);
+            List<StockTransfer> list = stockTransferDao.findPage(conn, itemId, keyword, from, to, pg.offset, pg.size);
+            int total = stockTransferDao.count(conn, itemId, keyword, from, to);
             List<Object> data = new ArrayList<>();
             for (StockTransfer transfer : list) {
                 // 화면에서 품목명을 보여주려면 itemId가 필요한데 STOCK_TRANSFER 자체엔 없어서
@@ -124,6 +125,10 @@ public class TransferServlet extends HttpServlet {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    private String blankToNull(String s) {
+        return (s == null || s.isBlank()) ? null : s;
     }
 
     private LocalDate parseDateParam(String s) {

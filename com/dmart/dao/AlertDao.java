@@ -96,12 +96,12 @@ public class AlertDao {
         return result;
     }
 
-    // 11번 목록 API용. resolved/itemId 둘 다 선택 필터.
-    public List<Alert> findPage(Connection conn, Boolean resolved, Long itemId, int offset, int limit) throws SQLException {
-        String sql = "SELECT * FROM ALERT" + whereClause(resolved, itemId) + " ORDER BY created_at DESC LIMIT ? OFFSET ?";
+    // 11번 목록 API용. resolved/itemId/keyword(내용 검색) 다 선택 필터.
+    public List<Alert> findPage(Connection conn, Boolean resolved, Long itemId, String keyword, int offset, int limit) throws SQLException {
+        String sql = "SELECT * FROM ALERT" + whereClause(resolved, itemId, keyword) + " ORDER BY created_at DESC LIMIT ? OFFSET ?";
         List<Alert> result = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = bindFilterParams(ps, 1, resolved, itemId);
+            int idx = bindFilterParams(ps, 1, resolved, itemId, keyword);
             ps.setInt(idx++, limit);
             ps.setInt(idx, offset);
             try (ResultSet rs = ps.executeQuery()) {
@@ -116,11 +116,11 @@ public class AlertDao {
     // 11번 목록 API에서 창고정리추천을 배정 창고 기준으로 거를 때 사용. 그 거르기는 message에
     // 담긴 zoneId를 읽어 판단해야 해서 SQL로는 할 수 없어, LIMIT/OFFSET 없이 조건에 맞는 전체를
     // 받아 자바에서 거른 뒤 페이지를 잘라야 한다(그래야 total과 실제 보이는 개수가 어긋나지 않음).
-    public List<Alert> findAllMatching(Connection conn, Boolean resolved, Long itemId) throws SQLException {
-        String sql = "SELECT * FROM ALERT" + whereClause(resolved, itemId) + " ORDER BY created_at DESC";
+    public List<Alert> findAllMatching(Connection conn, Boolean resolved, Long itemId, String keyword) throws SQLException {
+        String sql = "SELECT * FROM ALERT" + whereClause(resolved, itemId, keyword) + " ORDER BY created_at DESC";
         List<Alert> result = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            bindFilterParams(ps, 1, resolved, itemId);
+            bindFilterParams(ps, 1, resolved, itemId, keyword);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     result.add(mapRow(rs));
@@ -130,10 +130,10 @@ public class AlertDao {
         return result;
     }
 
-    public int count(Connection conn, Boolean resolved, Long itemId) throws SQLException {
-        String sql = "SELECT COUNT(*) FROM ALERT" + whereClause(resolved, itemId);
+    public int count(Connection conn, Boolean resolved, Long itemId, String keyword) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM ALERT" + whereClause(resolved, itemId, keyword);
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            bindFilterParams(ps, 1, resolved, itemId);
+            bindFilterParams(ps, 1, resolved, itemId, keyword);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getInt(1);
@@ -141,7 +141,7 @@ public class AlertDao {
         }
     }
 
-    private String whereClause(Boolean resolved, Long itemId) {
+    private String whereClause(Boolean resolved, Long itemId, String keyword) {
         StringBuilder sb = new StringBuilder();
         if (resolved != null) {
             sb.append(" AND is_resolved = ?");
@@ -149,16 +149,22 @@ public class AlertDao {
         if (itemId != null) {
             sb.append(" AND item_id = ?");
         }
+        if (keyword != null) {
+            sb.append(" AND message LIKE ?");
+        }
         return sb.length() == 0 ? "" : " WHERE 1=1" + sb;
     }
 
-    private int bindFilterParams(PreparedStatement ps, int startIndex, Boolean resolved, Long itemId) throws SQLException {
+    private int bindFilterParams(PreparedStatement ps, int startIndex, Boolean resolved, Long itemId, String keyword) throws SQLException {
         int idx = startIndex;
         if (resolved != null) {
             ps.setBoolean(idx++, resolved);
         }
         if (itemId != null) {
             ps.setLong(idx++, itemId);
+        }
+        if (keyword != null) {
+            ps.setString(idx++, "%" + keyword + "%");
         }
         return idx;
     }

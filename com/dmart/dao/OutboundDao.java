@@ -83,17 +83,15 @@ public class OutboundDao {
         return result;
     }
 
-    // 출고 이력 화면용. OUTBOUND엔 item_id가 없어서 STOCK_LOT을 조인해 거른다.
-    public List<Outbound> findPage(Connection conn, Long itemId, int offset, int limit) throws SQLException {
+    // 출고 이력 화면용. OUTBOUND엔 item_id/item_name이 없어서 STOCK_LOT을 조인해 거르고,
+    // keyword(품목명 검색)가 있을 때만 ITEM까지 추가로 조인한다.
+    public List<Outbound> findPage(Connection conn, Long itemId, String keyword, int offset, int limit) throws SQLException {
         String sql = "SELECT o.* FROM OUTBOUND o JOIN STOCK_LOT sl ON o.lot_id = sl.lot_id"
-                + (itemId != null ? " WHERE sl.item_id = ?" : "")
+                + joinClause(keyword) + whereClause(itemId, keyword)
                 + " ORDER BY o.outbound_id DESC LIMIT ? OFFSET ?";
         List<Outbound> result = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = 1;
-            if (itemId != null) {
-                ps.setLong(idx++, itemId);
-            }
+            int idx = bindFilterParams(ps, 1, itemId, keyword);
             ps.setInt(idx++, limit);
             ps.setInt(idx, offset);
             try (ResultSet rs = ps.executeQuery()) {
@@ -105,18 +103,42 @@ public class OutboundDao {
         return result;
     }
 
-    public int count(Connection conn, Long itemId) throws SQLException {
+    public int count(Connection conn, Long itemId, String keyword) throws SQLException {
         String sql = "SELECT COUNT(*) FROM OUTBOUND o JOIN STOCK_LOT sl ON o.lot_id = sl.lot_id"
-                + (itemId != null ? " WHERE sl.item_id = ?" : "");
+                + joinClause(keyword) + whereClause(itemId, keyword);
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            if (itemId != null) {
-                ps.setLong(1, itemId);
-            }
+            bindFilterParams(ps, 1, itemId, keyword);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getInt(1);
             }
         }
+    }
+
+    private String joinClause(String keyword) {
+        return keyword != null ? " JOIN ITEM i ON sl.item_id = i.item_id" : "";
+    }
+
+    private String whereClause(Long itemId, String keyword) {
+        StringBuilder sb = new StringBuilder();
+        if (itemId != null) {
+            sb.append(" AND sl.item_id = ?");
+        }
+        if (keyword != null) {
+            sb.append(" AND i.item_name LIKE ?");
+        }
+        return sb.length() == 0 ? "" : " WHERE 1=1" + sb;
+    }
+
+    private int bindFilterParams(PreparedStatement ps, int startIndex, Long itemId, String keyword) throws SQLException {
+        int idx = startIndex;
+        if (itemId != null) {
+            ps.setLong(idx++, itemId);
+        }
+        if (keyword != null) {
+            ps.setString(idx++, "%" + keyword + "%");
+        }
+        return idx;
     }
 
     private Outbound mapRow(ResultSet rs) throws SQLException {

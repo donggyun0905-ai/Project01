@@ -45,6 +45,11 @@
 		
 		<!-- 위에 있는데 -->
 		<section class="search-box">
+				<div class="search-input-wrap">
+					<input type="text" id="alert-search" placeholder="내용 검색" onkeyup="pressEnter(event)">
+					<button type="button" class="search-btn" onclick="doSearch()"></button>
+				</div>
+
 				<div class="form-group expiration-group">
 					<div class="date-range">
 						<input type="date" id="fromDate" onchange="changeFilter()">
@@ -52,7 +57,7 @@
 						<input type="date" id="toDate" onchange="changeFilter()">
 					</div>
 				</div>
-				
+
 				<select class="category-select" id="typeSelect" onchange="changeFilter()">
 					<option>전체</option>
 					<option>재고부족</option>
@@ -316,7 +321,26 @@
 			path = path + "&resolved=false";
 		}
 
+		let word = document.querySelector("#alert-search").value;
+		if (word != "") {
+			path = path + "&keyword=" + encodeURIComponent(word);
+		}
+
 		return path;
+	}
+
+
+	/* 검색어는 서버가 걸러주는 조건이라 바뀌면 항상 다시 받아옵니다 */
+	function doSearch() {
+		nowPage = 1;
+		loadData();
+	}
+
+
+	function pressEnter(e) {
+		if (e.keyCode == 13) {
+			doSearch();
+		}
 	}
 
 	function putAlerts1(data) {

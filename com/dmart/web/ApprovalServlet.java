@@ -47,11 +47,12 @@ public class ApprovalServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String status = req.getParameter("status");
         String requestType = req.getParameter("requestType");
+        String keyword = blankToNull(req.getParameter("keyword"));
         Pagination pg = Pagination.from(req);
 
         try (Connection conn = DBConnection.getConnection()) {
-            List<Approval> approvals = approvalDao.findPage(conn, status, requestType, pg.offset, pg.size);
-            int total = approvalDao.count(conn, status, requestType);
+            List<Approval> approvals = approvalDao.findPage(conn, status, requestType, keyword, pg.offset, pg.size);
+            int total = approvalDao.count(conn, status, requestType, keyword);
             List<Object> data = new java.util.ArrayList<>();
             for (Approval approval : approvals) {
                 data.add(toJson(conn, approval));
@@ -144,6 +145,10 @@ public class ApprovalServlet extends HttpServlet {
             getServletContext().log("승인 처리 중 DB 오류", e);
             ApiResponse.error(resp, 500, "INTERNAL_ERROR", "서버 오류가 발생했습니다");
         }
+    }
+
+    private String blankToNull(String s) {
+        return (s == null || s.isBlank()) ? null : s;
     }
 
     private Long parseId(String pathInfo) {

@@ -98,6 +98,18 @@
 			<button class="register-btn" onclick="openRecommend()">자동 추천 및 확인</button>
 		</section>
 		
+		<!-- 검색 - "출고 이력" 탭에서만 씁니다(품목명으로 검색), 탭 바뀌면 감춥니다 -->
+		<section class="search-box" id="outSearchBox">
+			<div class="search-input-wrap">
+				<input type="text" id="out-search" placeholder="검색" onkeyup="pressEnter(event)">
+				<button type="button" class="search-btn" onclick="doSearch()"></button>
+			</div>
+
+			<select class="category-select" id="outSearchField">
+				<option>품목명</option>
+			</select>
+		</section>
+
 		<!-- 출고 입력(표)  -->
 
 		<section class= "table-box">
@@ -761,6 +773,7 @@
 		document.querySelector("#tabRequestBtn").className = (tab == "request") ? "tab-btn active" : "tab-btn";
 		document.querySelector("#historyTable").style.display = (tab == "history") ? "" : "none";
 		document.querySelector("#requestTable").style.display = (tab == "request") ? "" : "none";
+		document.querySelector("#outSearchBox").style.display = (tab == "history") ? "" : "none";
 
 		if (tab == "history") {
 			loadHistory();
@@ -774,7 +787,29 @@
 	   출고 이력 표  (GET /api/outbound)
 	   ============================================================ */
 	function loadHistory() {
-		apiGet("/api/outbound?page=" + nowPage + "&size=" + pageSize, putHistory);
+
+		let path = "/api/outbound?page=" + nowPage + "&size=" + pageSize;
+
+		let word = document.querySelector("#out-search").value;
+		if (word != "") {
+			path = path + "&keyword=" + encodeURIComponent(word);
+		}
+
+		apiGet(path, putHistory);
+	}
+
+
+	/* 검색창 - 검색하면 1쪽부터 다시 봅니다 (출고 이력 탭에서만 씀) */
+	function doSearch() {
+		nowPage = 1;
+		loadHistory();
+	}
+
+
+	function pressEnter(e) {
+		if (e.keyCode == 13) {
+			doSearch();
+		}
 	}
 
 

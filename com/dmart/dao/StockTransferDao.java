@@ -86,18 +86,19 @@ public class StockTransferDao {
         return result;
     }
 
-    // 이동 이력 화면용. STOCK_TRANSFER엔 item_id가 없어서(로트 단위 이동이라) itemId로 거르려면
+    // 이동 이력 화면용. STOCK_TRANSFER엔 item_id/item_name이 없어서(로트 단위 이동이라)
     // STOCK_LOT을 조인해야 함 - 최근 것부터 보여준다. from/to는 movement.html의 기간 필터용 -
     // 예전엔 화면에서 현재 페이지 안의 로트만 날짜로 걸러서 페이지네이션과 안 맞았는데,
-    // 여기서 걸러주면 total도 필터링된 기준으로 정확히 나온다.
-    public List<StockTransfer> findPage(Connection conn, Long itemId, LocalDate from, LocalDate to,
+    // 여기서 걸러주면 total도 필터링된 기준으로 정확히 나온다. keyword(품목명 검색)가 있을 때만
+    // ITEM까지 추가로 조인한다.
+    public List<StockTransfer> findPage(Connection conn, Long itemId, String keyword, LocalDate from, LocalDate to,
                                          int offset, int limit) throws SQLException {
         String sql = "SELECT st.* FROM STOCK_TRANSFER st JOIN STOCK_LOT sl ON st.lot_id = sl.lot_id"
-                + whereClause(itemId, from, to)
+                + joinClause(keyword) + whereClause(itemId, keyword, from, to)
                 + " ORDER BY st.transfer_id DESC LIMIT ? OFFSET ?";
         List<StockTransfer> result = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = bindFilterParams(ps, 1, itemId, from, to);
+            int idx = bindFilterParams(ps, 1, itemId, keyword, from, to);
             ps.setInt(idx++, limit);
             ps.setInt(idx, offset);
             try (ResultSet rs = ps.executeQuery()) {
@@ -109,11 +110,11 @@ public class StockTransferDao {
         return result;
     }
 
-    public int count(Connection conn, Long itemId, LocalDate from, LocalDate to) throws SQLException {
+    public int count(Connection conn, Long itemId, String keyword, LocalDate from, LocalDate to) throws SQLException {
         String sql = "SELECT COUNT(*) FROM STOCK_TRANSFER st JOIN STOCK_LOT sl ON st.lot_id = sl.lot_id"
-                + whereClause(itemId, from, to);
+                + joinClause(keyword) + whereClause(itemId, keyword, from, to);
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            bindFilterParams(ps, 1, itemId, from, to);
+            bindFilterParams(ps, 1, itemId, keyword, from, to);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getInt(1);
@@ -121,10 +122,17 @@ public class StockTransferDao {
         }
     }
 
-    private String whereClause(Long itemId, LocalDate from, LocalDate to) {
+    private String joinClause(String keyword) {
+        return keyword != null ? " JOIN ITEM i ON sl.item_id = i.item_id" : "";
+    }
+
+    private String whereClause(Long itemId, String keyword, LocalDate from, LocalDate to) {
         StringBuilder sb = new StringBuilder();
         if (itemId != null) {
             sb.append(" AND sl.item_id = ?");
+        }
+        if (keyword != null) {
+            sb.append(" AND i.item_name LIKE ?");
         }
         if (from != null) {
             sb.append(" AND DATE(st.moved_at) >= ?");
@@ -135,11 +143,14 @@ public class StockTransferDao {
         return sb.length() == 0 ? "" : " WHERE 1=1" + sb;
     }
 
-    private int bindFilterParams(PreparedStatement ps, int startIndex, Long itemId, LocalDate from, LocalDate to)
-            throws SQLException {
+    private int bindFilterParams(PreparedStatement ps, int startIndex, Long itemId, String keyword,
+                                  LocalDate from, LocalDate to) throws SQLException {
         int idx = startIndex;
         if (itemId != null) {
             ps.setLong(idx++, itemId);
+        }
+        if (keyword != null) {
+            ps.setString(idx++, "%" + keyword + "%");
         }
         if (from != null) {
             ps.setDate(idx++, Date.valueOf(from));

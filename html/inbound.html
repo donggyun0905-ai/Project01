@@ -110,8 +110,21 @@
 			<button class="register-btn" onclick="doRegister()">입고 등록</button>
 		</section>
 		
+		<!-- 검색 (item.html과 같은 방식 - 컬럼 선택 + 그 컬럼에 맞는 입력창) -->
+		<section class="search-box">
+			<div class="search-input-wrap">
+				<input type="text" id="in-search" placeholder="검색" onkeyup="pressEnter(event)">
+				<button type="button" class="search-btn" onclick="doSearch()"></button>
+			</div>
+
+			<select class="category-select" id="inSearchField" onchange="doSearch()">
+				<option>품목명</option>
+				<option>공급처</option>
+			</select>
+		</section>
+
 		<!-- 입고입력(표)  -->
-		
+
 		<section class= "table-box">
 		<h4 class="table-title">입고 이력</h4>
 			<table>
@@ -341,7 +354,35 @@
 	   게 아니라 기존에 입고됐던 게 옮겨진 것뿐이라 여기 섞이면 안 됩니다.
 	   ============================================================ */
 	function loadData() {
-		apiGet("/api/stock-lots?page=" + nowPage + "&size=" + pageSize + "&originOnly=true", putRows);
+
+		let path = "/api/stock-lots?page=" + nowPage + "&size=" + pageSize + "&originOnly=true";
+
+		let word = document.querySelector("#in-search").value;
+		let field = document.querySelector("#inSearchField").value;
+
+		if (word != "") {
+			if (field == "공급처") {
+				path = path + "&partnerKeyword=" + encodeURIComponent(word);
+			} else {
+				path = path + "&keyword=" + encodeURIComponent(word);
+			}
+		}
+
+		apiGet(path, putRows);
+	}
+
+
+	/* 검색창 - 검색하면 1쪽부터 다시 봅니다 */
+	function doSearch() {
+		nowPage = 1;
+		loadData();
+	}
+
+
+	function pressEnter(e) {
+		if (e.keyCode == 13) {
+			doSearch();
+		}
 	}
 
 
