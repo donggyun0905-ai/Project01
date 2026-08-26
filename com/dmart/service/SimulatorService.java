@@ -161,7 +161,11 @@ public class SimulatorService {
     }
 
     // 재고부족(threshold_min 미만) 품목이 있으면 그 중 무작위로, 없으면 아직 여유가 있는
-    // (capacity_max 미만이거나 capacity_max 자체가 없는) 활성 품목 중 무작위로 고른다.
+    // 활성 품목 중 무작위로 고른다. "여유가 있다"의 기준은 유통기한 여부로 다르게 본다:
+    //  - 유통기한이 있는(shelf_life_days != null) 품목: capacity_max까지 다 채우면 남는 만큼
+    //    나중에 버려질 위험이 크므로, threshold_min~capacity_max 사이 "중간값"까지만 채워도
+    //    후보에서 뺀다(더 보수적으로 채움).
+    //  - 유통기한이 없는 품목: 어차피 안 상하니 capacity_max까지는 계속 후보로 남긴다(기존 기준).
     private Item pickItemNeedingInbound(Connection conn) throws SQLException {
         List<Item> items = itemDao.findAll(conn);
         items.removeIf(i -> i.getIsActive() != null && !i.getIsActive());
@@ -173,7 +177,7 @@ public class SimulatorService {
             if (i.getThresholdMin() != null && stock < i.getThresholdMin()) {
                 shortage.add(i);
             }
-            if (i.getCapacityMax() == null || stock < i.getCapacityMax()) {
+            if (hasRoom(i, stock)) {
                 roomLeft.add(i);
             }
         }
@@ -185,6 +189,18 @@ public class SimulatorService {
             return roomLeft.get(random.nextInt(roomLeft.size()));
         }
         return null;
+    }
+
+    private boolean hasRoom(Item item, int stock) {
+        if (item.getCapacityMax() == null) {
+            return true; // 상한 자체가 없는 품목
+        }
+        if (item.getShelfLifeDays() == null) {
+            return stock < item.getCapacityMax(); // 안 상하는 품목은 기존대로 max까지 후보
+        }
+        int lower = item.getThresholdMin() != null ? item.getThresholdMin() : 0;
+        int mid = (lower + item.getCapacityMax()) / 2;
+        return stock < mid; // 유통기한 있는 품목은 중간값까지만 채워도 충분(폐기 위험 낮추기)
     }
 
     // 이상출고 요청 - 지금 재고보다 많은 수량으로 출고 요청을 올려서, 이번에 만든 하이브리드
