@@ -70,14 +70,16 @@
 				</div>
 			</div>
 
-			<!-- 활성 / 비활성 골라 보기 -->
-			<select class="category-select" id="activeFilter" onchange="doSearch()">
-				<option value="true">사용 중</option>
-				<option value="false">비활성</option>
-			</select>
+			<!-- 활성/비활성 필터와 등록 버튼을 한 덩어리로 묶어서 보여줍니다 -->
+			<div class="action-group">
+				<select class="category-select" id="activeFilter" onchange="doSearch()">
+					<option value="true">사용 중</option>
+					<option value="false">비활성</option>
+				</select>
 
-			<!-- 품목 등록 (F-01) -->
-			<button class="register-btn" onclick="openItem(-1)">품목 등록</button>
+				<!-- 품목 등록 (F-01) -->
+				<button class="register-btn" onclick="openItem(-1)">품목 등록</button>
+			</div>
 		</section>
 		
 		<!-- 품목 목록(표)  -->

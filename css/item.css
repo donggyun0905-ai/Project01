@@ -9,8 +9,14 @@
 	padding: 18px 28px;
 	margin-bottom: 30px;
 	border-radius: 10px;
-	max-width: 680px;
-	height: 80px; 
+	max-width: 960px;
+}
+
+/* 활성/비활성 드롭박스 + 등록 버튼을 한 컨테이너로 묶어서 붙여 보여줍니다 */
+.action-group {
+	display: flex;
+	align-items: center;
+	gap: 12px;
 }
 
  /* 이부분 수정하기 글자 위치 수정*/
