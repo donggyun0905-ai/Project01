@@ -129,6 +129,7 @@
 	let days     = [];
 	let inQtys   = [];
 	let outQtys  = [];
+	let dispQtys = [];  // 반품/폐기 (출고량과는 별도 테이블이라 따로 받아옵니다)
 
 	// 창고별 재고
 	let whNames  = [];
@@ -255,7 +256,7 @@
 
 		whNames  = ["대형 창고 (5개소)", "중형 창고 (3개소)", "소형 창고 (2개소)"];
 		whQtys   = [whGroupQty["대형"], whGroupQty["중형"], whGroupQty["소형"]];
-		whColors = ["#D8C3A5", "#347A55", "#1f2628"];
+		whColors = ["#EBDCC3", "#347A55", "#1F3A63"];
 
 		cardNums[1] = whQtys[0] + whQtys[1] + whQtys[2];
 		drawCards();
@@ -451,6 +452,54 @@
 		}
 
 		drawBarChart();
+		loadDisposalBar();
+	}
+
+
+	/* 반품/폐기는 OUTBOUND가 아니라 RETURN_DISPOSAL이라는 별도 테이블이라
+	   "출고량" 통계엔 전혀 안 잡힙니다. 그래서 재고가 빠지는데도 안 보이던
+	   그 물량을 따로 받아와서 막대그래프에 다른 색으로 같이 보여줍니다
+	   (안 그러면 입고량만 유난히 많아 보여서 뭔가 문제가 있는 것처럼 보입니다 -
+	   실은 출고/반품/폐기 세 갈래로 나가는 재고 중 하나만 "출고량"에 잡히는 것뿐). */
+	function loadDisposalBar() {
+
+		if (days.length == 0) {
+			dispQtys = [];
+			drawBarChart();
+			return;
+		}
+
+		let pick = document.querySelector("#pickDate").value;
+		let to = new Date(pick);
+		let from = new Date(pick);
+		from.setDate(from.getDate() - 6);
+
+		let path = "/api/returns?from=" + getDateText(from) + "&to=" + getDateText(to) + "&size=200";
+		apiGet(path, putDisposalBar);
+	}
+
+	function putDisposalBar(data) {
+
+		let list = data.items;
+
+		// 날짜별(월-일)로 수량을 더합니다
+		let sumByDay = {};
+
+		for (let i = 0; i < list.length; i++) {
+			let day = list[i].processedDate.substring(5); // "2026-08-11" -> "08-11"
+			if (sumByDay[day] == null) {
+				sumByDay[day] = 0;
+			}
+			sumByDay[day] = sumByDay[day] + list[i].quantity;
+		}
+
+		// 막대그래프에 이미 그려진 날짜 순서(days)에 맞춰 채웁니다
+		dispQtys = [];
+		for (let i = 0; i < days.length; i++) {
+			dispQtys[i] = sumByDay[days[i]] == null ? 0 : sumByDay[days[i]];
+		}
+
+		drawBarChart();
 	}
 
 	/* =========================================================
@@ -501,7 +550,8 @@
 				labels: days,
 				datasets: [
 					{ label: "입고량", data: inQtys, backgroundColor: "#e0433f" },
-					{ label: "출고량", data: outQtys, backgroundColor: "#3b6fd4" }
+					{ label: "출고량", data: outQtys, backgroundColor: "#3b6fd4" },
+					{ label: "반품/폐기", data: dispQtys, backgroundColor: "rgb(0, 128, 0)" }
 				]
 			},
 			options: {
