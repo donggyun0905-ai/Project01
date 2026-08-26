@@ -208,8 +208,6 @@
 	   그 API 대신 warehouse.html과 같은 방식으로 창고/구역/재고를
 	   직접 받아서 화면에서 합산합니다. 안주희 님께 별도로 전달 예정.
 	   --------------------------------------------------------- */
-	let whZoneIds  = [];   // 구역 번호
-	let whZoneWh   = [];   // 그 구역이 속한 창고 번호
 	let whWhNames  = [];   // 창고 번호 -> 창고 구분(대형/중형/소형)
 	let whGroupQty = {};   // 창고 구분별 합계를 담아둘 객체
 
@@ -228,57 +226,29 @@
 		apiGet("/api/zones?size=200", putZonesForStock);
 	}
 
+	/* 구역별 usedQuantity(ZoneServlet이 stockLotDao.sumQuantityByZoneId로 서버에서 정확히
+	   더해서 내려주는 값)를 창고 구분(대/중/소)별로 더합니다.
+
+	   예전엔 여기서 /api/stock-lots?status=NORMAL을 200개씩 페이지네이션으로 받아
+	   클라이언트에서 직접 더했는데, 재고 로트가 400개(2페이지)를 넘으면 뒤쪽이 조용히
+	   빠지는 문제가 있었습니다. warehouse.html에도 같은 문제가 있었고 zone.usedQuantity로
+	   이미 고쳐져 있어서, 여기도 그 값을 그대로 가져다 쓰도록 맞췄습니다. */
 	function putZonesForStock(data) {
 
-		whZoneIds = [];
-		whZoneWh  = [];
+		whGroupQty = { "대형": 0, "중형": 0, "소형": 0 };
 
 		for (let i = 0; i < data.items.length; i++) {
-			whZoneIds[i] = data.items[i].zoneId;
-			whZoneWh[i]  = data.items[i].warehouseId;
-		}
 
-		apiGet("/api/stock-lots?status=NORMAL&page=1&size=200", putStockForWh1);
-	}
+			let groupName = whWhNames[data.items[i].warehouseId];
 
-	function putStockForWh1(data) {
-
-		whGroupQty = { "대형": 0, "중형": 0, "소형": 0 };
-		addStockForWh(data.items);
-
-		if (data.total > 200) {
-			apiGet("/api/stock-lots?status=NORMAL&page=2&size=200", putStockForWh2);
-		} else {
-			drawDonutFromGroups();
-		}
-	}
-
-	function putStockForWh2(data) {
-		addStockForWh(data.items);
-		drawDonutFromGroups();
-	}
-
-	// 로트 목록을 받아서 구역 -> 창고 -> 창고구분(대/중/소) 순서로 찾아 더합니다
-	function addStockForWh(list) {
-
-		for (let i = 0; i < list.length; i++) {
-
-			let whId = null;
-
-			for (let k = 0; k < whZoneIds.length; k++) {
-				if (whZoneIds[k] == list[i].zoneId) {
-					whId = whZoneWh[k];
-					break;
-				}
-			}
-
-			if (whId == null) {
+			if (groupName == null) {
 				continue;
 			}
 
-			let groupName = whWhNames[whId];
-			whGroupQty[groupName] = whGroupQty[groupName] + list[i].quantity;
+			whGroupQty[groupName] = whGroupQty[groupName] + data.items[i].usedQuantity;
 		}
+
+		drawDonutFromGroups();
 	}
 
 	function drawDonutFromGroups() {
