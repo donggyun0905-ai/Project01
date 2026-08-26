@@ -706,6 +706,24 @@
 	/* 오른쪽 위에 로그인한 사람을 보여 줍니다 */
 	drawUserBar();
 
+
+	/* ============================================================
+	   서버가 데이터 바뀔 때마다 바로 알려주는 실시간 연결(connectRealtimeRefresh,
+	   common.js)을 받으면 바로 다시 받아오고, 연결이 끊기거나 신호를 놓쳐도
+	   5초마다 한 번씩은 따라잡도록 폴링도 안전망으로 같이 둡니다(alert.html과
+	   동일한 패턴). 로트 선택 모달(체크박스 선택도 그 안에 있음)을 보고 있는
+	   중에는 건너뜁니다.
+	   ============================================================ */
+	function refreshIfIdle() {
+		let modal = document.querySelector("#registerModal");
+		if (modal.className.indexOf("active") == -1) {
+			loadHistory();
+		}
+	}
+
+	connectRealtimeRefresh(refreshIfIdle, ["disposal"]);
+	setInterval(refreshIfIdle, 5000);
+
 </script>
 
 </body>

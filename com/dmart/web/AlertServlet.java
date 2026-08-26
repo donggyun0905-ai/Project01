@@ -152,6 +152,7 @@ public class AlertServlet extends HttpServlet {
             }
             alert.setIsResolved(true);
             alertDao.update(conn, alert);
+            EventBus.publish("alert");
             ApiResponse.success(resp, 200, toJson(alert));
         } catch (SQLException e) {
             getServletContext().log("알림 처리 중 DB 오류", e);

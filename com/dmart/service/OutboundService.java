@@ -98,7 +98,11 @@ public class OutboundService {
             Long approvalId = null;
             if (item != null && item.getThresholdMin() != null) {
                 int totalAfter = stockLotDao.sumQuantityByItemId(conn, lot.getItemId());
-                if (totalAfter < item.getThresholdMin()) {
+                // 한 번의 출고 등록이 로트 여러 개로 나뉘어 처리될 때(재고가 적어 여러 로트에 걸쳐
+                // 나가는 경우) 로트마다 이 체크가 반복돼서, 이미 미해결 재고부족 알림이 있는데도
+                // 또 만들어버리는 중복 생성을 막는다.
+                if (totalAfter < item.getThresholdMin()
+                        && !alertDao.existsUnresolvedByItemIdAndType(conn, lot.getItemId(), "재고부족")) {
                     Alert shortageAlert = new Alert();
                     shortageAlert.setItemId(lot.getItemId());
                     shortageAlert.setAlertType("재고부족");

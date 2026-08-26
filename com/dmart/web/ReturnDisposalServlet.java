@@ -95,6 +95,7 @@ public class ReturnDisposalServlet extends HttpServlet {
         try {
             ReturnDisposalService.ReturnDisposalResult result =
                     returnDisposalService.process(lotId, type, reason, quantity, processedBy, processedDate);
+            EventBus.publish("disposal");
             ApiResponse.success(resp, 201, JsonUtil.object(
                     "recordId", result.recordId,
                     "splitOccurred", result.splitOccurred,

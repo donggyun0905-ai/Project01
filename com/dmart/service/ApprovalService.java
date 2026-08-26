@@ -190,6 +190,7 @@ public class ApprovalService {
             try (Connection conn = DBConnection.getConnection()) {
                 StockLot recent = stockLotDao.findMostRecentNormalByItemId(conn, approval.getItemId());
                 if (recent == null) {
+                    updateFulfilledQty(approval.getApprovalId(), 0);
                     return DecisionResult.inboundExecuted(approval.getApprovalId(), true,
                             "참고할 기존 로트가 없어 자동 입고 실행 불가 — POST /api/inbound로 수동 처리 필요", null);
                 }
@@ -201,19 +202,41 @@ public class ApprovalService {
 
             InboundService.InboundResult result = inboundService.inbound(
                     approval.getItemId(), zoneId, partnerId, approval.getRequestedQty(), LocalDate.now(), approvedBy);
+            updateFulfilledQty(approval.getApprovalId(), approval.getRequestedQty());
             return DecisionResult.inboundExecuted(approval.getApprovalId(), false, null, result.lotId);
         } catch (SQLException | RuntimeException e) {
+            updateFulfilledQty(approval.getApprovalId(), 0);
             return DecisionResult.inboundExecuted(approval.getApprovalId(), true, e.getMessage(), null);
         }
     }
 
     private DecisionResult executeOutboundApproval(Approval approval, Long approvedBy) {
+        int requestedQty = approval.getRequestedQty();
+
+        // 1) 먼저 부족한지만 확인해서, 부족하면 출고를 시도하기 "전에" 미리 채워 넣어 본다.
+        //    사람이 이미 이 출고 승인요청 자체를 승인한 것을 "부족한 만큼은 채워서라도 처리해도
+        //    된다"는 의사표시로 보고, 부족분 발주는 사람의 추가 승인 없이 바로 실행한다.
+        //    이 시도가 실패해도(참고할 로트가 없음 등) 아래 2)에서 실제로 있는 만큼은 그대로
+        //    출고되니 손해가 없다 — 순서를 바꿔서 "출고 → 부족분 입고 → 재출고"처럼 두 번
+        //    나눠 하지 않고, 최종적으로 딱 한 번만 출고하면 되게 만든 것.
+        Long shortageApprovalId = null;
+        try (Connection conn = DBConnection.getConnection()) {
+            int totalStock = stockLotDao.sumQuantityByItemId(conn, approval.getItemId());
+            if (requestedQty > totalStock) {
+                shortageApprovalId = tryAutoReplenish(approval.getItemId(), requestedQty - totalStock, approvedBy);
+            }
+        } catch (SQLException e) {
+            System.err.println("승인(approvalId=" + approval.getApprovalId() + ") 재고 확인 실패: " + e.getMessage());
+        }
+
+        // 2) 이 시점에 실제로 있는 만큼만 정직하게, 딱 한 번 출고한다
+        //    (1번이 성공했으면 방금 들어온 만큼도 자연히 포함됨).
         List<Long> outboundIds = new ArrayList<>();
-        int remaining = approval.getRequestedQty();
+        int remaining = requestedQty;
         int fulfilled = 0;
         try {
             OutboundService.RecommendResult recommend = outboundService.recommend(
-                    approval.getItemId(), approval.getRequestedQty(), "fefo");
+                    approval.getItemId(), requestedQty, "fefo");
 
             for (StockLot lot : recommend.lots) {
                 if (remaining <= 0) {
@@ -237,33 +260,102 @@ public class ApprovalService {
             System.err.println("승인(approvalId=" + approval.getApprovalId() + ") 자동 출고 추천 조회 실패: " + e.getMessage());
         }
 
-        // 요청한 만큼 다 못 채웠으면(재고 부족) 그 부족분만큼 발주(입고 요청)를 자동으로 만든다.
-        // "출고 등록" 화면은 지금 있는 만큼만 입력하게 막아 두지만, 승인 요청은 실제 수요(요청량)가
-        // 현재 재고보다 클 수 있다는 걸 이미 전제로 하는 경로라 여기서 처리하는 게 맞다.
-        Long shortageApprovalId = null;
-        if (remaining > 0) {
-            try {
-                shortageApprovalId = createShortageApproval(approval.getItemId(), remaining);
-            } catch (SQLException | RuntimeException e) {
-                System.err.println("승인(approvalId=" + approval.getApprovalId() + ") 부족분 자동 발주 생성 실패: " + e.getMessage());
-            }
-        }
-
-        return DecisionResult.outboundExecuted(approval.getApprovalId(), outboundIds, approval.getRequestedQty(),
+        updateFulfilledQty(approval.getApprovalId(), fulfilled);
+        return DecisionResult.outboundExecuted(approval.getApprovalId(), outboundIds, requestedQty,
                 fulfilled, shortageApprovalId);
     }
 
-    // alertId 없이(이 승인 건 자체가 원인이지 알림에서 온 게 아니므로) 시스템이 자동 제안하는
-    // 발주 - OutboundService/ReturnDisposalService의 재고부족 자동 발주와 같은 패턴.
-    private Long createShortageApproval(Long itemId, int shortageQty) throws SQLException {
+    // 부족분을 사람 승인 없이 자동으로 입고 처리해 본다(최선을 다해 보는 것뿐이라 실패해도
+    // 예외를 던지지 않고 null을 돌려준다 - 호출하는 쪽은 실패하든 성공하든 그다음 출고를
+    // 실제 재고 기준으로 그대로 진행하면 되므로 결과를 몰라도 무방함).
+    private Long tryAutoReplenish(Long itemId, int shortfall, Long approvedBy) {
+        StockLot recentLot;
+        try (Connection conn = DBConnection.getConnection()) {
+            recentLot = stockLotDao.findMostRecentNormalByItemId(conn, itemId);
+        } catch (SQLException e) {
+            System.err.println("품목(itemId=" + itemId + ") 참고 로트 조회 실패: " + e.getMessage());
+            return null;
+        }
+
+        if (recentLot == null) {
+            // 참고할 로트가 없어 어느 구역/거래처로 자동 입고할지 정할 수 없는 경우 -
+            // 알림만 남기고 사람이 POST /api/inbound로 직접 처리하게 한다.
+            createAlert(itemId, "자동실행실패",
+                    "품목(itemId=" + itemId + ") 출고 부족분(" + shortfall
+                            + "개) 자동 입고 실패 — 참고할 기존 로트가 없습니다. 입고 화면에서 직접 처리해 주세요.");
+            return null;
+        }
+
+        // 부족분만 딱 채우면 금방 또 모자라질 수 있어서, 최근에 이 품목을 한 번에 얼마나
+        // 들여왔는지(가장 최근 정상 로트의 initial_quantity)를 여유분으로 더 얹어 입고한다.
+        int extra = recentLot.getInitialQuantity() != null ? recentLot.getInitialQuantity() : 0;
+        int autoQty = shortfall + extra;
+
+        Long shortageApprovalId = null;
+        try {
+            shortageApprovalId = createAutoApprovedShortageApproval(itemId, autoQty, approvedBy);
+
+            InboundService.InboundResult inboundResult = inboundService.inbound(
+                    itemId, recentLot.getZoneId(), recentLot.getPartnerId(), autoQty, LocalDate.now(), approvedBy);
+
+            createAlert(itemId, "자동입고",
+                    "품목(itemId=" + itemId + ") 출고 부족분을 승인 없이 자동으로 입고 처리했습니다 ("
+                            + autoQty + "개, 그중 여유분 " + extra + "개, 로트 lotId=" + inboundResult.lotId + ")");
+
+            updateFulfilledQty(shortageApprovalId, autoQty);
+            return shortageApprovalId;
+        } catch (SQLException | RuntimeException e) {
+            System.err.println("품목(itemId=" + itemId + ") 부족분 자동 입고 처리 실패: " + e.getMessage());
+            createAlert(itemId, "자동실행실패",
+                    "품목(itemId=" + itemId + ") 출고 부족분(" + shortfall
+                            + "개) 자동 입고 처리 중 오류가 발생했습니다: " + e.getMessage());
+            // shortageApprovalId row가 이미 만들어졌을 수도 있음(발주 기록은 승인 상태 그대로 두고
+            // 실제로는 아무것도 안 들어왔다는 것만 남긴다) - null이면(insert 자체가 실패) 남길 게 없음.
+            if (shortageApprovalId != null) {
+                updateFulfilledQty(shortageApprovalId, 0);
+            }
+            return null;
+        }
+    }
+
+    // 부족분을 사람 승인 없이 바로 "승인" 상태로 만들어 기록만 남긴다(alertId 없음 - 이 승인 건
+    // 자체가 원인이지 알림에서 온 게 아니므로). approvedBy는 이 자동 처리를 촉발한, 원래 출고
+    // 승인요청을 승인한 사람 그대로 남긴다.
+    private Long createAutoApprovedShortageApproval(Long itemId, int qty, Long approvedBy) throws SQLException {
         return DBConnection.executeInTransactionWithResult(conn -> {
             Approval shortage = new Approval();
             shortage.setItemId(itemId);
             shortage.setAlertId(null);
             shortage.setRequestType("발주");
-            shortage.setRequestedQty(shortageQty);
+            shortage.setRequestedQty(qty);
             shortage.setRequestedBy(null);
+            shortage.setStatus("승인");
+            shortage.setApprovedBy(approvedBy);
+            shortage.setApprovedAt(LocalDateTime.now());
             return approvalDao.insert(conn, shortage);
         });
+    }
+
+    // 승인 건이 실제로 얼마나 처리됐는지 기록한다(실패해도 전체 흐름을 막을 이유가 없어 예외를 던지지 않고 로그만 남김).
+    private void updateFulfilledQty(Long approvalId, Integer fulfilledQty) {
+        try (Connection conn = DBConnection.getConnection()) {
+            approvalDao.updateFulfilledQty(conn, approvalId, fulfilledQty);
+        } catch (SQLException e) {
+            System.err.println("승인(approvalId=" + approvalId + ") 처리 수량 기록 실패: " + e.getMessage());
+        }
+    }
+
+    // 정보 전달용 알림 하나를 남긴다(실패해도 전체 흐름을 막을 이유가 없어 예외를 던지지 않고 로그만 남김).
+    private void createAlert(Long itemId, String alertType, String message) {
+        try (Connection conn = DBConnection.getConnection()) {
+            Alert alert = new Alert();
+            alert.setItemId(itemId);
+            alert.setAlertType(alertType);
+            alert.setMessage(message);
+            alert.setIsResolved(false);
+            alertDao.insert(conn, alert);
+        } catch (SQLException e) {
+            System.err.println("알림(" + alertType + ") 생성 실패: " + e.getMessage());
+        }
     }
 }

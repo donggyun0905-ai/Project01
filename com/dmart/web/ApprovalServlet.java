@@ -44,11 +44,12 @@ public class ApprovalServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String status = req.getParameter("status");
+        String requestType = req.getParameter("requestType");
         Pagination pg = Pagination.from(req);
 
         try (Connection conn = DBConnection.getConnection()) {
-            List<Approval> approvals = approvalDao.findPage(conn, status, pg.offset, pg.size);
-            int total = approvalDao.count(conn, status);
+            List<Approval> approvals = approvalDao.findPage(conn, status, requestType, pg.offset, pg.size);
+            int total = approvalDao.count(conn, status, requestType);
             List<Object> data = approvals.stream().map(ApprovalServlet::toJson).collect(Collectors.toList());
             ApiResponse.success(resp, 200, pg.wrap(data, total));
         } catch (SQLException e) {
@@ -80,6 +81,7 @@ public class ApprovalServlet extends HttpServlet {
         try {
             // alertId는 시스템 자동 제안(6·7·9번)에서만 채워짐 — 수동 요청 경로인 여기선 항상 null
             Long approvalId = approvalService.create(itemId, null, requestType, requestedQty, partnerId, requestedBy);
+            EventBus.publish("approval");
             try (Connection conn = DBConnection.getConnection()) {
                 Approval approval = approvalDao.findById(conn, approvalId);
                 ApiResponse.success(resp, 201, toJson(approval));
@@ -115,6 +117,19 @@ public class ApprovalServlet extends HttpServlet {
 
         try {
             ApprovalService.DecisionResult result = approvalService.decide(approvalId, status, approvedBy);
+            EventBus.publish("approval");
+            // 승인 처리 결과로 실제 입고/출고가 자동 실행됐으면(발주/출고 자동실행), 입고·출고
+            // 화면도 자기 데이터가 바뀐 걸 알아야 하니 그 화면이 구독하는 종류도 같이 보낸다.
+            if ("inbound".equals(result.executedService)) {
+                EventBus.publish("inbound");
+            } else if ("outbound".equals(result.executedService)) {
+                EventBus.publish("outbound");
+                // 출고 승인 처리 중 부족분을 자동으로 먼저 채워 넣었으면(이상출고 하이브리드 -
+                // ApprovalService.tryAutoReplenish) 입고 데이터도 같이 바뀐 것이므로 그것도 알린다.
+                if (result.shortageApprovalId != null) {
+                    EventBus.publish("inbound");
+                }
+            }
             ApiResponse.success(resp, 200, toJson(result));
         } catch (IllegalArgumentException e) {
             ApiResponse.error(resp, 400, "VALIDATION_ERROR", e.getMessage());
@@ -147,7 +162,10 @@ public class ApprovalServlet extends HttpServlet {
                 "partnerId", approval.getPartnerId(),
                 "status", approval.getStatus(),
                 "requestedBy", approval.getRequestedBy(),
-                "requestedAt", approval.getRequestedAt()
+                "requestedAt", approval.getRequestedAt(),
+                "approvedBy", approval.getApprovedBy(),
+                "approvedAt", approval.getApprovedAt(),
+                "fulfilledQty", approval.getFulfilledQty()
         );
     }
 

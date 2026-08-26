@@ -86,6 +86,7 @@ public class TransferServlet extends HttpServlet {
         try {
             TransferService.TransferResult result =
                     transferService.transfer(lotId, fromZoneId, toZoneId, quantity, handlerId);
+            EventBus.publish("transfer");
             ApiResponse.success(resp, 201, JsonUtil.object(
                     "transferId", result.transferId,
                     "splitOccurred", result.splitOccurred,

@@ -885,15 +885,134 @@ function drawUserBar() {
 
 	/* 승인 대기 건수는 관리자만 보면 되므로 자리만 먼저 만들어 둡니다 */
 	html = html + "<span id='waitBadge'></span>";
+
+	/* 시뮬레이터/자동관리/데이터 초기화 - 관리자만 보고 조작할 수 있습니다 */
+	if (role == "ADMIN") {
+		html = html + "<button class='sys-toggle-btn' id='simulatorBtn' onclick='toggleSystemFlag(\"simulator\")'>시뮬레이터</button>";
+		html = html + "<button class='sys-toggle-btn' id='autoManageBtn' onclick='toggleSystemFlag(\"autoManage\")'>자동관리</button>";
+		html = html + "<button class='sys-reset-btn' onclick='resetSystemData()'>데이터 초기화</button>";
+	}
+
 	html = html + "<span class='" + roleClass + "'>" + roleText + "</span>";
 	html = html + "<span><b class='user-name'>" + name + "</b> 님 환영합니다</span>";
 
 	area.innerHTML = html;
 
-	/* 관리자일 때만 대기 중인 승인 요청이 몇 건인지 확인합니다.
-	   담당자는 승인 화면 자체를 볼 수 없어서 물어보지 않습니다. */
+	/* 관리자일 때만 대기 중인 승인 요청이 몇 건인지, 시뮬레이터/자동관리가 켜져 있는지 확인합니다.
+	   담당자는 승인 화면 자체를 볼 수 없고 이 버튼들도 안 보여서 물어보지 않습니다. */
 	if (role == "ADMIN") {
 		apiGet("/api/approvals?status=대기&page=1&size=1", putWaitCount, hideWaitBadge);
+		apiGet("/api/system/toggles", putSystemToggles);
+	}
+}
+
+
+/* 시뮬레이터/자동관리 버튼에 지금 켜져 있는지(on) 표시합니다 */
+function putSystemToggles(data) {
+
+	let simBtn = document.querySelector("#simulatorBtn");
+	let autoBtn = document.querySelector("#autoManageBtn");
+
+	if (simBtn != null) {
+		simBtn.className = data.simulatorOn ? "sys-toggle-btn on" : "sys-toggle-btn";
+	}
+	if (autoBtn != null) {
+		autoBtn.className = data.autoManageOn ? "sys-toggle-btn on" : "sys-toggle-btn";
+	}
+}
+
+
+/* 시뮬레이터/자동관리 버튼을 누르면 지금과 반대 상태로 바꿔서 서버에 보냅니다.
+   name은 "simulator" 또는 "autoManage" (PATCH /api/system/toggles/{name}) */
+function toggleSystemFlag(name) {
+
+	let btn = document.querySelector(name == "simulator" ? "#simulatorBtn" : "#autoManageBtn");
+
+	if (btn == null) {
+		return;
+	}
+
+	let turningOn = btn.className.indexOf("on") == -1;
+
+	apiSend("PATCH", "/api/system/toggles/" + name, { on: turningOn }, function () {
+		apiGet("/api/system/toggles", putSystemToggles);
+	}, function (message) {
+		alert("처리 중 오류가 발생했습니다.\n" + message);
+	});
+}
+
+
+/* "데이터 초기화" - 시뮬레이터/자동관리가 실제로 건드리는 재고/입출고/알림/승인 데이터만
+   정해둔 기준점으로 되돌립니다(품목/거래처/창고/구역/사용자 등은 그대로). 되돌릴 수 없는
+   작업이라 한 번 더 확인합니다. */
+function resetSystemData() {
+
+	let ok = confirm("재고·입출고·알림·승인 데이터를 기준점으로 초기화합니다.\n"
+		+ "(품목/거래처/창고/구역/사용자 정보는 그대로 유지됩니다)\n"
+		+ "되돌릴 수 없습니다. 계속할까요?");
+
+	if (ok == false) {
+		return;
+	}
+
+	apiSend("POST", "/api/system/reset", null, function () {
+		alert("데이터를 초기화했습니다. 화면을 새로고침합니다.");
+		location.reload();
+	}, function (message) {
+		alert("초기화 중 오류가 발생했습니다.\n" + message);
+	});
+}
+
+
+/* ============================================================
+   실시간 새로고침(SSE) - 서버(EventStreamServlet, /api/events)가 데이터가
+   바뀔 때마다(입출고 등록, 승인 처리, 시뮬레이터/자동관리 실행 등) 그 종류를
+   실어서 보내주는 신호를 받아서 callback을 즉시 실행합니다. 화면마다 이미
+   갖고 있는 5초 폴링은 안전망으로 그대로 두고(연결이 끊기거나 이 기능을
+   지원 안 하는 상황 대비), 이 신호를 받으면 그 5초를 기다리지 않고 바로
+   새로고침합니다.
+
+   서버가 보내는 신호는 "inbound"/"outbound"/"transfer"/"disposal"/"alert"/
+   "approval"/"auditLog" 중 하나입니다(EventBus.publish() 참고). topics를
+   넘기면 그중 이 화면과 관계있는 종류일 때만 반응하고, 생략하면(null) 전부
+   반응합니다 - 알림 화면처럼 거의 모든 종류가 알림 생성/해결로 이어질 수 있어
+   범위를 좁히는 의미가 없는 경우에 씁니다.
+
+   사용법(각 화면에서):
+     connectRealtimeRefresh(function () { ... }, ["outbound", "approval"]);
+     connectRealtimeRefresh(function () { ... });  // 전부 반응
+   ============================================================ */
+function connectRealtimeRefresh(callback, topics) {
+
+	if (typeof EventSource == "undefined") {
+		return; // 아주 오래된 브라우저 등 - 5초 폴링만으로도 동작하니 그냥 둡니다
+	}
+
+	/* 짧은 시간 안에 신호가 여러 번 몰려도(예: 시뮬레이터+자동관리가 거의 동시에 돌 때)
+	   그때마다 바로바로 다시 불러오면 화면이 자주 깜빡이고 서버에도 요청이 몰립니다.
+	   그래서 신호가 올 때마다 타이머를 300ms 뒤로 미루기만 하고, 300ms 동안 더 안 오면
+	   그때 딱 한 번만 실제로 새로고침합니다(디바운스). */
+	let debounceTimer = null;
+
+	try {
+		let source = new EventSource(makeUrl("/api/events"), { withCredentials: true });
+
+		source.onmessage = function (event) {
+
+			if (topics != null && topics.indexOf(event.data) == -1) {
+				return; // 이 화면과 관계없는 종류의 신호는 무시합니다
+			}
+
+			if (debounceTimer != null) {
+				clearTimeout(debounceTimer);
+			}
+			debounceTimer = setTimeout(callback, 300);
+		};
+
+		/* 연결이 끊겨도 따로 재연결을 시도하지 않습니다 - 브라우저가 EventSource를 자동으로
+		   재연결해 주고, 그 사이에는 5초 폴링이 안전망 역할을 그대로 합니다. */
+	} catch (e) {
+		// 연결 자체가 안 되는 환경 - 5초 폴링만으로도 동작하니 무시합니다
 	}
 }
 

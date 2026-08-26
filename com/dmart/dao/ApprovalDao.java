@@ -49,6 +49,22 @@ public class ApprovalDao {
         }
     }
 
+    // 승인 처리 후 실제로 얼마나 처리됐는지(발주: 성공 시 requested_qty, 실패 시 0 /
+    // 출고: 실제로 나간 수량)를 따로 기록한다 - 결정(status/approved_at) 저장과는 별도
+    // 단계(실행)에서 알게 되는 값이라 insert/update 전체가 아니라 이 값만 갱신한다.
+    public void updateFulfilledQty(Connection conn, Long approvalId, Integer fulfilledQty) throws SQLException {
+        String sql = "UPDATE APPROVAL SET fulfilled_qty = ? WHERE approval_id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            if (fulfilledQty == null) {
+                ps.setNull(1, Types.INTEGER);
+            } else {
+                ps.setInt(1, fulfilledQty);
+            }
+            ps.setLong(2, approvalId);
+            ps.executeUpdate();
+        }
+    }
+
     public boolean deleteById(Connection conn, Long approvalId) throws SQLException {
         String sql = "DELETE FROM APPROVAL WHERE approval_id = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -97,15 +113,13 @@ public class ApprovalDao {
         return result;
     }
 
-    // 12번 목록 API용. status 선택 필터.
-    public List<Approval> findPage(Connection conn, String status, int offset, int limit) throws SQLException {
-        String sql = "SELECT * FROM APPROVAL" + whereClause(status) + " ORDER BY requested_at DESC LIMIT ? OFFSET ?";
+    // 12번 목록 API용. status/requestType 선택 필터.
+    // requestType은 outbound.html의 "출고 요청" 탭처럼 발주/출고 중 한쪽만 보고 싶을 때 씀.
+    public List<Approval> findPage(Connection conn, String status, String requestType, int offset, int limit) throws SQLException {
+        String sql = "SELECT * FROM APPROVAL" + whereClause(status, requestType) + " ORDER BY requested_at DESC LIMIT ? OFFSET ?";
         List<Approval> result = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = 1;
-            if (status != null) {
-                ps.setString(idx++, status);
-            }
+            int idx = bindFilterParams(ps, 1, status, requestType);
             ps.setInt(idx++, limit);
             ps.setInt(idx, offset);
             try (ResultSet rs = ps.executeQuery()) {
@@ -117,12 +131,10 @@ public class ApprovalDao {
         return result;
     }
 
-    public int count(Connection conn, String status) throws SQLException {
-        String sql = "SELECT COUNT(*) FROM APPROVAL" + whereClause(status);
+    public int count(Connection conn, String status, String requestType) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM APPROVAL" + whereClause(status, requestType);
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            if (status != null) {
-                ps.setString(1, status);
-            }
+            bindFilterParams(ps, 1, status, requestType);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getInt(1);
@@ -130,8 +142,26 @@ public class ApprovalDao {
         }
     }
 
-    private String whereClause(String status) {
-        return status == null ? "" : " WHERE status = ?";
+    private String whereClause(String status, String requestType) {
+        StringBuilder sb = new StringBuilder();
+        if (status != null) {
+            sb.append(" AND status = ?");
+        }
+        if (requestType != null) {
+            sb.append(" AND request_type = ?");
+        }
+        return sb.length() == 0 ? "" : " WHERE 1=1" + sb;
+    }
+
+    private int bindFilterParams(PreparedStatement ps, int startIndex, String status, String requestType) throws SQLException {
+        int idx = startIndex;
+        if (status != null) {
+            ps.setString(idx++, status);
+        }
+        if (requestType != null) {
+            ps.setString(idx++, requestType);
+        }
+        return idx;
     }
 
     private void setNullableLong(PreparedStatement ps, int index, Long value) throws SQLException {
@@ -165,6 +195,8 @@ public class ApprovalDao {
         if (approvedAt != null) {
             approval.setApprovedAt(approvedAt.toLocalDateTime());
         }
+        int fulfilledQty = rs.getInt("fulfilled_qty");
+        approval.setFulfilledQty(rs.wasNull() ? null : fulfilledQty);
         return approval;
     }
 }

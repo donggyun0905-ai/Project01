@@ -14,6 +14,9 @@
     <filter>
         <filter-name>CorsFilter</filter-name>
         <filter-class>com.dmart.web.CorsFilter</filter-class>
+        <!-- /api/events(EventStreamServlet)가 비동기(SSE)로 연결을 오래 열어두는데, 체인에 낀
+             필터가 하나라도 async-supported가 아니면 req.startAsync()에서 예외가 난다. -->
+        <async-supported>true</async-supported>
     </filter>
     <filter-mapping>
         <filter-name>CorsFilter</filter-name>
@@ -23,6 +26,7 @@
     <filter>
         <filter-name>AuthFilter</filter-name>
         <filter-class>com.dmart.web.AuthFilter</filter-class>
+        <async-supported>true</async-supported>
     </filter>
     <filter-mapping>
         <filter-name>AuthFilter</filter-name>

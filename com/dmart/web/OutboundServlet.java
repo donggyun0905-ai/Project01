@@ -115,6 +115,7 @@ public class OutboundServlet extends HttpServlet {
         try {
             OutboundService.OutboundResult result =
                     outboundService.outbound(lotId, partnerId, quantity, outboundDate, createdBy);
+            EventBus.publish("outbound");
             ApiResponse.success(resp, 201, JsonUtil.object(
                     "outboundId", result.outboundId,
                     "remainingQuantity", result.remainingQuantity,
