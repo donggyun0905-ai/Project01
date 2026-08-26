@@ -108,8 +108,8 @@
 						<th>품목명</th>
 						<th>품목 번호</th>
 						<th>로트 번호</th>
-						<th>변경 전</th>
-						<th>변경 후</th>
+						<th>변경 전(수량/상태)</th>
+						<th>변경 후(수량/상태)</th>
 						<th>사유</th>
 						<th>되돌리기</th>
 					</tr>
@@ -318,7 +318,8 @@
 
 
 	/* 변경 전/후 값은 JSON 글자로 저장돼 있어서
-	   수량과 상태만 뽑아 짧게 보여 줍니다. */
+	   수량과 상태만 뽑아 짧게 보여 줍니다. 무엇의 값인지는 표 헤더(변경 전/후(수량/상태))에
+	   이미 적혀 있어서, 칸에는 값만 그 순서 그대로("8 / 노말") 보여 줍니다. */
 	function shortValue(text) {
 
 		if (text == null || text == "") {
@@ -336,14 +337,14 @@
 		let result = "";
 
 		if (value.quantity != null) {
-			result = "수량 " + value.quantity;
+			result = "" + value.quantity;
 		}
 
 		if (value.status != null) {
 			if (result != "") {
 				result = result + " / ";
 			}
-			result = result + "상태 " + value.status;
+			result = result + value.status;
 		}
 
 		if (result == "") {

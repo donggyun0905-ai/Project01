@@ -199,8 +199,7 @@ public class StockLotAdjustmentService {
             restored.setCreatedBy(current.getCreatedBy()); // 스냅샷 JSON엔 없는 필드라 현재 값을 그대로 유지
             stockLotDao.update(conn, restored);
 
-            auditLogService.logRestore(conn, beforeRestore, restored, changedBy,
-                    "changeLog(logId=" + logId + ") 복원");
+            auditLogService.logRestore(conn, beforeRestore, restored, changedBy, "복원");
 
             log.setIsReverted(true);
             stockChangeLogDao.update(conn, log);
