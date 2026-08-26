@@ -76,15 +76,17 @@ public class ItemDao {
         return result;
     }
 
-    // 목록 API(3번)의 페이지네이션 + category/keyword/active 필터용. count()와 WHERE 절을 공유한다.
+    // 목록 API(3번)의 페이지네이션 + category/keyword/unit/itemId/active 필터용. count()와 WHERE 절을 공유한다.
     // sortDesc=true면 NO 컬럼 정렬 화살표(item.html)가 최신 등록순(item_id 내림차순)으로 보여준다.
-    public List<Item> findPage(Connection conn, String category, String keyword, Boolean active,
-                                boolean sortDesc, int offset, int limit) throws SQLException {
-        String sql = "SELECT * FROM ITEM" + whereClause(category, keyword, active)
+    // unit/itemId는 item.html 검색창의 "단위"/"품목 코드" 컬럼 검색용(예전엔 이 둘을 골라도 그냥
+    // keyword(품목명) 검색과 똑같이 동작하던 버그가 있었음 - item.html의 doSearch 참고).
+    public List<Item> findPage(Connection conn, String category, String keyword, String unit, Long itemId,
+                                Boolean active, boolean sortDesc, int offset, int limit) throws SQLException {
+        String sql = "SELECT * FROM ITEM" + whereClause(category, keyword, unit, itemId, active)
                 + " ORDER BY item_id " + (sortDesc ? "DESC" : "ASC") + " LIMIT ? OFFSET ?";
         List<Item> result = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = bindFilterParams(ps, 1, category, keyword, active);
+            int idx = bindFilterParams(ps, 1, category, keyword, unit, itemId, active);
             ps.setInt(idx++, limit);
             ps.setInt(idx, offset);
             try (ResultSet rs = ps.executeQuery()) {
@@ -96,10 +98,10 @@ public class ItemDao {
         return result;
     }
 
-    public int count(Connection conn, String category, String keyword, Boolean active) throws SQLException {
-        String sql = "SELECT COUNT(*) FROM ITEM" + whereClause(category, keyword, active);
+    public int count(Connection conn, String category, String keyword, String unit, Long itemId, Boolean active) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM ITEM" + whereClause(category, keyword, unit, itemId, active);
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            bindFilterParams(ps, 1, category, keyword, active);
+            bindFilterParams(ps, 1, category, keyword, unit, itemId, active);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getInt(1);
@@ -107,7 +109,7 @@ public class ItemDao {
         }
     }
 
-    private String whereClause(String category, String keyword, Boolean active) {
+    private String whereClause(String category, String keyword, String unit, Long itemId, Boolean active) {
         StringBuilder sb = new StringBuilder();
         if (category != null) {
             sb.append(" AND category = ?");
@@ -115,19 +117,32 @@ public class ItemDao {
         if (keyword != null) {
             sb.append(" AND item_name LIKE ?");
         }
+        if (unit != null) {
+            sb.append(" AND unit = ?");
+        }
+        if (itemId != null) {
+            sb.append(" AND item_id = ?");
+        }
         if (active != null) {
             sb.append(" AND is_active = ?");
         }
         return sb.length() == 0 ? "" : " WHERE 1=1" + sb;
     }
 
-    private int bindFilterParams(PreparedStatement ps, int startIndex, String category, String keyword, Boolean active) throws SQLException {
+    private int bindFilterParams(PreparedStatement ps, int startIndex, String category, String keyword,
+                                  String unit, Long itemId, Boolean active) throws SQLException {
         int idx = startIndex;
         if (category != null) {
             ps.setString(idx++, category);
         }
         if (keyword != null) {
             ps.setString(idx++, "%" + keyword + "%");
+        }
+        if (unit != null) {
+            ps.setString(idx++, unit);
+        }
+        if (itemId != null) {
+            ps.setLong(idx++, itemId);
         }
         if (active != null) {
             ps.setBoolean(idx++, active);

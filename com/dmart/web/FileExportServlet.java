@@ -17,6 +17,7 @@ import com.dmart.report.dto.ClientMonthlyTrend;
 import com.dmart.report.dto.ClientOutboundRanking;
 import com.dmart.report.dto.DailyReport;
 import com.dmart.report.dto.InOutLog;
+import com.dmart.report.dto.ItemExportRow;
 import com.dmart.report.dto.PeriodInOutStat;
 import com.dmart.report.dto.StatisticsReport;
 import com.dmart.report.dto.StockTurnover;
@@ -42,6 +43,7 @@ import jakarta.servlet.http.HttpSession;
  * - /inout/excel
  * - /alerts/excel
  * - /statistics/excel
+ * - /items/excel
  * - /daily/pdf
  */
 
@@ -83,6 +85,9 @@ public class FileExportServlet extends HttpServlet {
 				break;
 			case "/daily/pdf":
 				exportDailyPdf(req, resp);
+				break;
+			case "/items/excel":
+				exportItemsExcel(req, resp);
 				break;
 			default:
 				ApiResponse.error(resp, 404, "NOT_FOUND", "존재하지 않는 경로입니다.");
@@ -159,6 +164,14 @@ public class FileExportServlet extends HttpServlet {
 		sendFile(resp, file, "statistics.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 	}
 	
+	private void exportItemsExcel(HttpServletRequest req, HttpServletResponse resp) throws Exception {
+		List<ItemExportRow> data = exportService.getItemExportRows();
+
+		File file = File.createTempFile("item_export_", ".xlsx");
+		fileExportService.exportItemsExcel(data, file.getAbsolutePath());
+		sendFile(resp, file, "item_export.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+	}
+
 	private void exportDailyPdf(HttpServletRequest req, HttpServletResponse resp) throws Exception {
 		LocalDate date = parseDate(req.getParameter("date"));
 		

@@ -75,6 +75,10 @@
 			
 			<!-- 품목 등록 (F-01) -->
 			<button class="register-btn" onclick="openItem(-1)">품목 등록</button>
+
+			<!-- 품목 데이터 엑셀화 - report.html의 PDF 다운로드 버튼과 같은 방식(세션 쿠키가
+			     그대로 따라가는 location.href 이동)으로 서버가 만든 파일을 그대로 받습니다. -->
+			<button class="register-btn export-btn" onclick="exportItemsExcel()">엑셀로 내보내기</button>
 		</section>
 		
 		<!-- 품목 목록(표)  -->
@@ -179,14 +183,19 @@
 		/* 사용 중 / 비활성 중 어느 쪽을 볼지 */
 		path = path + "&active=" + document.querySelector("#activeFilter").value;
 
-		/* 검색어가 있으면 조건을 붙입니다.
-		   카테고리를 고르면 category, 그 외에는 keyword(품목명 검색)로 보냅니다. */
+		/* 검색어가 있으면, 고른 컬럼에 맞는 파라미터로 보냅니다.
+		   (예전엔 "품목 코드"/"단위"를 골라도 그냥 keyword(품목명)로만 보내서
+		   실제로는 품목명 검색이랑 똑같이 동작하던 버그가 있었음 - 고침) */
 		let word = document.querySelector("#item-search").value;
 		let field = document.querySelector("#searchField").value;
 
 		if (word != "") {
 			if (field == "카테고리") {
 				path = path + "&category=" + encodeURIComponent(word);
+			} else if (field == "품목 코드") {
+				path = path + "&itemCode=" + encodeURIComponent(word);
+			} else if (field == "단위") {
+				path = path + "&unit=" + encodeURIComponent(word);
 			} else {
 				path = path + "&keyword=" + encodeURIComponent(word);
 			}
@@ -338,6 +347,12 @@
 		if (e.keyCode == 13) {
 			doSearch();
 		}
+	}
+
+
+	/* 품목 데이터 엑셀화 (GET /api/export/items/excel) */
+	function exportItemsExcel() {
+		location.href = makeUrl("/api/export/items/excel");
 	}
 
 

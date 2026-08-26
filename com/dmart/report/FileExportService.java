@@ -31,6 +31,7 @@ import com.dmart.report.dto.ClientOutboundRanking;
 import com.dmart.report.dto.DailyComparison;
 import com.dmart.report.dto.DailyReport;
 import com.dmart.report.dto.InOutLog;
+import com.dmart.report.dto.ItemExportRow;
 import com.dmart.report.dto.LowStockItem;
 import com.dmart.report.dto.PeriodInOutStat;
 import com.dmart.report.dto.StatisticsReport;
@@ -232,7 +233,54 @@ public class FileExportService {
 			
 			try (FileOutputStream fos = new FileOutputStream(filePath)) {
 				workbook.write(fos);
-			} 
+			}
+		}
+	}
+
+	// 품목 데이터 엑셀화 - 품목번호/품목명/카테고리/단위/유통기한/총재고/회전율/입고량/출고량
+	public void exportItemsExcel(List<ItemExportRow> data, String filePath) throws IOException {
+		try (Workbook workbook = new XSSFWorkbook()) {
+			Sheet sheet = workbook.createSheet("품목 데이터");
+
+			String[] header = { "품목번호", "품목명", "카테고리", "단위", "유통기한(일)", "총재고", "회전율", "입고량", "출고량" };
+
+			Row headerRow = sheet.createRow(0);
+
+			for (int i = 0; i < header.length; i++) {
+				headerRow.createCell(i).setCellValue(header[i]);
+			}
+
+			int rowNum = 1;
+
+			for (ItemExportRow item : data) {
+				Row row = sheet.createRow(rowNum++);
+
+				row.createCell(0).setCellValue(item.getItemId());
+				row.createCell(1).setCellValue(item.getItemName());
+				row.createCell(2).setCellValue(item.getCategory());
+				row.createCell(3).setCellValue(item.getUnit());
+				if (item.getShelfLifeDays() != null) {
+					row.createCell(4).setCellValue(item.getShelfLifeDays());
+				} else {
+					row.createCell(4).setCellValue("없음");
+				}
+				row.createCell(5).setCellValue(item.getTotalStock());
+				if (item.getTurnoverRatio() != null) {
+					row.createCell(6).setCellValue(item.getTurnoverRatio());
+				} else {
+					row.createCell(6).setCellValue("-");
+				}
+				row.createCell(7).setCellValue(item.getInboundQty());
+				row.createCell(8).setCellValue(item.getOutboundQty());
+			}
+
+			for (int i = 0; i < header.length; i++) {
+				sheet.autoSizeColumn(i);
+			}
+
+			try (FileOutputStream fos = new FileOutputStream(filePath)) {
+				workbook.write(fos);
+			}
 		}
 	}
 

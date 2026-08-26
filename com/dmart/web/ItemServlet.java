@@ -46,14 +46,17 @@ public class ItemServlet extends HttpServlet {
     private void doList(HttpServletRequest req, HttpServletResponse resp) throws SQLException, IOException {
         String category = req.getParameter("category");
         String keyword = req.getParameter("keyword");
+        String unit = req.getParameter("unit");
+        // itemCode="ITEM-3"이든 "3"이든 숫자만 뽑아 item_id 정확일치로 검색(item.html "품목 코드" 검색창용)
+        Long itemId = parseItemCode(req.getParameter("itemCode"));
         String activeParam = req.getParameter("active");
         Boolean active = activeParam != null ? Boolean.valueOf(activeParam) : Boolean.TRUE; // 기본 active=true(2.3과 동일한 관례)
         boolean sortDesc = "desc".equals(req.getParameter("order")); // item.html의 NO 컬럼 정렬 화살표용, 기본은 오름차순
         Pagination pg = Pagination.from(req);
 
         try (Connection conn = DBConnection.getConnection()) {
-            List<Item> items = itemDao.findPage(conn, category, keyword, active, sortDesc, pg.offset, pg.size);
-            int total = itemDao.count(conn, category, keyword, active);
+            List<Item> items = itemDao.findPage(conn, category, keyword, unit, itemId, active, sortDesc, pg.offset, pg.size);
+            int total = itemDao.count(conn, category, keyword, unit, itemId, active);
             List<Object> data = new ArrayList<>();
             for (Item item : items) {
                 data.add(toJson(conn, item));
@@ -174,6 +177,24 @@ public class ItemServlet extends HttpServlet {
         item.setShelfLifeDays(RequestUtil.toInteger(body.get("shelfLifeDays")));
         item.setIsActive((Boolean) body.get("isActive"));
         return item;
+    }
+
+    // "ITEM-3", "3" 둘 다 받아서 숫자만 뽑는다. 입력이 비어있으면 검색 안 함(null, 필터 무시).
+    // 숫자를 하나도 못 뽑으면 -1을 돌려줘서(존재할 수 없는 id) 결과가 0건이 되게 한다 -
+    // 여기서 그냥 null을 돌려주면 필터가 통째로 무시돼서 엉뚱하게 전체 목록이 보여버린다.
+    private Long parseItemCode(String itemCode) {
+        if (itemCode == null || itemCode.isBlank()) {
+            return null;
+        }
+        String digits = itemCode.replaceAll("\\D", "");
+        if (digits.isEmpty()) {
+            return -1L; // 존재할 수 없는 id라 결과가 항상 0건이 됨
+        }
+        try {
+            return Long.parseLong(digits);
+        } catch (NumberFormatException e) {
+            return -1L;
+        }
     }
 
     private Long parseId(String pathInfo) {

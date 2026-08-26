@@ -12,6 +12,7 @@ import java.util.Map;
 
 import com.dmart.report.dto.ClientMonthlyTrend;
 import com.dmart.report.dto.ClientOutboundRanking;
+import com.dmart.report.dto.ItemExportRow;
 import com.dmart.report.dto.StockTurnover;
 
 public class StatisticsDao {
@@ -144,7 +145,54 @@ public class StatisticsDao {
 		}
 		return result;
 	}
-	
+
+	// 품목 데이터 엑셀 내보내기용 - 활성 품목 전체를 대상으로 현재재고/누적입고/누적출고/회전율을
+	// 한 번에 모아 온다. selectTurnoverRatio()는 현재재고가 있는(quantity > 0) 품목만 INNER JOIN
+	// 하지만, 여기서는 내보내기 목록에서 품목이 통째로 빠지면 안 되므로 전부 LEFT JOIN한다.
+	// 누적입고는 parent_lot_id IS NULL(재고이동/반품/폐기로 분할된 로트 제외)만 세서 이중계산을 피한다
+	// (DailyReportDao.selectDailyComparison과 같은 기준).
+	public List<ItemExportRow> selectItemExportRows(Connection conn) throws SQLException {
+		String sql = "SELECT i.item_id, i.item_name, i.category, i.unit, i.shelf_life_days, "
+				+ "COALESCE(st.current_stock_qty, 0) AS current_stock_qty, "
+				+ "COALESCE(ib.total_inbound, 0) AS total_inbound, "
+				+ "COALESCE(ob.total_outbound, 0) AS total_outbound, "
+				+ "ROUND(COALESCE(ob.total_outbound, 0) / NULLIF(COALESCE(st.current_stock_qty, 0), 0), 2) AS turnover_ratio "
+				+ "FROM item i "
+				+ "LEFT JOIN (SELECT item_id, SUM(quantity) AS current_stock_qty "
+				+ "FROM stock_lot WHERE status = 'NORMAL' GROUP BY item_id"
+				+ ") st ON st.item_id = i.item_id "
+				+ "LEFT JOIN (SELECT item_id, SUM(initial_quantity) AS total_inbound "
+				+ "FROM stock_lot WHERE parent_lot_id IS NULL GROUP BY item_id"
+				+ ") ib ON ib.item_id = i.item_id "
+				+ "LEFT JOIN (SELECT s.item_id, SUM(o.quantity) AS total_outbound "
+				+ "FROM outbound o JOIN stock_lot s ON s.lot_id = o.lot_id GROUP BY s.item_id"
+				+ ") ob ON ob.item_id = i.item_id "
+				+ "WHERE i.is_active = TRUE "
+				+ "ORDER BY i.item_id";
+
+		List<ItemExportRow> result = new ArrayList<>();
+
+		try (PreparedStatement pstmt = conn.prepareStatement(sql);
+				ResultSet rs = pstmt.executeQuery()) {
+			while (rs.next()) {
+				ItemExportRow row = new ItemExportRow();
+				row.setItemId(rs.getLong("item_id"));
+				row.setItemName(rs.getString("item_name"));
+				row.setCategory(rs.getString("category"));
+				row.setUnit(rs.getString("unit"));
+				int shelfLifeDays = rs.getInt("shelf_life_days");
+				row.setShelfLifeDays(rs.wasNull() ? null : shelfLifeDays);
+				row.setTotalStock(rs.getInt("current_stock_qty"));
+				row.setInboundQty(rs.getInt("total_inbound"));
+				row.setOutboundQty(rs.getInt("total_outbound"));
+				java.math.BigDecimal ratio = rs.getBigDecimal("turnover_ratio");
+				row.setTurnoverRatio(ratio != null ? ratio.doubleValue() : null);
+				result.add(row);
+			}
+		}
+		return result;
+	}
+
 	// 거래처별 출고 실적 Top5 조회
 	public List<ClientOutboundRanking> selectTop5Outbound(Connection conn, LocalDate from, LocalDate to) throws SQLException {
 		String sql = "SELECT p.partner_id, p.name, SUM(o.quantity) AS total_outbound " 
