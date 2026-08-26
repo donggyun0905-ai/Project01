@@ -57,7 +57,9 @@ public class SimulatorService {
         if (pick < 45) {
             return simulateOutbound(item, actorId) ? Set.of("outbound") : Set.of();
         } else if (pick < 75) {
-            return simulateInbound(item, actorId) ? Set.of("inbound") : Set.of();
+            // 입고는 위에서 무작위로 고른 품목(item)을 안 쓴다 - 입고가 필요한 품목을 따로
+            // 골라야 하기 때문(아래 simulateInbound 주석 참고).
+            return simulateInbound(actorId) ? Set.of("inbound") : Set.of();
         } else if (pick < 90) {
             return simulateAbnormalOutboundRequest(item, actorId) ? Set.of("approval") : Set.of();
         } else {
@@ -110,9 +112,28 @@ public class SimulatorService {
         }
     }
 
-    // 정상 입고 - 무작위 구역/공급처로 소량~중량 입고
-    private boolean simulateInbound(Item item, Long actorId) {
+    // 정상 입고 - 예전엔 재고 상태와 무관하게 아무 품목이나 무작위로 계속 채워 넣어서, 이미
+    // capacity_max를 넘긴 품목까지도 계속 더 쌓이기만 하고(정상 출고는 로트당 최대 20개만
+    // 빠지는데 입고는 매번 10~90개씩 들어와 양쪽 평균이 애초에 안 맞았음), 결과적으로 총
+    // 입고량이 실제 소모(출고)량보다 훨씬 빠르게 불어나는 문제가 있었다.
+    //
+    // 그래서 "무작위로 채워 넣기"가 아니라 "필요한 품목만 채워 넣기"로 바꿨다:
+    //  1) threshold_min 밑으로 떨어진(재고부족) 품목이 있으면 그 중에서 우선 고른다.
+    //  2) 그런 품목이 없으면, capacity_max를 아직 안 넘긴(넣어도 되는) 품목 중 아무거나 고른다.
+    //  3) capacity_max를 이미 넘긴 품목은 입고 후보에서 아예 제외한다.
+    //  4) capacity_max가 있는 품목은 그 한도를 넘지 않는 만큼만 넣는다.
+    private boolean simulateInbound(Long actorId) {
         try {
+            Item item;
+            int currentStock;
+            try (Connection conn = DBConnection.getConnection()) {
+                item = pickItemNeedingInbound(conn);
+                if (item == null) {
+                    return false; // 넣을 수 있는 품목이 없음(전부 capacity_max 이상이거나 활성 품목이 없음)
+                }
+                currentStock = stockLotDao.sumQuantityByItemId(conn, item.getItemId());
+            }
+
             Long zoneId;
             Long partnerId;
             try (Connection conn = DBConnection.getConnection()) {
@@ -122,13 +143,48 @@ public class SimulatorService {
             if (zoneId == null || partnerId == null) {
                 return false;
             }
+
             int qty = 10 + random.nextInt(90);
+            if (item.getCapacityMax() != null) {
+                qty = Math.min(qty, item.getCapacityMax() - currentStock);
+            }
+            if (qty <= 0) {
+                return false;
+            }
+
             inboundService.inbound(item.getItemId(), zoneId, partnerId, qty, LocalDate.now(), actorId);
             return true;
         } catch (SQLException | RuntimeException e) {
             System.err.println("[시뮬레이터] 입고 시뮬 실패: " + e.getMessage());
             return false;
         }
+    }
+
+    // 재고부족(threshold_min 미만) 품목이 있으면 그 중 무작위로, 없으면 아직 여유가 있는
+    // (capacity_max 미만이거나 capacity_max 자체가 없는) 활성 품목 중 무작위로 고른다.
+    private Item pickItemNeedingInbound(Connection conn) throws SQLException {
+        List<Item> items = itemDao.findAll(conn);
+        items.removeIf(i -> i.getIsActive() != null && !i.getIsActive());
+
+        List<Item> shortage = new java.util.ArrayList<>();
+        List<Item> roomLeft = new java.util.ArrayList<>();
+        for (Item i : items) {
+            int stock = stockLotDao.sumQuantityByItemId(conn, i.getItemId());
+            if (i.getThresholdMin() != null && stock < i.getThresholdMin()) {
+                shortage.add(i);
+            }
+            if (i.getCapacityMax() == null || stock < i.getCapacityMax()) {
+                roomLeft.add(i);
+            }
+        }
+
+        if (!shortage.isEmpty()) {
+            return shortage.get(random.nextInt(shortage.size()));
+        }
+        if (!roomLeft.isEmpty()) {
+            return roomLeft.get(random.nextInt(roomLeft.size()));
+        }
+        return null;
     }
 
     // 이상출고 요청 - 지금 재고보다 많은 수량으로 출고 요청을 올려서, 이번에 만든 하이브리드
