@@ -32,7 +32,7 @@ public class MainFrame extends JFrame {
     public MainFrame() {
         super("DOWN MART - " + Session.getUser().getName() + "님");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1200, 800);
+        setSize(1280, 800);
         setLocationRelativeTo(null);
 
         setLayout(new BorderLayout());
