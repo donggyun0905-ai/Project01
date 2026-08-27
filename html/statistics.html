@@ -346,16 +346,19 @@
 
 			let days = data[i][field];
 			let cls = "forecast-days";
+			let urgency = "여유";
 
 			if (days <= 7) {
 				cls = cls + " urgent";
+				urgency = "긴급";
 			} else if (days <= 14) {
 				cls = cls + " warn";
+				urgency = "임박";
 			}
 
 			html = html + "<div class='forecast-row'>";
 			html = html + "<span class='forecast-name'>" + data[i].itemName + "</span>";
-			html = html + "<span class='" + cls + "'>" + formatDaysLeft(days) + " " + verb + " 예상</span>";
+			html = html + "<span class='" + cls + "'>" + formatDaysLeft(days) + " " + verb + " 예상 (" + urgency + ")</span>";
 			html = html + "</div>";
 		}
 
