@@ -20,3 +20,12 @@ db.properties
 
 ### 개인 작업용 문서 (커밋 안 함) ###
 Dmart_아키텍처_지도.md
+
+### 웹(서블릿/HTML) 버전 - 이제 Swing으로만 갑니다. 예전 웹 버전은 web 브랜치에 그대로 남아있음 ###
+/html/
+/css/
+/js/
+/images/
+/WEB-INF/
+/test-client/
+com/dmart/web/
