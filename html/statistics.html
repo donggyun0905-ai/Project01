@@ -218,12 +218,57 @@
 		lineOut    = [];
 
 		for (let i = 0; i < data.length; i++) {
-			lineLabels[i] = data[i].period;
+			lineLabels[i] = formatPeriodLabel(data[i].period);
 			lineIn[i]     = data[i].inboundQty;
 			lineOut[i]    = data[i].outboundQty;
 		}
 
 		drawLineChart();
+	}
+
+	/* 서버가 주는 period 값을 화면에 보여줄 라벨로 바꿉니다.
+	   - 일: "2026-08-11" -> 그대로 둡니다 (바꿀 필요 없음)
+	   - 월: "2026-08" -> 그대로 둡니다
+	   - 주: "2026-23"(ISO 연도-주차) -> "8월 3주" 처럼 몇 월의 몇 번째 주인지로 바꿉니다.
+	     (서버 집계 자체는 계속 ISO 주차 기준이라 데이터는 그대로이고, 화면에 보이는
+	     라벨만 바꾸는 것입니다) */
+	function formatPeriodLabel(period) {
+
+		if (nowUnit != "주") {
+			return period;
+		}
+
+		let parts = period.split("-");
+		let isoYear = Number(parts[0]);
+		let isoWeek = Number(parts[1]);
+
+		let monday = isoWeekToMonday(isoYear, isoWeek);
+
+		let month = monday.getMonth() + 1;
+		// 그 달 1일부터 며칠째인지를 보고 몇 번째 주인지를 정합니다 (1~7일=1주, 8~14일=2주 ...)
+		let weekOfMonth = Math.ceil(monday.getDate() / 7);
+
+		return month + "월 " + weekOfMonth + "주";
+	}
+
+	// ISO 연도-주차(예: 2026년 23주)의 월요일 날짜를 구합니다.
+	// (ISO 기준으로 1월 4일은 항상 그 해의 1주차에 속한다는 규칙을 이용합니다)
+	function isoWeekToMonday(isoYear, isoWeek) {
+
+		let jan4 = new Date(isoYear, 0, 4);
+
+		let jan4DayOfWeek = jan4.getDay(); // 일요일=0, 월요일=1 ...
+		if (jan4DayOfWeek == 0) {
+			jan4DayOfWeek = 7;
+		}
+
+		let week1Monday = new Date(jan4);
+		week1Monday.setDate(jan4.getDate() - jan4DayOfWeek + 1);
+
+		let monday = new Date(week1Monday);
+		monday.setDate(week1Monday.getDate() + (isoWeek - 1) * 7);
+
+		return monday;
 	}
 
 
@@ -381,8 +426,23 @@
 			from.setDate(from.getDate() - 6);       // 오늘 포함 7일
 		} else if (unit == "주") {
 			from.setDate(from.getDate() - 7 * 12);  // 최근 12주
+
+			// 여기서 구한 from이 그 주의 월요일이 아니면(예: 오늘이 수요일이라
+			// from도 수요일), 서버는 "그 주부터 세라"고 받아들여서 가장 오래된 주는
+			// 월~일 전체가 아니라 from요일~일요일까지만 집계해버립니다. 그러면
+			// 맨 앞 주만 항상 실제보다 낮게 나오므로, from을 그 주의 월요일로
+			// 당겨서 첫 주도 통째로(월~일) 잡히게 맞춥니다.
+			let day = from.getDay(); // 일요일=0, 월요일=1 ... 토요일=6
+			let diffToMonday = (day == 0) ? 6 : day - 1;
+			from.setDate(from.getDate() - diffToMonday);
 		} else {
 			from.setMonth(from.getMonth() - 12);    // 최근 12개월
+
+			// 여기도 "주"와 같은 문제가 있습니다. from이 그 달 1일이 아니면
+			// (예: 오늘이 8월 27일이면 from도 작년 8월 27일), 서버는 가장 오래된
+			// 달을 1일부터가 아니라 27일부터 월말까지만 집계해버려서 맨 앞 달이
+			// 항상 낮게 나옵니다. from을 그 달 1일로 당겨서 첫 달도 온전히 잡히게 합니다.
+			from.setDate(1);
 		}
 
 		document.querySelector("#toDate").value = getDateText(to);
