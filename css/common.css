@@ -120,6 +120,12 @@ body {
 	font-weight: bold;
 }
 
+/* STAFF에게는 안 보이게 대신 흐리게 눌러도 안 움직이게 (disableStaffOnlyMenus, common.js) */
+.menu-btn.disabled{
+	color: #999;
+	cursor: not-allowed;
+}
+
 /*페이지 타이틀  */
 .page-title{ 
 	margin: 25px 0;
@@ -599,7 +605,8 @@ td .delete-btn {
 
 /* 표 안의 체크박스 */
 .row-check,
-#checkAll {
+#checkAll,
+#consolCheckAll {
 	width: 16px;
 	height: 16px;
 	cursor: pointer;

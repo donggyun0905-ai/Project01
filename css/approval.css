@@ -166,6 +166,31 @@
 	color: white;
 }
 
+/* 창고 정리 전체 처리 결과 모달 - 어디서 어디로 옮겼는지가 핵심이라 이동 칸을 크고 진하게 강조.
+   .alert-form이 2단 그리드(grid-template-columns: repeat(2, 1fr))라서 표를 그냥 넣으면
+   칸 하나(모달 폭의 절반)만 차지해 좁아 보였다 - grid-column으로 두 칸을 다 쓰게 넓힌다. */
+.consol-result-table {
+	grid-column: 1 / -1;
+	width: 100%;
+}
+
+.consol-result-table td {
+	font-size: 16px;
+}
+
+.consol-result-table .move-path {
+	font-size: 18px;
+	font-weight: bold;
+	color: #1455c0;
+}
+
+/* 표(승인요청/창고정리추천/재고초과반품)가 10건 넘게 쌓여도 페이지가 한없이 길어지지
+   않도록, 일정 높이가 넘으면 표 안에서만 스크롤되게 합니다. */
+.table-scroll {
+	max-height: 520px;
+	overflow-y: auto;
+}
+
 /* 표에 있는 상세보기 버튼 */
 .approval-btn {
 	width: 55px;
@@ -173,6 +198,15 @@
 	border: none;
 	border-radius: 6px;
 	background: #e5e5e5;
+}
+
+/* 재고초과 반품 탭의 반품 수량 입력칸 */
+.excess-qty-input {
+	width: 80px;
+	height: 32px;
+	padding: 0 8px;
+	border: 1px solid #ccc;
+	border-radius: 6px;
 }
 
 /* 모달은 기본으로 숨기고, active 가 붙을 때만 보이게 합니다.

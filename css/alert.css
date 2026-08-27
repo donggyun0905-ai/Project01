@@ -254,24 +254,29 @@
 	background: #e5e5e5;
 }
 
+/* white-space는 pre-wrap이 아니라 normal로 둡니다 - 알림 메시지는 서버가 여러 조각을
+   이어붙여 만드는 한 줄짜리 문장이라 줄바꿈을 그대로 살릴 이유가 없고, pre-wrap을 쓰면
+   문장 중간에 어쩌다 공백이 두 번 들어간 자리에서 줄이 넘어갈 때 다음 줄 맨 앞에 공백이
+   남아 "앞에 스페이스로 띄운 것처럼" 보이는 문제가 있었습니다. normal은 브라우저가 그런
+   연속 공백/줄바꿈 지점의 공백을 알아서 한 칸으로 정리해 줘서 이 문제 자체가 안 생깁니다. */
 .alert-message {
 	min-height: 80px;
 	padding: 12px 16px;
 	border: 1px solid #ddd;
 	border-radius: 8px;
 	background: #fafafa;
-	white-space: pre-wrap;
+	white-space: normal;
 	word-break: keep-all;
 	line-height: 1.6;
 }
 
-/* 창고정리추천 알림 상세 - 구역 이동(대형(0) EA → 대형(1) EA)을 굵고 가운데 정렬로 강조하고,
-   수량/점유율은 그 밑에 작게 보여줍니다 (다른 화면의 recommend-box와 같은 타이포그래피) */
+/* 창고정리추천 알림 상세 - 구역 이동(대형(0) EA → 대형(1) EA)을 굵게 강조하고,
+   수량/점유율은 그 밑에 작게 보여줍니다 */
 .consol-detail strong {
 	display: block;
 	font-size: 17px;
 	color: #1455c0;
-	text-align: center;
+	text-align: left;
 }
 
 .consol-detail span {
@@ -279,7 +284,7 @@
 	margin-top: 8px;
 	font-size: 13px;
 	color: #666;
-	text-align: center;
+	text-align: left;
 }
 
 /* 모달은 기본으로 숨기고, active 가 붙을 때만 보이게 합니다.

@@ -165,10 +165,17 @@ public class FileExportServlet extends HttpServlet {
 	}
 	
 	private void exportItemsExcel(HttpServletRequest req, HttpServletResponse resp) throws Exception {
-		List<ItemExportRow> data = exportService.getItemExportRows();
+		LocalDate from = parseDate(req.getParameter("from"));
+		LocalDate to = parseDate(req.getParameter("to"));
+		if (from == null || to == null) {
+			ApiResponse.error(resp, 400, "VALIDATION_ERROR", "from, to는 필수입니다");
+			return;
+		}
+
+		List<ItemExportRow> data = exportService.getItemExportRows(from, to);
 
 		File file = File.createTempFile("item_export_", ".xlsx");
-		fileExportService.exportItemsExcel(data, file.getAbsolutePath());
+		fileExportService.exportItemsExcel(data, from, to, file.getAbsolutePath());
 		sendFile(resp, file, "item_export.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 	}
 

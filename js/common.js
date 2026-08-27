@@ -904,6 +904,35 @@ function drawUserBar() {
 		apiGet("/api/approvals?status=대기&page=1&size=1", putWaitCount, hideWaitBadge);
 		apiGet("/api/system/toggles", putSystemToggles);
 	}
+
+	/* 담당자(STAFF)는 사용자 관리 화면(계정 관리)과 감사로그(재고 수정/삭제 이력)로 못
+	   가게, 그 화면들로 가는 상단 메뉴 버튼을 눌러도 안 움직이게 흐리게 바꿔 둡니다.
+	   자동 제안 및 승인은 화면 자체는 볼 수 있고(승인/반려만 서버가 ADMIN 전용으로
+	   이미 막아 둠) 막을 필요가 없어서 여기서 뺐습니다. */
+	if (role != "ADMIN") {
+		disableStaffOnlyMenu("#menuUserBtn");
+		disableStaffOnlyMenu("#menuAuditBtn");
+
+		/* 사이드바 "설정 및 권한 관리"는 기본 목적지가 사용자 관리(setting.html)인데
+		   담당자는 그 화면에 못 들어가니, 눌러도 제자리인 것처럼 보인다 - 담당자는
+		   대신 권한 관리(roles.html)로 바로 가게 목적지를 바꿔 준다. */
+		let settingsLink = document.querySelector("a[href='setting.html']");
+		if (settingsLink != null) {
+			settingsLink.href = "roles.html";
+		}
+	}
+}
+
+
+function disableStaffOnlyMenu(id) {
+
+	let btn = document.querySelector(id);
+	if (btn == null) {
+		return;
+	}
+
+	btn.onclick = null;
+	btn.className = btn.className + " disabled";
 }
 
 

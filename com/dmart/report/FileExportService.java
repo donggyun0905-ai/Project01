@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -238,11 +239,15 @@ public class FileExportService {
 	}
 
 	// 품목 데이터 엑셀화 - 품목번호/품목명/카테고리/단위/유통기한/총재고/회전율/입고량/출고량
-	public void exportItemsExcel(List<ItemExportRow> data, String filePath) throws IOException {
+	// from/to - 통계 및 내보내기 화면의 "데이터 내보내기" 기간 선택을 그대로 받아 입고량/출고량/
+	// 회전율을 그 기간 기준으로 채운다(StatisticsDao.selectItemExportRows 참고). 총재고만은
+	// 기간과 무관하게 지금 이 순간 값이라 혼동하지 않게 헤더에 "(현재)"를 붙이고, 어느 기간
+	// 기준인지 맨 오른쪽 열에 한 번 더 남겨 둔다(파일만 보고도 기준 기간을 알 수 있게).
+	public void exportItemsExcel(List<ItemExportRow> data, LocalDate from, LocalDate to, String filePath) throws IOException {
 		try (Workbook workbook = new XSSFWorkbook()) {
 			Sheet sheet = workbook.createSheet("품목 데이터");
 
-			String[] header = { "품목번호", "품목명", "카테고리", "단위", "유통기한(일)", "총재고", "회전율", "입고량", "출고량" };
+			String[] header = { "품목번호", "품목명", "카테고리", "단위", "유통기한(일)", "총재고(현재)", "회전율", "입고량", "출고량", "조회 기간" };
 
 			Row headerRow = sheet.createRow(0);
 
@@ -250,6 +255,7 @@ public class FileExportService {
 				headerRow.createCell(i).setCellValue(header[i]);
 			}
 
+			String periodText = from + " ~ " + to;
 			int rowNum = 1;
 
 			for (ItemExportRow item : data) {
@@ -272,6 +278,7 @@ public class FileExportService {
 				}
 				row.createCell(7).setCellValue(item.getInboundQty());
 				row.createCell(8).setCellValue(item.getOutboundQty());
+				row.createCell(9).setCellValue(periodText);
 			}
 
 			for (int i = 0; i < header.length; i++) {

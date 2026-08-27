@@ -346,8 +346,34 @@
 
 
 	/* 품목 데이터 엑셀화 (GET /api/export/items/excel) */
+	/* 데이터 내보내기 칸의 기간(#fromDate/#toDate)을 그대로 써서, 그 기간 기준
+	   입고량/출고량/회전율이 담긴 품목 엑셀을 받습니다(총재고만 현재 시점 값).
+	   기간을 아직 안 골랐으면(빈 값) 오류로 막지 않고 최근 일주일을 기본값으로
+	   바로 채워 넣습니다(페이지를 열 때 채워 두는 기본값과 같은 기준) - 화면을
+	   열자마자 바로 눌러도 에러 없이 바로 받아지게 하기 위해서입니다. */
 	function exportItemsExcel() {
-		location.href = makeUrl("/api/export/items/excel");
+
+		let from = document.querySelector("#fromDate").value;
+		let to = document.querySelector("#toDate").value;
+
+		if (from == "" || to == "") {
+			let today = new Date();
+			let weekAgo = new Date();
+			weekAgo.setDate(weekAgo.getDate() - 6);
+
+			to = getDateText(today);
+			from = getDateText(weekAgo);
+
+			document.querySelector("#fromDate").value = from;
+			document.querySelector("#toDate").value = to;
+		}
+
+		if (from > to) {
+			alert("시작일이 종료일보다 늦을 수 없습니다.");
+			return;
+		}
+
+		location.href = makeUrl("/api/export/items/excel?from=" + from + "&to=" + to);
 	}
 
 

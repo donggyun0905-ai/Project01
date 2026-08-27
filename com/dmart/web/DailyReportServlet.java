@@ -68,7 +68,9 @@ public class DailyReportServlet extends HttpServlet{
 				"inboundQtyChange", dailyComp.getInboundQtyChange(),
 				"outboundQtyChange", dailyComp.getOutboundQtyChange(),
 				"inboundQtyChangeRate", dailyComp.getInboundQtyChangeRate(),
-				"outboundQtyChangeRate", dailyComp.getOutboundQtyChangeRate()
+				"outboundQtyChangeRate", dailyComp.getOutboundQtyChangeRate(),
+				"inboundByUnit", dailyComp.getInboundByUnit(),
+				"outboundByUnit", dailyComp.getOutboundByUnit()
 		);
 	}
 	

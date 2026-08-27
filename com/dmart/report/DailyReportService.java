@@ -45,6 +45,8 @@ public class DailyReportService {
 			dailyComp.setOutboundQtyChange(outboundChange);
 			dailyComp.setInboundQtyChangeRate(inboundChangeRate);
 			dailyComp.setOutboundQtyChangeRate(outboundChangeRate);
+			dailyComp.setInboundByUnit(dao.selectTodayInboundByUnit(conn, searchDate));
+			dailyComp.setOutboundByUnit(dao.selectTodayOutboundByUnit(conn, searchDate));
 
 			return dailyComp;
 			

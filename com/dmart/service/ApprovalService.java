@@ -5,11 +5,14 @@ import com.dmart.dao.ApprovalDao;
 import com.dmart.dao.ItemDao;
 import com.dmart.dao.PartnerDao;
 import com.dmart.dao.StockLotDao;
+import com.dmart.dao.ZoneDao;
 import com.dmart.db.DBConnection;
 import com.dmart.dto.Alert;
 import com.dmart.dto.Approval;
+import com.dmart.dto.Item;
 import com.dmart.dto.Partner;
 import com.dmart.dto.StockLot;
+import com.dmart.dto.Zone;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -26,6 +29,7 @@ public class ApprovalService {
     private final ItemDao itemDao = new ItemDao();
     private final PartnerDao partnerDao = new PartnerDao();
     private final StockLotDao stockLotDao = new StockLotDao();
+    private final ZoneDao zoneDao = new ZoneDao();
     private final AlertDao alertDao = new AlertDao();
     private final InboundService inboundService = new InboundService();
     private final OutboundService outboundService = new OutboundService();
@@ -194,7 +198,16 @@ public class ApprovalService {
                     return DecisionResult.inboundExecuted(approval.getApprovalId(), true,
                             "참고할 기존 로트가 없어 자동 입고 실행 불가 — POST /api/inbound로 수동 처리 필요", null);
                 }
-                zoneId = recent.getZoneId();
+                Item item = itemDao.findById(conn, approval.getItemId());
+                // 원래 쓰던 구역(recent.zoneId)이 그새 꽉 찼을 수 있다 - 사람 개입 없이 같은 단위(zone_name)의
+                // 다른 구역 중 자리가 있는 곳을 찾아 대신 쓴다(findZoneWithRoom 참고). 그마저 없으면
+                // 예전처럼 실행 실패로 보고해서 사람이 POST /api/inbound로 직접 처리하게 한다.
+                zoneId = findZoneWithRoom(conn, recent.getZoneId(), item.getUnit(), approval.getRequestedQty());
+                if (zoneId == null) {
+                    updateFulfilledQty(approval.getApprovalId(), 0);
+                    return DecisionResult.inboundExecuted(approval.getApprovalId(), true,
+                            "기존 구역(zoneId=" + recent.getZoneId() + ")도, 여유 있는 다른 구역도 없어 자동 입고 실행 불가 — POST /api/inbound로 수동 처리 필요", null);
+                }
                 if (partnerId == null) {
                     partnerId = recent.getPartnerId();
                 }
@@ -270,8 +283,10 @@ public class ApprovalService {
     // 실제 재고 기준으로 그대로 진행하면 되므로 결과를 몰라도 무방함).
     private Long tryAutoReplenish(Long itemId, int shortfall, Long approvedBy) {
         StockLot recentLot;
+        Item item;
         try (Connection conn = DBConnection.getConnection()) {
             recentLot = stockLotDao.findMostRecentNormalByItemId(conn, itemId);
+            item = itemDao.findById(conn, itemId);
         } catch (SQLException e) {
             System.err.println("품목(itemId=" + itemId + ") 참고 로트 조회 실패: " + e.getMessage());
             return null;
@@ -291,16 +306,33 @@ public class ApprovalService {
         int extra = recentLot.getInitialQuantity() != null ? recentLot.getInitialQuantity() : 0;
         int autoQty = shortfall + extra;
 
+        // 원래 쓰던 구역이 그새 꽉 찼을 수 있다 - 같은 단위(zone_name)의 다른 구역 중 자리가
+        // 있는 곳을 찾아 대신 쓴다. 그마저 없으면 사람이 직접 처리하도록 알림만 남긴다.
+        Long zoneId;
+        try (Connection conn = DBConnection.getConnection()) {
+            zoneId = findZoneWithRoom(conn, recentLot.getZoneId(), item.getUnit(), autoQty);
+        } catch (SQLException e) {
+            System.err.println("품목(itemId=" + itemId + ") 구역 조회 실패: " + e.getMessage());
+            zoneId = null;
+        }
+        if (zoneId == null) {
+            createAlert(itemId, "자동실행실패",
+                    "품목(itemId=" + itemId + ") 출고 부족분(" + shortfall
+                            + "개) 자동 입고 실패 — 기존 구역도, 여유 있는 다른 구역도 없습니다. 입고 화면에서 직접 처리해 주세요.");
+            return null;
+        }
+
         Long shortageApprovalId = null;
         try {
             shortageApprovalId = createAutoApprovedShortageApproval(itemId, autoQty, approvedBy);
 
             InboundService.InboundResult inboundResult = inboundService.inbound(
-                    itemId, recentLot.getZoneId(), recentLot.getPartnerId(), autoQty, LocalDate.now(), approvedBy);
+                    itemId, zoneId, recentLot.getPartnerId(), autoQty, LocalDate.now(), approvedBy);
 
+            String zoneNote = zoneId.equals(recentLot.getZoneId()) ? "" : ", 기존 구역이 꽉 차서 zoneId=" + zoneId + "로 대신 입고";
             createAlert(itemId, "자동입고",
                     "품목(itemId=" + itemId + ") 출고 부족분을 승인 없이 자동으로 입고 처리했습니다 ("
-                            + autoQty + "개, 그중 여유분 " + extra + "개, 로트 lotId=" + inboundResult.lotId + ")");
+                            + autoQty + "개, 그중 여유분 " + extra + "개, 로트 lotId=" + inboundResult.lotId + zoneNote + ")");
 
             updateFulfilledQty(shortageApprovalId, autoQty);
             return shortageApprovalId;
@@ -334,6 +366,43 @@ public class ApprovalService {
             shortage.setApprovedAt(LocalDateTime.now());
             return approvalDao.insert(conn, shortage);
         });
+    }
+
+    // 자동 실행(발주 승인 실행/출고 부족분 자동 보충)이 쓰려던 구역(preferredZoneId)이 꽉 찼을 때,
+    // 같은 단위(zone_name)의 다른 구역 중 지금 quantity만큼 넣을 자리가 있는 곳을 찾는다.
+    // preferredZoneId에 그대로 자리가 있으면 그 구역을 그대로 쓰고(원래 쓰던 구역 유지),
+    // 없을 때만 대안을 찾는다 - 여러 후보 중에는 지금 가장 여유가 많이 남은 구역을 골라
+    // 한 구역에만 몰리지 않게 한다. 그마저도 없으면 null(호출하는 쪽이 "자동실행실패" 알림으로
+    // 사람에게 넘긴다 - InboundService.inbound()의 구역 용량 체크와 같은 기준).
+    private Long findZoneWithRoom(Connection conn, Long preferredZoneId, String unit, int quantity) throws SQLException {
+        Zone preferred = zoneDao.findById(conn, preferredZoneId);
+        if (preferred != null && zoneHasRoom(conn, preferred, quantity)) {
+            return preferredZoneId;
+        }
+
+        Long bestZoneId = null;
+        int bestRoom = -1;
+        for (Zone zone : zoneDao.findAll(conn)) {
+            if (!unit.equals(zone.getZoneName()) || zone.getZoneId().equals(preferredZoneId)) {
+                continue;
+            }
+            if (zone.getCapacity() == null) {
+                return zone.getZoneId(); // 용량 제한 자체가 없는 구역이면 더 볼 것 없이 바로 확정
+            }
+            int room = zone.getCapacity() - stockLotDao.sumQuantityByZoneId(conn, zone.getZoneId());
+            if (room >= quantity && room > bestRoom) {
+                bestZoneId = zone.getZoneId();
+                bestRoom = room;
+            }
+        }
+        return bestZoneId;
+    }
+
+    private boolean zoneHasRoom(Connection conn, Zone zone, int quantity) throws SQLException {
+        if (zone.getCapacity() == null) {
+            return true;
+        }
+        return stockLotDao.sumQuantityByZoneId(conn, zone.getZoneId()) + quantity <= zone.getCapacity();
     }
 
     // 승인 건이 실제로 얼마나 처리됐는지 기록한다(실패해도 전체 흐름을 막을 이유가 없어 예외를 던지지 않고 로그만 남김).

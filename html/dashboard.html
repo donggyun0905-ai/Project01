@@ -125,6 +125,10 @@
 	let cardUnits = [];
 	let cardDiffs = [];
 
+	// 카드 1(총 보유 재고 수량)/2(오늘 입고)/3(오늘 출고) 옆에 보여줄 팔레트/박스/낱개
+	// 소분류 - {PALLET, BOX, EA} 아니면 아직 안 채워졌거나 해당 없는 카드면 null
+	let cardBreakdowns = [null, null, null, null, null];
+
 	// 입출고 현황
 	let days     = [];
 	let inQtys   = [];
@@ -173,7 +177,9 @@
 		if (cardNames.length == 0) {
 			cardNames = ["총 보유 품목", "총 보유 재고 수량", "오늘 입고 수량", "오늘 출고 수량", "재고 부족 품목"];
 			cardNums  = ["-", "-", "-", "-", "-"];
-			cardUnits = ["종", "EA", "EA", "EA", "종"];
+			// 재고 수량 3개는 팔레트/박스/EA가 섞인 합계라 "EA"라고 단위를 붙이면 오해가
+			// 생겨서 뺍니다(오른쪽에 종류별 소분류가 따로 있음). 나머지 두 개는 품목 "종" 수라 그대로 둡니다.
+			cardUnits = ["종", "", "", "", "종"];
 			cardDiffs = [0, 0, 0, 0, 0];
 			drawCards();
 		}
@@ -238,16 +244,25 @@
 
 		whGroupQty = { "대형": 0, "중형": 0, "소형": 0 };
 
+		// 구역 이름(zoneName)이 곧 그 구역이 다루는 단위(PALLET/BOX/EA)라서, 창고 크기별
+		// 합계와 같은 자료(usedQuantity)를 단위별로도 그냥 다시 더하기만 하면 됩니다.
+		let unitQty = { PALLET: 0, BOX: 0, EA: 0 };
+
 		for (let i = 0; i < data.items.length; i++) {
 
 			let groupName = whWhNames[data.items[i].warehouseId];
 
-			if (groupName == null) {
-				continue;
+			if (groupName != null) {
+				whGroupQty[groupName] = whGroupQty[groupName] + data.items[i].usedQuantity;
 			}
 
-			whGroupQty[groupName] = whGroupQty[groupName] + data.items[i].usedQuantity;
+			let unit = data.items[i].zoneName;
+			if (unitQty[unit] != null) {
+				unitQty[unit] = unitQty[unit] + data.items[i].usedQuantity;
+			}
 		}
+
+		cardBreakdowns[1] = unitQty;
 
 		drawDonutFromGroups();
 	}
@@ -283,6 +298,8 @@
 			cardNums[3] = 0;
 			cardDiffs[2] = 0;
 			cardDiffs[3] = 0;
+			cardBreakdowns[2] = { PALLET: 0, BOX: 0, EA: 0 };
+			cardBreakdowns[3] = { PALLET: 0, BOX: 0, EA: 0 };
 		} else {
 			cardNums[2] = comp.todayInboundQty;
 			cardNums[3] = comp.todayOutboundQty;
@@ -291,9 +308,25 @@
 			// 서버가 소수점을 안 자르고 그대로 보내서(예: 13.333333...) 화면에서 소수 첫째 자리로 반올림합니다
 			cardDiffs[2] = comp.inboundQtyChangeRate == null ? 0 : Math.round(comp.inboundQtyChangeRate * 10) / 10;
 			cardDiffs[3] = comp.outboundQtyChangeRate == null ? 0 : Math.round(comp.outboundQtyChangeRate * 10) / 10;
+
+			cardBreakdowns[2] = unitBreakdownOrZero(comp.inboundByUnit);
+			cardBreakdowns[3] = unitBreakdownOrZero(comp.outboundByUnit);
 		}
 
 		drawCards();
+	}
+
+	/* 서버가 그 날 활동이 있었던 단위만 묶어서 주므로(GROUP BY), 활동이 없던 단위는
+	   키 자체가 없을 수 있습니다 - 화면에서 항상 세 줄이 다 보이게 0으로 채워 줍니다. */
+	function unitBreakdownOrZero(map) {
+		if (map == null) {
+			return { PALLET: 0, BOX: 0, EA: 0 };
+		}
+		return {
+			PALLET: map.PALLET == null ? 0 : map.PALLET,
+			BOX: map.BOX == null ? 0 : map.BOX,
+			EA: map.EA == null ? 0 : map.EA
+		};
 	}
 
 
@@ -539,16 +572,29 @@
 
 		for (let i = 0; i < cardNames.length; i++) {
 			html = html + '<div class="summary-card">';
-			html = html + '	<div class="summary-name">' + cardNames[i] + '</div>';
-			html = html + '	<div class="summary-count">' + addComma(cardNums[i]);
-			html = html + '		<span class="summary-unit">' + cardUnits[i] + '</span>';
-			html = html + '	</div>';
+			html = html + '	<div class="summary-main">';
+			html = html + '		<div class="summary-name">' + cardNames[i] + '</div>';
+			html = html + '		<div class="summary-count">' + addComma(cardNums[i]);
+			html = html + '			<span class="summary-unit">' + cardUnits[i] + '</span>';
+			html = html + '		</div>';
 
 			// 전일 대비 증감 표시 (0이면 표시하지 않는다)
 			if (cardDiffs[i] > 0) {
-				html = html + '	<div class="diff diff-up">▲ ' + cardDiffs[i] + '% 전일 대비</div>';
+				html = html + '		<div class="diff diff-up">▲ ' + cardDiffs[i] + '% 전일 대비</div>';
 			} else if (cardDiffs[i] < 0) {
-				html = html + '	<div class="diff diff-down">▼ ' + (cardDiffs[i] * -1) + '% 전일 대비</div>';
+				html = html + '		<div class="diff diff-down">▼ ' + (cardDiffs[i] * -1) + '% 전일 대비</div>';
+			}
+
+			html = html + '	</div>';
+
+			// 총 보유 재고 수량/오늘 입고/오늘 출고 카드만 팔레트/박스/낱개 소분류를 오른쪽에 작게 보여줌
+			let b = cardBreakdowns[i];
+			if (b != null) {
+				html = html + '	<div class="summary-breakdown">';
+				html = html + '		<span>PALLET ' + addComma(b.PALLET) + '</span>';
+				html = html + '		<span>BOX ' + addComma(b.BOX) + '</span>';
+				html = html + '		<span>ea ' + addComma(b.EA) + '</span>';
+				html = html + '	</div>';
 			}
 
 			html = html + '</div>';
