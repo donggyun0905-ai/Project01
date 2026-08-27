@@ -368,12 +368,18 @@ public class ApprovalService {
         });
     }
 
-    // 자동 실행(발주 승인 실행/출고 부족분 자동 보충)이 쓰려던 구역(preferredZoneId)이 꽉 찼을 때,
-    // 같은 단위(zone_name)의 다른 구역 중 지금 quantity만큼 넣을 자리가 있는 곳을 찾는다.
-    // preferredZoneId에 그대로 자리가 있으면 그 구역을 그대로 쓰고(원래 쓰던 구역 유지),
-    // 없을 때만 대안을 찾는다 - 여러 후보 중에는 지금 가장 여유가 많이 남은 구역을 골라
+    // 구역을 100%(진짜 물리적 한계)까지 채우고 나서야 다른 구역을 찾으면 너무 빠듯하다 - 실제
+    // 창고에서도 완전히 꽉 채우진 않고 여유를 두는 것처럼, 91%가 넘게 될 자리는 "이미 찼다"고
+    // 보고 미리 다른 구역으로 돌린다(InboundService.inbound()의 진짜 물리 한계 체크(100%)는
+    // 그대로 두고, 여기 자동 재배정 판단 기준만 91%로 더 보수적으로 잡음).
+    private static final double ZONE_FILL_THRESHOLD = 0.91;
+
+    // 자동 실행(발주 승인 실행/출고 부족분 자동 보충)이 쓰려던 구역(preferredZoneId)이 91% 넘게
+    // 찰 상황이면, 같은 단위(zone_name)의 다른 구역 중 지금 quantity만큼 넣어도 91%를 안 넘는
+    // 곳을 찾는다. preferredZoneId에 그대로 자리가 있으면 그 구역을 그대로 쓰고(원래 쓰던 구역
+    // 유지), 없을 때만 대안을 찾는다 - 여러 후보 중에는 지금 가장 여유가 많이 남은 구역을 골라
     // 한 구역에만 몰리지 않게 한다. 그마저도 없으면 null(호출하는 쪽이 "자동실행실패" 알림으로
-    // 사람에게 넘긴다 - InboundService.inbound()의 구역 용량 체크와 같은 기준).
+    // 사람에게 넘긴다).
     private Long findZoneWithRoom(Connection conn, Long preferredZoneId, String unit, int quantity) throws SQLException {
         Zone preferred = zoneDao.findById(conn, preferredZoneId);
         if (preferred != null && zoneHasRoom(conn, preferred, quantity)) {
@@ -389,7 +395,7 @@ public class ApprovalService {
             if (zone.getCapacity() == null) {
                 return zone.getZoneId(); // 용량 제한 자체가 없는 구역이면 더 볼 것 없이 바로 확정
             }
-            int room = zone.getCapacity() - stockLotDao.sumQuantityByZoneId(conn, zone.getZoneId());
+            int room = zoneFillLimit(zone) - stockLotDao.sumQuantityByZoneId(conn, zone.getZoneId());
             if (room >= quantity && room > bestRoom) {
                 bestZoneId = zone.getZoneId();
                 bestRoom = room;
@@ -402,7 +408,12 @@ public class ApprovalService {
         if (zone.getCapacity() == null) {
             return true;
         }
-        return stockLotDao.sumQuantityByZoneId(conn, zone.getZoneId()) + quantity <= zone.getCapacity();
+        return stockLotDao.sumQuantityByZoneId(conn, zone.getZoneId()) + quantity <= zoneFillLimit(zone);
+    }
+
+    // 구역 용량의 91%(내림) - 이 이하로만 채워지게 하는 게 목표라 소수점은 버림(더 보수적인 쪽으로).
+    private int zoneFillLimit(Zone zone) {
+        return (int) Math.floor(zone.getCapacity() * ZONE_FILL_THRESHOLD);
     }
 
     // 승인 건이 실제로 얼마나 처리됐는지 기록한다(실패해도 전체 흐름을 막을 이유가 없어 예외를 던지지 않고 로그만 남김).

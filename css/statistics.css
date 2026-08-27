@@ -17,16 +17,6 @@
 	margin-top: 20px;
 }
 
-/* 입출고량 집계는 목업처럼 그 아래 한 줄 전체를 넓게 씁니다.
-   위 두 카드 줄이랑 너무 붙어 보이지 않게 간격을 넉넉히 둡니다. */
-.panel-wrap-full{
-	margin-top: 32px;
-}
-
-.panel-wrap-full .card{
-	width: 100%;
-}
-
 .card{
 	flex: 1;
 	background: #fff;
@@ -118,44 +108,32 @@
 	font-weight: bold;
 }
 
-/* 그래프(왼쪽) + 재고 소진 예상(오른쪽)을 한 줄에 나눠 보여줍니다 */
-.inout-forecast-row{
-	display: flex;
-	gap: 28px;
-	align-items: stretch;
+/* 입출고량 집계 카드 - 위 재고회전율/거래처별출고와 같은 .panel-wrap 안에 있지만, 그래프
+   크기(760px)는 그대로 둬야 해서 이 카드만 flex-grow를 끄고 내용 크기 그대로 차지하게 함
+   (옆 예측 데이터 카드가 flex:1로 남은 공간을 가져감). */
+.chart-card{
+	flex: 0 0 auto;
 }
 
-/* 오른쪽 예측 패널을 뺀 나머지 자리 - 그 안에서 그래프를 가운데로 둡니다 */
-.chart-wrap{
-	flex: 1;
-	display: flex;
-	justify-content: center;
-	min-width: 0;
-}
-
-/* 그래프가 들어갈 자리 - 높이를 키우면 페이지에 스크롤이 생겨서 300px로 고정합니다.
-   원래 크기(max-width 760px) 그대로 두고, chart-wrap 안에서 가운데 정렬됩니다. */
+/* 그래프가 들어갈 자리 - 높이를 키우면 페이지에 스크롤이 생겨서 300px로 고정합니다 */
 .chart-area{
 	height: 300px;
-	width: 100%;
-	max-width: 760px;
+	width: 760px;
 }
 
-/* 재고 소진 예상 / 재고초과 임박 예상 - 위아래로 쌓지 않고 나란히 놓습니다 */
+/* 예측 데이터 카드 - 재고 소진 예상 / 재고초과 임박 예상 두 칸을 나란히 놓습니다 */
 .forecast-panel{
-	flex: 0 0 auto;
 	display: flex;
-	flex-direction: row;
 	gap: 24px;
-	border-left: 1px solid #eee;
-	padding-left: 24px;
+	height: 100%;
 }
 
 .forecast-section{
-	min-width: 150px;
+	flex: 1;
+	min-width: 0;
 }
 
-/* 두 번째 칸부터는 옆에 구분선을 둬서 나눔(위아래 구분선이 아니라 좌우 구분선) */
+/* 두 번째 칸부터는 옆에 구분선을 둬서 나눔 */
 .forecast-section + .forecast-section{
 	padding-left: 24px;
 	border-left: 1px solid #eee;
