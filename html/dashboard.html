@@ -139,6 +139,9 @@
 	let whNames  = [];
 	let whQtys   = [];
 	let whColors = [];
+	// whNames/whQtys와 같은 순서(대형/중형/소형)로, 그 창고 구분 안에서 팔레트/박스/EA가
+	// 각각 몇 개인지 - 도넛차트에 마우스를 올렸을 때 툴팁으로 보여줍니다.
+	let whUnitBreakdowns = [];
 
 	// 실시간 알림
 	let alertTypes   = [];
@@ -248,21 +251,33 @@
 		// 합계와 같은 자료(usedQuantity)를 단위별로도 그냥 다시 더하기만 하면 됩니다.
 		let unitQty = { PALLET: 0, BOX: 0, EA: 0 };
 
+		// 도넛차트 툴팁용 - 창고 구분(대형/중형/소형)마다 따로 팔레트/박스/EA를 셉니다.
+		let groupUnitQty = {
+			"대형": { PALLET: 0, BOX: 0, EA: 0 },
+			"중형": { PALLET: 0, BOX: 0, EA: 0 },
+			"소형": { PALLET: 0, BOX: 0, EA: 0 }
+		};
+
 		for (let i = 0; i < data.items.length; i++) {
 
 			let groupName = whWhNames[data.items[i].warehouseId];
+			let unit = data.items[i].zoneName;
 
 			if (groupName != null) {
 				whGroupQty[groupName] = whGroupQty[groupName] + data.items[i].usedQuantity;
+
+				if (groupUnitQty[groupName][unit] != null) {
+					groupUnitQty[groupName][unit] = groupUnitQty[groupName][unit] + data.items[i].usedQuantity;
+				}
 			}
 
-			let unit = data.items[i].zoneName;
 			if (unitQty[unit] != null) {
 				unitQty[unit] = unitQty[unit] + data.items[i].usedQuantity;
 			}
 		}
 
 		cardBreakdowns[1] = unitQty;
+		whUnitBreakdowns = [groupUnitQty["대형"], groupUnitQty["중형"], groupUnitQty["소형"]];
 
 		drawDonutFromGroups();
 	}
@@ -662,7 +677,25 @@
 				responsive: true,
 				maintainAspectRatio: false,
 				plugins: {
-					legend: { display: false }
+					legend: { display: false },
+					tooltip: {
+						callbacks: {
+							/* 기본 한 줄("대형 창고 (5개소): 12,345") 뒤에, 그 창고 구분 안의
+							   팔레트/박스/EA 개수를 줄마다 하나씩 추가로 보여줍니다. */
+							label: function (context) {
+								let lines = [context.label + ": " + addComma(context.raw)];
+								let b = whUnitBreakdowns[context.dataIndex];
+
+								if (b != null) {
+									lines.push("PALLET " + addComma(b.PALLET));
+									lines.push("BOX " + addComma(b.BOX));
+									lines.push("EA " + addComma(b.EA));
+								}
+
+								return lines;
+							}
+						}
+					}
 				}
 			}
 		});
