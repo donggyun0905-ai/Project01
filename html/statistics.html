@@ -348,10 +348,14 @@
 			let cls = "forecast-days";
 			let urgency = "여유";
 
-			if (days <= 7) {
+			/* 이 목록은 애초에 "가장 임박한 상위 5개"만 뽑아 오는 거라, 기준을 너무 넉넉하게
+			   잡으면(예전엔 7일/14일) 5개가 다 "긴급"으로만 보여서 구분이 안 됐습니다.
+			   실무에서 "재고 1주일 남았다"는 보통 긴급까지는 아니라서, 진짜 급한 것만
+			   긴급으로 보이게 기준을 1일/3일로 좁혔습니다. */
+			if (days <= 1) {
 				cls = cls + " urgent";
 				urgency = "긴급";
-			} else if (days <= 14) {
+			} else if (days <= 3) {
 				cls = cls + " warn";
 				urgency = "임박";
 			}
