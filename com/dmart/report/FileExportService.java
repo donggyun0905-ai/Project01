@@ -11,6 +11,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -197,6 +198,61 @@ public class FileExportService {
 		}
 	}
 	
+	// POI의 Sheet.autoSizeColumn()은 AWT 폰트로 글자 폭을 재는데, 톰캣처럼 화면이 없는(headless)
+	// 서버 환경에서는 한글 폭을 실제보다 훨씬 좁게 잘못 계산해서 엑셀을 열면 한글 컬럼이 죄다
+	// 찌부러져 보이는 문제가 있다(자주 보고되는 POI 이슈). 그래서 자동계산 대신, 시트에 이미 써넣은
+	// 값들을 직접 훑어서 글자 수로 폭을 정한다 - 한글처럼 폭이 넓은 문자는 2칸으로 셈해서
+	// 실제 엑셀에서 보이는 폭에 더 가깝게 맞춘다. Excel/Sheet 관련 모든 엑셀 내보내기가 이 메서드를
+	// 공용으로 쓴다(autoSizeColumn 호출을 전부 이걸로 바꿈).
+	private void autoSizeKoreanColumns(Sheet sheet, int columnCount) {
+		int lastRow = sheet.getLastRowNum();
+		for (int col = 0; col < columnCount; col++) {
+			int maxWidth = 0;
+			for (int r = 0; r <= lastRow; r++) {
+				Row row = sheet.getRow(r);
+				if (row == null) {
+					continue;
+				}
+				Cell cell = row.getCell(col);
+				if (cell == null) {
+					continue;
+				}
+				int width = displayWidth(cellText(cell));
+				if (width > maxWidth) {
+					maxWidth = width;
+				}
+			}
+			// 알림 메시지처럼 아주 긴 글자가 있으면 시트가 너무 안 넓어지게 60칸에서 자른다.
+			int charWidth = Math.min(maxWidth + 2, 60);
+			sheet.setColumnWidth(col, Math.max(charWidth, 8) * 256);
+		}
+	}
+
+	private String cellText(Cell cell) {
+		switch (cell.getCellType()) {
+			case STRING:
+				return cell.getStringCellValue();
+			case NUMERIC:
+				return String.valueOf(cell.getNumericCellValue());
+			case BOOLEAN:
+				return String.valueOf(cell.getBooleanCellValue());
+			default:
+				return "";
+		}
+	}
+
+	// 한글/한자 등 폭이 넓은(전각) 문자는 2칸, 그 외(영문/숫자/기호)는 1칸으로 셈한다.
+	private int displayWidth(String text) {
+		if (text == null) {
+			return 0;
+		}
+		int width = 0;
+		for (int i = 0; i < text.length(); i++) {
+			width += (text.charAt(i) > 0x2E80) ? 2 : 1;
+		}
+		return width;
+	}
+
 	/*
 	 * 데이터 내보내기(입출고 로그 / 알림 이력 / 통계 보고서) - Excel
 	 */
@@ -228,9 +284,7 @@ public class FileExportService {
 				row.createCell(7).setCellValue(log.getProcessedAt() != null ? log.getProcessedAt().toString() : "");
 			}
 
-			for (int i = 0; i < header.length; i++) {
-				sheet.autoSizeColumn(i);
-			}
+			autoSizeKoreanColumns(sheet, header.length);
 			
 			try (FileOutputStream fos = new FileOutputStream(filePath)) {
 				workbook.write(fos);
@@ -281,9 +335,7 @@ public class FileExportService {
 				row.createCell(9).setCellValue(periodText);
 			}
 
-			for (int i = 0; i < header.length; i++) {
-				sheet.autoSizeColumn(i);
-			}
+			autoSizeKoreanColumns(sheet, header.length);
 
 			try (FileOutputStream fos = new FileOutputStream(filePath)) {
 				workbook.write(fos);
@@ -318,9 +370,7 @@ public class FileExportService {
 				row.createCell(6).setCellValue(alert.getCreatedAt() != null ? alert.getCreatedAt().toString() : "");
 			}
 
-			for (int i = 0; i < header.length; i++) {
-				sheet.autoSizeColumn(i);
-			}
+			autoSizeKoreanColumns(sheet, header.length);
 			
 			try (FileOutputStream fos = new FileOutputStream(filePath)) {
 				workbook.write(fos);
@@ -385,9 +435,7 @@ public class FileExportService {
 			row.createCell(8).setCellValue(smallStat.getOutboundQty());
 		}
 		
-		for (int i = 0; i < header.length; i++) {
-			sheet.autoSizeColumn(i);
-		}
+		autoSizeKoreanColumns(sheet, header.length);
 	}
 	
 	// 재고 회전율 Sheet
@@ -417,9 +465,7 @@ public class FileExportService {
 			row.createCell(6).setCellValue(stat.getStatus() != null ? stat.getStatus() : "" );
 		}
 		
-		for (int i = 0; i < header.length; i++) {
-			sheet.autoSizeColumn(i);
-		}
+		autoSizeKoreanColumns(sheet, header.length);
 	}
 	
 	// 거래처 출고 랭킹
@@ -446,9 +492,7 @@ public class FileExportService {
 			row.createCell(3).setCellValue(stat.getTotalQty());
 		}
 
-		for (int i = 0; i < header.length; i++) {
-			sheet.autoSizeColumn(i);
-		}
+		autoSizeKoreanColumns(sheet, header.length);
 	}
 	
 	// 거래처 월별 추이
@@ -476,9 +520,7 @@ public class FileExportService {
 			row.createCell(4).setCellValue(stat.getTransactionCount());
 		}
 
-		for (int i = 0; i < header.length; i++) {
-			sheet.autoSizeColumn(i);
-		}
+		autoSizeKoreanColumns(sheet, header.length);
 	}
 	
 	// 일일보고서 - PDF

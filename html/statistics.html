@@ -355,11 +355,22 @@
 
 			html = html + "<div class='forecast-row'>";
 			html = html + "<span class='forecast-name'>" + data[i].itemName + "</span>";
-			html = html + "<span class='" + cls + "'>약 " + days + "일 후 " + verb + " 예상</span>";
+			html = html + "<span class='" + cls + "'>" + formatDaysLeft(days) + " " + verb + " 예상</span>";
 			html = html + "</div>";
 		}
 
 		area.innerHTML = html;
+	}
+
+	/* 하루가 채 안 남은 품목은 "0.2일 후"처럼 소수로 보여주면 감이 잘 안 와서, 1일 미만이면
+	   시간 단위로 바꿔 보여줍니다("약 5시간 후"). 실제 값을 부풀리지 않고(예: 임의로 *10 하지
+	   않고) 있는 그대로를 더 읽기 쉬운 단위로만 바꾸는 것입니다. */
+	function formatDaysLeft(days) {
+		if (days < 1) {
+			let hours = Math.max(1, Math.round(days * 24));
+			return "약 " + hours + "시간 후";
+		}
+		return "약 " + days + "일 후";
 	}
 
 
