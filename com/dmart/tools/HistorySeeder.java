@@ -42,7 +42,7 @@ import com.dmart.db.DBConnection;
  */
 public class HistorySeeder {
 
-    private static final LocalDate START = LocalDate.of(2026, 8, 26);
+    private static final LocalDate START = LocalDate.of(2025, 9, 1);
     private static final LocalDate END = LocalDate.of(2026, 8, 26); // 8/26 이후는 "현재 재고"와 안 겹치게 하루 비워둠
 
     private static final int DAILY_TARGET = 3000;
