@@ -6,6 +6,7 @@ import com.dmart.service.AutoManageService;
 import com.dmart.service.SimulatorService;
 
 import java.sql.Connection;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -39,15 +40,17 @@ public class BackgroundTaskRunner {
             return t;
         });
 
-        executor.scheduleAtFixedRate(() -> tick(SIMULATOR, () -> simulatorService.runOnce()),
+        executor.scheduleAtFixedRate(() -> tick(SIMULATOR, simulatorService::runOnce),
                 SIMULATOR_INTERVAL_SECONDS, SIMULATOR_INTERVAL_SECONDS, TimeUnit.SECONDS);
-        executor.scheduleAtFixedRate(() -> tick(AUTO_MANAGE, () -> autoManageService.runOnce()),
+        executor.scheduleAtFixedRate(() -> tick(AUTO_MANAGE, autoManageService::runOnce),
                 AUTO_MANAGE_INTERVAL_SECONDS, AUTO_MANAGE_INTERVAL_SECONDS, TimeUnit.SECONDS);
     }
 
     @FunctionalInterface
     private interface Task {
-        void run() throws Exception;
+        // 실제로 처리한 종류("inbound"/"outbound"/"approval"/"disposal")를 돌려준다 -
+        // 이 값을 그대로 AppEventBus에 실어서 관련 화면(대시보드 알림 등)을 즉시 갱신시킨다.
+        Set<String> run() throws Exception;
     }
 
     private static void tick(String toggleName, Task task) {
@@ -57,7 +60,10 @@ public class BackgroundTaskRunner {
                 on = systemToggleDao.isOn(conn, toggleName);
             }
             if (on) {
-                task.run();
+                Set<String> changed = task.run();
+                if (changed != null && !changed.isEmpty()) {
+                    AppEventBus.publish(changed);
+                }
             }
         } catch (Exception e) {
             // 한 틱이 실패해도 다음 틱은 계속 돌아야 하므로 여기서 예외를 삼키고 콘솔에만 남긴다.

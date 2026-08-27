@@ -82,6 +82,13 @@ public class DashboardPanel extends JPanel {
 
         refreshAll();
 
+        // 웹 버전의 connectRealtimeRefresh(loadAlerts, ["alert","outbound","inbound","approval","disposal"])
+        // 와 동일한 구독 목록 - 이 앱 자신이 방금 처리한 동작이면 5초를 기다릴 것 없이 바로 갱신된다.
+        // 다른 컴퓨터/다른 실행 인스턴스에서 생긴 변화는 아래 폴링(안전망)으로만 잡힌다.
+        for (String topic : new String[]{"alert", "outbound", "inbound", "approval", "disposal"}) {
+            AppEventBus.subscribe(topic, this::refreshAlerts);
+        }
+
         Timer alertTimer = new Timer(5000, e -> {
             if (isShowing()) {
                 refreshAlerts();

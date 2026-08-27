@@ -105,6 +105,10 @@ public class InOutPanel extends JPanel {
                         + (result.expiryDate != null ? " (유통기한 " + result.expiryDate + ")" : "")
                         + (result.alertCreated ? "\n※ 재고초과 알림이 발생했습니다." : ""));
                 qtyField.setText("");
+                AppEventBus.publish("inbound");
+                if (result.alertCreated) {
+                    AppEventBus.publish("alert");
+                }
 
             } catch (NumberFormatException nfe) {
                 UiUtil.showError(this, "수량은 숫자로 입력해 주세요.");
@@ -211,6 +215,7 @@ public class InOutPanel extends JPanel {
                 takeQtys.clear();
                 recommendModel.setRowCount(0);
                 qtyField.setText("");
+                AppEventBus.publish("outbound");
             } catch (Exception ex) {
                 UiUtil.showError(this, ex);
             }

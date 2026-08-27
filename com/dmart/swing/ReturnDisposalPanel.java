@@ -149,6 +149,7 @@ public class ReturnDisposalPanel extends JPanel {
             UiUtil.showInfo(this, type + " 처리를 완료했습니다.");
             loadLots((ItemOption) itemBox.getSelectedItem());
             refreshHistory();
+            AppEventBus.publish("disposal");
         } catch (NumberFormatException nfe) {
             UiUtil.showError(this, "수량은 숫자로 입력해 주세요.");
         } catch (Exception e) {

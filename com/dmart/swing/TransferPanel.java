@@ -130,6 +130,7 @@ public class TransferPanel extends JPanel {
                     lot.getLotId(), lot.getZoneId(), toZone.zone.getZoneId(), qty, Session.getUserId());
             UiUtil.showInfo(this, "이동 완료" + (result.splitOccurred ? " (일부만 이동해 로트가 분할됨, 새 로트 ID " + result.newLotId + ")" : ""));
             loadLots(itemOption);
+            AppEventBus.publish("transfer");
         } catch (NumberFormatException nfe) {
             UiUtil.showError(this, "수량은 숫자로 입력해 주세요.");
         } catch (Exception e) {

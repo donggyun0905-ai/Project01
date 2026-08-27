@@ -80,6 +80,7 @@ public class AuditLogPanel extends JPanel {
             StockLotAdjustmentService.RestoreResult result = adjustmentService.restore(logId, Session.getUserId());
             UiUtil.showInfo(this, "복원 완료 - 로트 " + result.lotId + " (수량 " + result.restoredQuantity + ", 상태 " + result.restoredStatus + ")");
             refresh();
+            AppEventBus.publish("auditLog");
         } catch (Exception e) {
             UiUtil.showError(this, e);
         }
@@ -115,6 +116,7 @@ public class AuditLogPanel extends JPanel {
                 UiUtil.showInfo(this, "수정 완료 - 로트 " + result.lotId + " (수량 " + result.quantity + ", 상태 " + result.status + ")");
             }
             refresh();
+            AppEventBus.publish("auditLog");
         } catch (NumberFormatException nfe) {
             UiUtil.showError(this, "로트 ID/수량은 숫자로 입력해 주세요.");
         } catch (Exception e) {
