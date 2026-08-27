@@ -98,60 +98,72 @@ public class StatisticsDao {
 		 * 
 		 * 현재 DB에서 기간 평균 재고량 산출이 복잡해 간이 회전율로 계산
 		 */
-		String sql = "SELECT i.item_id, i.item_name, st.current_stock_qty, st.first_inbound_date, "
+		String sql = "SELECT i.item_id, i.item_name, i.capacity_max, st.current_stock_qty, st.first_inbound_date, "
 				+ "COALESCE(ob.total_outbound, 0) AS total_outbound, "
 				+ "ROUND(COALESCE(ob.total_outbound, 0) / 90.0, 2) AS daily_velocity, " // 일평균 소진 속도
+				+ "ROUND(COALESCE(ib.total_inbound, 0) / 90.0, 2) AS inbound_daily_velocity, " // 일평균 입고 속도(재고초과 임박 예상용)
 				+ "ROUND(COALESCE(ob.total_outbound, 0) / NULLIF(st.current_stock_qty, 0), 2) AS turnover_ratio, " // 간이 재고 회전율
 				+ "CASE WHEN COALESCE(ob.total_outbound, 0) = 0 THEN 'DEAD_STOCK' " // 최근 90일 출고 이력 X
 				+ "WHEN (COALESCE(ob.total_outbound, 0) / NULLIF(st.current_stock_qty, 0)) < ? THEN 'DEAD_STOCK' " // 간이 회전율 임계치 보다 낮은 경우
-				+ "ELSE 'NORMAL' END AS status " 
+				+ "ELSE 'NORMAL' END AS status "
 				+ "FROM item i "
 				+ "JOIN (SELECT item_id, SUM(quantity) AS current_stock_qty, "
 				+ "MIN(inbound_date) AS first_inbound_date "
 				+ "FROM stock_lot "
 				+ "WHERE quantity > 0 "
 				+ "GROUP BY item_id "
-				+ ") st ON st.item_id = i.item_id " // JOIN: 현재 재고량 
+				+ ") st ON st.item_id = i.item_id " // JOIN: 현재 재고량
 				+ "LEFT JOIN (SELECT s.item_id, SUM(o.quantity) AS total_outbound "
 				+ "FROM outbound o "
 				+ "JOIN stock_lot s ON s.lot_id = o.lot_id "
 				+ "WHERE o.outbound_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) "
 				+ "GROUP BY s.item_id "
 				+ ") ob ON ob.item_id = i.item_id " // LEFT JOIN: 최근 90일 출고량
-				+ "ORDER BY turnover_ratio DESC"; 
-		
+				+ "LEFT JOIN (SELECT item_id, SUM(initial_quantity) AS total_inbound "
+				+ "FROM stock_lot "
+				+ "WHERE parent_lot_id IS NULL AND inbound_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) "
+				+ "GROUP BY item_id "
+				+ ") ib ON ib.item_id = i.item_id " // LEFT JOIN: 최근 90일 입고량(재고초과 임박 예상용)
+				+ "ORDER BY turnover_ratio DESC";
+
 		List<StockTurnover> result = new ArrayList<>();
-		
+
 		try (PreparedStatement pstmt = conn.prepareStatement(sql)){
 			pstmt.setDouble(1, DEAD_STOCK_THRESHOLD);
-			
+
 			try (ResultSet rs = pstmt.executeQuery()){
 				while(rs.next()) {
 					StockTurnover dto = new StockTurnover();
 					dto.setItemId(rs.getLong("item_id"));
 					dto.setItemName(rs.getString("item_name"));
 					dto.setCurrentStockQty(rs.getInt("current_stock_qty"));
-					
+
+					int capacityMax = rs.getInt("capacity_max");
+					dto.setCapacityMax(rs.wasNull() ? null : capacityMax);
+
 					java.sql.Date inboundDate = rs.getDate("first_inbound_date");
 					dto.setInboundDate(inboundDate != null ? inboundDate.toLocalDate() : null);
-					
+
 					dto.setDailyVelocity(rs.getBigDecimal("daily_velocity"));
+					dto.setInboundDailyVelocity(rs.getBigDecimal("inbound_daily_velocity"));
 					dto.setTurnoverRatio(rs.getBigDecimal("turnover_ratio"));
 					dto.setStatus(rs.getString("status"));
-					
+
 					result.add(dto);
 				}
-			} 
+			}
 		}
 		return result;
 	}
 
-	// 품목 데이터 엑셀 내보내기용 - 활성 품목 전체를 대상으로 현재재고/누적입고/누적출고/회전율을
-	// 한 번에 모아 온다. selectTurnoverRatio()는 현재재고가 있는(quantity > 0) 품목만 INNER JOIN
-	// 하지만, 여기서는 내보내기 목록에서 품목이 통째로 빠지면 안 되므로 전부 LEFT JOIN한다.
-	// 누적입고는 parent_lot_id IS NULL(재고이동/반품/폐기로 분할된 로트 제외)만 세서 이중계산을 피한다
-	// (DailyReportDao.selectDailyComparison과 같은 기준).
-	public List<ItemExportRow> selectItemExportRows(Connection conn) throws SQLException {
+	// 품목 데이터 엑셀 내보내기용 - 활성 품목 전체를 대상으로 현재재고(현재 시점 그대로)와
+	// 기간(from~to) 기준 입고/출고/회전율을 한 번에 모아 온다. selectTurnoverRatio()는
+	// 현재재고가 있는(quantity > 0) 품목만 INNER JOIN하지만, 여기서는 내보내기 목록에서
+	// 품목이 통째로 빠지면 안 되므로 전부 LEFT JOIN한다. 기간 내 입고는 parent_lot_id IS
+	// NULL(재고이동/반품/폐기로 분할된 로트 제외)만 세서 이중계산을 피한다(DailyReportDao.
+	// selectDailyComparison과 같은 기준). 현재재고는 기간과 무관하게 지금 이 순간 기준이라
+	// from/to 필터를 안 걸고, 화면에서 "총재고(현재)"처럼 구분해서 보여준다.
+	public List<ItemExportRow> selectItemExportRows(Connection conn, LocalDate from, LocalDate to) throws SQLException {
 		String sql = "SELECT i.item_id, i.item_name, i.category, i.unit, i.shelf_life_days, "
 				+ "COALESCE(st.current_stock_qty, 0) AS current_stock_qty, "
 				+ "COALESCE(ib.total_inbound, 0) AS total_inbound, "
@@ -162,32 +174,39 @@ public class StatisticsDao {
 				+ "FROM stock_lot WHERE status = 'NORMAL' GROUP BY item_id"
 				+ ") st ON st.item_id = i.item_id "
 				+ "LEFT JOIN (SELECT item_id, SUM(initial_quantity) AS total_inbound "
-				+ "FROM stock_lot WHERE parent_lot_id IS NULL GROUP BY item_id"
+				+ "FROM stock_lot WHERE parent_lot_id IS NULL AND inbound_date BETWEEN ? AND ? GROUP BY item_id"
 				+ ") ib ON ib.item_id = i.item_id "
 				+ "LEFT JOIN (SELECT s.item_id, SUM(o.quantity) AS total_outbound "
-				+ "FROM outbound o JOIN stock_lot s ON s.lot_id = o.lot_id GROUP BY s.item_id"
+				+ "FROM outbound o JOIN stock_lot s ON s.lot_id = o.lot_id "
+				+ "WHERE o.outbound_date BETWEEN ? AND ? GROUP BY s.item_id"
 				+ ") ob ON ob.item_id = i.item_id "
 				+ "WHERE i.is_active = TRUE "
 				+ "ORDER BY i.item_id";
 
 		List<ItemExportRow> result = new ArrayList<>();
 
-		try (PreparedStatement pstmt = conn.prepareStatement(sql);
-				ResultSet rs = pstmt.executeQuery()) {
-			while (rs.next()) {
-				ItemExportRow row = new ItemExportRow();
-				row.setItemId(rs.getLong("item_id"));
-				row.setItemName(rs.getString("item_name"));
-				row.setCategory(rs.getString("category"));
-				row.setUnit(rs.getString("unit"));
-				int shelfLifeDays = rs.getInt("shelf_life_days");
-				row.setShelfLifeDays(rs.wasNull() ? null : shelfLifeDays);
-				row.setTotalStock(rs.getInt("current_stock_qty"));
-				row.setInboundQty(rs.getInt("total_inbound"));
-				row.setOutboundQty(rs.getInt("total_outbound"));
-				java.math.BigDecimal ratio = rs.getBigDecimal("turnover_ratio");
-				row.setTurnoverRatio(ratio != null ? ratio.doubleValue() : null);
-				result.add(row);
+		try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setObject(1, from);
+			pstmt.setObject(2, to);
+			pstmt.setObject(3, from);
+			pstmt.setObject(4, to);
+
+			try (ResultSet rs = pstmt.executeQuery()) {
+				while (rs.next()) {
+					ItemExportRow row = new ItemExportRow();
+					row.setItemId(rs.getLong("item_id"));
+					row.setItemName(rs.getString("item_name"));
+					row.setCategory(rs.getString("category"));
+					row.setUnit(rs.getString("unit"));
+					int shelfLifeDays = rs.getInt("shelf_life_days");
+					row.setShelfLifeDays(rs.wasNull() ? null : shelfLifeDays);
+					row.setTotalStock(rs.getInt("current_stock_qty"));
+					row.setInboundQty(rs.getInt("total_inbound"));
+					row.setOutboundQty(rs.getInt("total_outbound"));
+					java.math.BigDecimal ratio = rs.getBigDecimal("turnover_ratio");
+					row.setTurnoverRatio(ratio != null ? ratio.doubleValue() : null);
+					result.add(row);
+				}
 			}
 		}
 		return result;

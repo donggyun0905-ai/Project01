@@ -28,8 +28,10 @@ import jakarta.servlet.http.HttpServletResponse;
  * /api/statistics/*
  *
  * 지원 경로
- * - /inout  
- * - /turnover  
+ * - /inout
+ * - /turnover
+ * - /stockout-forecast
+ * - /overstock-forecast
  * - /clients/top5
  * - /clients/monthly
  * - /warehouseStock
@@ -54,6 +56,12 @@ public class StatisticsServlet extends HttpServlet {
 				break;
 			case "/turnover":
 				getStockTurnover(resp);
+				break;
+			case "/stockout-forecast":
+				getStockoutForecast(req, resp);
+				break;
+			case "/overstock-forecast":
+				getOverstockForecast(req, resp);
 				break;
 			case "/clients/top5":
 				getOutboundRank(req, resp);
@@ -96,6 +104,38 @@ public class StatisticsServlet extends HttpServlet {
 	private void getStockTurnover (HttpServletResponse resp) throws ServletException, IOException{
 		List<StockTurnover> list = service.getTop6StockTurnover();
 		List<Object> data = list.stream().map(StatisticsServlet::turnoverToJson).collect(Collectors.toList());
+		ApiResponse.success(resp, 200, data);
+	}
+
+	// 재고 소진 예상 조회 - 통계 페이지 입출고량 집계 카드 우측 패널용
+	private void getStockoutForecast(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+		int limit = 5;
+		String limitParam = req.getParameter("limit");
+		if (limitParam != null) {
+			try {
+				limit = Integer.parseInt(limitParam);
+			} catch (NumberFormatException ignored) {
+				// 잘못된 값이면 기본값(5)을 그대로 씀
+			}
+		}
+		List<StockTurnover> list = service.getStockoutForecast(limit);
+		List<Object> data = list.stream().map(StatisticsServlet::stockoutToJson).collect(Collectors.toList());
+		ApiResponse.success(resp, 200, data);
+	}
+
+	// 재고초과 임박 예상 조회 - 통계 페이지 입출고량 집계 카드 우측 패널용(재고 소진 예상과 짝)
+	private void getOverstockForecast(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+		int limit = 5;
+		String limitParam = req.getParameter("limit");
+		if (limitParam != null) {
+			try {
+				limit = Integer.parseInt(limitParam);
+			} catch (NumberFormatException ignored) {
+				// 잘못된 값이면 기본값(5)을 그대로 씀
+			}
+		}
+		List<StockTurnover> list = service.getOverstockForecast(limit);
+		List<Object> data = list.stream().map(StatisticsServlet::overstockToJson).collect(Collectors.toList());
 		ApiResponse.success(resp, 200, data);
 	}
 	
@@ -157,6 +197,32 @@ public class StatisticsServlet extends HttpServlet {
 				"dailyVelocity", stock.getDailyVelocity(),
 				"turnoverRatio", stock.getTurnoverRatio(),
 				"status", stock.getStatus()
+		);
+	}
+
+	// 재고 소진 예상 JSON 구조 변환 - daysLeft = 현재재고 ÷ 일평균 소진 속도(소수점 첫째 자리까지)
+	private static Map<String, Object> stockoutToJson(StockTurnover stock) {
+		double daysLeft = stock.getCurrentStockQty() / stock.getDailyVelocity().doubleValue();
+		return JsonUtil.object(
+				"itemId", stock.getItemId(),
+				"itemName", stock.getItemName(),
+				"currentStockQty", stock.getCurrentStockQty(),
+				"dailyVelocity", stock.getDailyVelocity(),
+				"daysLeft", Math.round(daysLeft * 10) / 10.0
+		);
+	}
+
+	// 재고초과 임박 예상 JSON 구조 변환 - daysUntilFull = (기준-현재재고) ÷ 일평균 입고 속도
+	private static Map<String, Object> overstockToJson(StockTurnover stock) {
+		double daysUntilFull = (stock.getCapacityMax() - stock.getCurrentStockQty())
+				/ stock.getInboundDailyVelocity().doubleValue();
+		return JsonUtil.object(
+				"itemId", stock.getItemId(),
+				"itemName", stock.getItemName(),
+				"currentStockQty", stock.getCurrentStockQty(),
+				"capacityMax", stock.getCapacityMax(),
+				"inboundDailyVelocity", stock.getInboundDailyVelocity(),
+				"daysUntilFull", Math.round(daysUntilFull * 10) / 10.0
 		);
 	}
 	

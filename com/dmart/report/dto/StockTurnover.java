@@ -11,7 +11,12 @@ public class StockTurnover {
 	private BigDecimal dailyVelocity;
 	private BigDecimal turnoverRatio;
 	private String status;
-	
+
+	// 재고초과 임박 예상(통계 페이지)용 - capacity_max와 일평균 입고 속도(최근 90일 총입고량/90).
+	// dailyVelocity(출고 속도)와 짝을 이루는 입고 쪽 속도라 이름을 구분했다.
+	private Integer capacityMax;
+	private BigDecimal inboundDailyVelocity;
+
 	public StockTurnover() {}
 	
 	public StockTurnover(
@@ -87,6 +92,22 @@ public class StockTurnover {
 
 	public void setStatus(String status) {
 		this.status = status;
+	}
+
+	public Integer getCapacityMax() {
+		return capacityMax;
+	}
+
+	public void setCapacityMax(Integer capacityMax) {
+		this.capacityMax = capacityMax;
+	}
+
+	public BigDecimal getInboundDailyVelocity() {
+		return inboundDailyVelocity;
+	}
+
+	public void setInboundDailyVelocity(BigDecimal inboundDailyVelocity) {
+		this.inboundDailyVelocity = inboundDailyVelocity;
 	}
 
 	@Override

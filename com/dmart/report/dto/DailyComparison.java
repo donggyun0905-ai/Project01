@@ -1,6 +1,7 @@
 package com.dmart.report.dto;
 
 import java.time.LocalDate;
+import java.util.Map;
 
 public class DailyComparison  {
 	private LocalDate date;
@@ -8,14 +9,18 @@ public class DailyComparison  {
 	private int yesterdayInboundQty;
 	private int todayOutboundQty;
 	private int yesterdayOutboundQty;
-	
+
 	private int inboundQtyChange;
 	private int outboundQtyChange;
-	
+
 	// 전일 수량이 0인 경우 증감률을 null로 처리하기 위해 Double 사용
 	private Double inboundQtyChangeRate;
 	private Double outboundQtyChangeRate;
-	
+
+	// 대시보드 카드 옆 팔레트/박스/낱개 소분류용 - 키는 zone_name(PALLET/BOX/EA) 그대로
+	private Map<String, Integer> inboundByUnit;
+	private Map<String, Integer> outboundByUnit;
+
 	public DailyComparison() {}
 	
 	public DailyComparison(int todayInboundQty, int yesterdayInboundQty, int todayOutboundQty, int yesterdayOutboundQty) {
@@ -117,6 +122,22 @@ public class DailyComparison  {
 
 	 public void setOutboundQtyChangeRate(Double outboundQtyChangeRate) {
 		 this.outboundQtyChangeRate = outboundQtyChangeRate;
+	 }
+
+	 public Map<String, Integer> getInboundByUnit() {
+		 return inboundByUnit;
+	 }
+
+	 public void setInboundByUnit(Map<String, Integer> inboundByUnit) {
+		 this.inboundByUnit = inboundByUnit;
+	 }
+
+	 public Map<String, Integer> getOutboundByUnit() {
+		 return outboundByUnit;
+	 }
+
+	 public void setOutboundByUnit(Map<String, Integer> outboundByUnit) {
+		 this.outboundByUnit = outboundByUnit;
 	 }
 
 	 @Override

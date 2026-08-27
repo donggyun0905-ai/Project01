@@ -6,7 +6,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.dmart.report.dto.DailyComparison;
 import com.dmart.report.dto.LowStockItem;
@@ -53,6 +55,49 @@ public class DailyReportDao {
 			}
 		}
 		return new DailyComparison(0, 0, 0, 0);
+	}
+
+	// 대시보드 "총 보유 재고 수량/오늘 입고/오늘 출고" 카드 옆에 팔레트/박스/낱개(구역 이름 =
+	// 품목 단위) 소분류를 보여주기 위함. 구역 이름(zone_name)이 곧 그 품목의 단위이므로
+	// (품목 단위와 구역 단위가 다르면 애초에 입고가 안 됨 - InboundService 참고) item 테이블을
+	// 조인할 필요 없이 zone만 조인하면 된다. selectDailyComparison과 같은 이중계산 방지
+	// 기준(입고는 parent_lot_id IS NULL만)을 그대로 따른다.
+	public Map<String, Integer> selectTodayInboundByUnit(Connection conn, LocalDate date) throws SQLException {
+		String sql = "SELECT z.zone_name AS unit, COALESCE(SUM(s.initial_quantity), 0) AS qty "
+				+ "FROM stock_lot s JOIN zone z ON z.zone_id = s.zone_id "
+				+ "WHERE s.inbound_date = ? AND s.parent_lot_id IS NULL "
+				+ "GROUP BY z.zone_name";
+
+		Map<String, Integer> result = new LinkedHashMap<>();
+		try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setObject(1, date);
+			try (ResultSet rs = pstmt.executeQuery()) {
+				while (rs.next()) {
+					result.put(rs.getString("unit"), rs.getInt("qty"));
+				}
+			}
+		}
+		return result;
+	}
+
+	public Map<String, Integer> selectTodayOutboundByUnit(Connection conn, LocalDate date) throws SQLException {
+		String sql = "SELECT z.zone_name AS unit, COALESCE(SUM(o.quantity), 0) AS qty "
+				+ "FROM outbound o "
+				+ "JOIN stock_lot s ON s.lot_id = o.lot_id "
+				+ "JOIN zone z ON z.zone_id = s.zone_id "
+				+ "WHERE o.outbound_date = ? "
+				+ "GROUP BY z.zone_name";
+
+		Map<String, Integer> result = new LinkedHashMap<>();
+		try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+			pstmt.setObject(1, date);
+			try (ResultSet rs = pstmt.executeQuery()) {
+				while (rs.next()) {
+					result.put(rs.getString("unit"), rs.getInt("qty"));
+				}
+			}
+		}
+		return result;
 	}
 
 	// 재고 부족 품목 리스트

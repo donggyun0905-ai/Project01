@@ -9,6 +9,7 @@ import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.WeekFields;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -114,6 +115,33 @@ public class StatisticsService {
 	public List<StockTurnover> getTop6StockTurnover() {
 		List<StockTurnover> list = getStockTurnoverStatistics();
 		return list.stream().limit(6).collect(Collectors.toList());
+	}
+
+	// 재고 소진 예상 - 통계 페이지 입출고량 집계 카드 옆에 보여줄 예측 데이터.
+	// 이미 계산돼 있는 일평균 소진 속도(dailyVelocity, 최근 90일 총 출고량/90)를 그대로 써서
+	// "이 추세면 현재 재고가 며칠 뒤 바닥나는지"를 품목별로 구하고, 가장 임박한 순으로 상위
+	// limit개만 돌려준다. 최근 90일 출고 이력이 없는(dailyVelocity=0, DEAD_STOCK) 품목은
+	// "소진 예상"이 의미가 없으므로(분모가 0이라 나눌 수도 없음) 제외한다.
+	public List<StockTurnover> getStockoutForecast(int limit) {
+		List<StockTurnover> list = getStockTurnoverStatistics();
+		list.removeIf(t -> t.getDailyVelocity() == null || t.getDailyVelocity().doubleValue() <= 0);
+		list.sort(Comparator.comparingDouble(t -> t.getCurrentStockQty() / t.getDailyVelocity().doubleValue()));
+		return list.stream().limit(limit).collect(Collectors.toList());
+	}
+
+	// 재고초과 임박 예상 - 재고 소진 예상과 짝을 이루는 반대쪽 위험. 일평균 입고 속도
+	// (inboundDailyVelocity, 최근 90일 총 입고량/90)를 기준으로 "이 추세면 며칠 뒤
+	// capacity_max를 넘는지" 계산해서 가장 임박한 순으로 상위 limit개만 돌려준다.
+	// capacity_max가 없는 품목, 입고 이력이 없는(inboundDailyVelocity=0) 품목,
+	// 이미 capacity_max를 넘은 품목(그건 예상이 아니라 이미 재고초과 알림 대상)은 제외한다.
+	public List<StockTurnover> getOverstockForecast(int limit) {
+		List<StockTurnover> list = getStockTurnoverStatistics();
+		list.removeIf(t -> t.getCapacityMax() == null
+				|| t.getInboundDailyVelocity() == null || t.getInboundDailyVelocity().doubleValue() <= 0
+				|| t.getCurrentStockQty() >= t.getCapacityMax());
+		list.sort(Comparator.comparingDouble(
+				t -> (t.getCapacityMax() - t.getCurrentStockQty()) / t.getInboundDailyVelocity().doubleValue()));
+		return list.stream().limit(limit).collect(Collectors.toList());
 	}
 	
 	// Top5 거래처 출고 랭킹 

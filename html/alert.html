@@ -189,7 +189,7 @@
 			</div>
 
 			<!-- 알림 종류에 맞는 실제 조치 버튼이 openDetail()에서 여기 채워집니다.
-			     (재고부족→승인 검토로 이동 / 재고초과→출고 승인요청 만들기 / 창고정리추천→이동 실행) -->
+			     (재고부족→승인 검토로 이동 / 재고초과→승인 관리(반품 탭)로 이동 / 창고정리추천→이동 실행) -->
 			<div class="alert-form-group full-width" id="actionArea"></div>
 
 		</section>
@@ -611,7 +611,7 @@
 		if (types[i] == "창고정리추천") {
 			document.querySelector("#modalMsg").innerHTML = consolidationDetailHtml(messages[i]);
 		} else {
-			document.querySelector("#modalMsg").innerHTML = plainText(messages[i]);
+			document.querySelector("#modalMsg").innerHTML = plainText(messages[i]).trim();
 		}
 
 		/* 현재 재고는 알림에 없는 값이라 재고 목록에서 따로 받아 더합니다.
@@ -668,7 +668,8 @@
 	    조치 없이 알림만 꺼지는 일이 생길 수 있어서 하나로 합쳤습니다)
 
 	   재고부족   : 이미 자동으로 만들어진 "발주 승인요청"이 있으므로 승인 관리 화면으로 이동
-	   재고초과   : 거래처/수량을 고르면, 그 값으로 출고 승인요청을 생성
+	   재고초과   : 실무적으로 재고초과는 "출고(판매)"가 아니라 "공급처반품"으로 처리하는 게 맞아서,
+	              창고정리추천과 같은 방식으로 승인 관리 화면의 "재고초과 반품" 탭에서 처리하도록 이동
 	   이상출고   : 출고 요청이 재고보다 많아서 뜬 알림이므로 그 승인요청을 검토하도록 승인 관리 화면으로 이동
 	              (승인/반려 중 뭐가 됐든, 승인 관리에서 결정하는 순간 이 알림은 자동으로 해결 처리됨)
 	   창고정리추천 : 알림 메시지 안의 구역/수량을 읽어서, 그 이동을 바로 실행
@@ -701,16 +702,12 @@
 
 		if (type == "재고초과") {
 			area.innerHTML =
-				"<p class='list-note'>초과된 만큼 어느 거래처로 출고할지 고르고 아래 버튼을 누르면 " +
-				"출고 승인요청이 만들어집니다. 관리자가 승인하면 그 즉시 출고 처리까지 자동으로 됩니다. " +
-				"수량이 현재 재고보다 많아도 괜찮습니다 — 부족한 만큼은 자동으로 발주 요청이 하나 더 만들어집니다.</p>" +
-				"<div class='form-group'><label>거래처</label><select id='excessPartner'></select></div>" +
-				"<div class='form-group'><label>출고 수량</label><input type='number' id='excessQty'></div>";
+				"<p class='list-note'>초과된 재고는 실제 주문이 없는데 억지로 출고(판매)를 만드는 대신, " +
+				"공급처로 반품 처리하는 게 맞습니다. 아래 버튼을 누르면 승인 관리 화면으로 이동합니다. " +
+				"거기 '재고초과 반품' 탭에서 반품 수량을 확인하고 바로 처리할 수 있습니다.</p>";
 
-			fillPartner("#excessPartner", "CUSTOMER");
-
-			btn.innerHTML = "출고 승인요청 만들기";
-			btn.onclick = doCreateOutboundApproval;
+			btn.innerHTML = "승인 관리로 이동";
+			btn.onclick = function () { location.href = "approval.html"; };
 			return;
 		}
 
@@ -755,46 +752,7 @@
 
 
 	/* ============================================================
-	   7. 조치에 필요한 거래처 정보 받아오기 (재고초과 폼용)
-
-	   품목 목록과는 별도로, 여기서만 쓰는 정보라 따로 받습니다.
-	   fillPartner()는 common.js가 쓰는 것과 같은 전역 배열
-	   (customerIds/customerNames)을 그대로 채웁니다.
-	   ============================================================ */
-	function loadExtras() {
-		customerIds = [];
-		customerNames = [];
-		apiGet(partnerPagePath(1), putCustomersForAlert1);
-	}
-
-	function partnerPagePath(page) {
-		return "/api/partners?type=CUSTOMER&page=" + page + "&size=200";
-	}
-
-	function putCustomersForAlert1(data) {
-
-		addCustomersForAlert(data.items);
-
-		if (data.total > 200) {
-			apiGet(partnerPagePath(2), putCustomersForAlert2);
-		}
-	}
-
-	function putCustomersForAlert2(data) {
-		addCustomersForAlert(data.items);
-	}
-
-	function addCustomersForAlert(list) {
-		for (let i = 0; i < list.length; i++) {
-			let last = customerIds.length;
-			customerIds[last] = list[i].partnerId;
-			customerNames[last] = list[i].name;
-		}
-	}
-
-
-	/* ============================================================
-	   7-1. 창고 정리 지금 다시 찾아보기 (POST /api/warehouse-consolidation/scan)
+	   7. 창고 정리 지금 다시 찾아보기 (POST /api/warehouse-consolidation/scan)
 
 	   원래 창고정리추천은 서버 켤 때 한 번만 찾아보는데, 그새 재고가 바뀌었으면
 	   지금 다시 찾아보고 싶을 때 누르는 버튼입니다. 같은 품목에 처리 안 된
@@ -813,40 +771,6 @@
 		}
 	}
 
-
-	/* ============================================================
-	   8. 재고초과 - 출고 승인요청 만들기 (POST /api/approvals)
-
-	   여기서 바로 출고를 실행하지 않고 "승인요청"만 만듭니다.
-	   관리자가 승인 관리 화면에서 승인해야 실제 출고가 자동 실행됩니다
-	   (거래처/수량이 맞는지 한 번 더 확인하는 절차입니다).
-	   ============================================================ */
-	function doCreateOutboundApproval() {
-
-		let i = openIndex;
-		let partnerId = document.querySelector("#excessPartner").value;
-		let qty = document.querySelector("#excessQty").value;
-
-		if (partnerId == "" || qty == "" || qty * 1 <= 0) {
-			alert("거래처와 수량을 채워 주세요.");
-			return;
-		}
-
-		let body = {
-			itemId: alertItemIds[i],
-			requestType: "출고",
-			requestedQty: qty * 1,
-			partnerId: partnerId * 1
-		};
-
-		apiSend("POST", "/api/approvals", body, afterCreateApproval);
-	}
-
-	function afterCreateApproval(data) {
-		closeDetail();
-		loadData();
-		alert("출고 승인요청을 만들었습니다. 승인 관리 화면에서 승인하면 자동으로 출고 처리됩니다.");
-	}
 
 
 	/* 창고정리추천의 실제 이동 실행은 승인 관리 화면(approval.html)으로 옮겼습니다 -
@@ -1056,9 +980,6 @@
 
 	/* 화면이 열릴 때 실행 - 품목을 먼저 받고, 끝나면 알림을 받습니다 */
 	loadItems();
-
-	/* 조치(승인요청 만들기/이동 실행)에 필요한 거래처 정보도 같이 받아 둡니다 */
-	loadExtras();
 
 
 	/* 오른쪽 위에 로그인한 사람을 보여 줍니다 */

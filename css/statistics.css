@@ -118,10 +118,83 @@
 	font-weight: bold;
 }
 
-/* 그래프가 들어갈 자리 - 높이를 키우면 페이지에 스크롤이 생겨서,
-   대신 가로 폭을 좁혀서(가운데 정렬) 너무 넙적해 보이지 않게 합니다. */
+/* 그래프(왼쪽) + 재고 소진 예상(오른쪽)을 한 줄에 나눠 보여줍니다 */
+.inout-forecast-row{
+	display: flex;
+	gap: 28px;
+	align-items: stretch;
+}
+
+/* 오른쪽 예측 패널을 뺀 나머지 자리 - 그 안에서 그래프를 가운데로 둡니다 */
+.chart-wrap{
+	flex: 1;
+	display: flex;
+	justify-content: center;
+	min-width: 0;
+}
+
+/* 그래프가 들어갈 자리 - 높이를 키우면 페이지에 스크롤이 생겨서 300px로 고정합니다.
+   원래 크기(max-width 760px) 그대로 두고, chart-wrap 안에서 가운데 정렬됩니다. */
 .chart-area{
 	height: 300px;
+	width: 100%;
 	max-width: 760px;
-	margin: 0 auto;
+}
+
+/* 재고 소진 예상 / 재고초과 임박 예상 - 위아래로 쌓지 않고 나란히 놓습니다 */
+.forecast-panel{
+	flex: 0 0 auto;
+	display: flex;
+	flex-direction: row;
+	gap: 24px;
+	border-left: 1px solid #eee;
+	padding-left: 24px;
+}
+
+.forecast-section{
+	min-width: 150px;
+}
+
+/* 두 번째 칸부터는 옆에 구분선을 둬서 나눔(위아래 구분선이 아니라 좌우 구분선) */
+.forecast-section + .forecast-section{
+	padding-left: 24px;
+	border-left: 1px solid #eee;
+}
+
+.forecast-panel h5{
+	font-size: 15px;
+	color: #666;
+	margin-bottom: 14px;
+}
+
+.forecast-row{
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 10px 0;
+	border-bottom: 1px solid #f2f2f2;
+}
+
+.forecast-name{
+	font-size: 14px;
+	color: #333;
+}
+
+.forecast-days{
+	font-size: 15px;
+	font-weight: bold;
+	color: #1455c0;
+}
+
+.forecast-days.warn{
+	color: #d97706;
+}
+
+.forecast-days.urgent{
+	color: #d64545;
+}
+
+.forecast-empty{
+	font-size: 14px;
+	color: #999;
 }

@@ -1,0 +1,155 @@
+<!DOCTYPE html> <!-- 사용 방법 -->
+
+<html lang = "ko">
+<head>
+	<meta charset="UTF-8">
+	<title>사용 방법</title>
+
+	<!-- 공통 css -->
+	<link rel="stylesheet" href="../css/common.css">
+	<!--usage css -->
+	<link rel="stylesheet" href="../css/usage.css">
+
+	<!-- 서버 통신 공통 함수 -->
+	<script src="../js/api.js"></script>
+	<script src="../js/common.js"></script>
+</head>
+
+<!-- 바디  -->
+<body>
+	<!-- 전체 화면 -->
+	<div class="container">
+
+	<!--  사이드바-->
+	<aside class="sidebar">
+		<div class="logo" onclick="location.href='dashboard.html'">
+			<img src="../images/logo.png" alt="DOWN MART">
+		<p>DOWN MART</p>
+		</div>
+		<nav class="sidebar-menu">
+				<a href="dashboard.html">메인 화면</a>
+				<a href="item.html">입출고 관리</a>
+				<a href="return.html">반품 및 폐기 관리</a>
+				<a href="alert.html">알림</a>
+				<a href="statistics.html">통계</a>
+				<a class="active" href="setting.html">설정 및 권한 관리</a>
+			</nav>
+			<div class="logout-area">
+			<a href="login.html" onclick="logout()">로그아웃</a>
+		</div>
+	</aside>
+
+	<!-- 오른쪽 위에 뜨는거 -->
+	<main class="content">
+		<!-- 오른쪽 위 로그인 안내 -->
+		<div class="user-bar" id="userBar"></div>
+
+		<header class="top-menu">
+			<button class="menu-btn" id="menuUserBtn" onclick="location.href='setting.html'">사용자 관리</button>
+			<button class="menu-btn" id="menuApprovalBtn" onclick="location.href='approval.html'">자동 제안 및 승인</button>
+			<button class="menu-btn" onclick="location.href='roles.html'">권한 관리</button>
+			<button class="menu-btn active">사용 방법</button>
+		</header>
+
+		<h4 class="page-title">화면별 사용 방법</h4>
+
+		<p class="usage-intro">
+			화면마다 무엇을 할 수 있는지 핵심 기능만 간단히 정리했습니다. 계정 종류는 두 가지입니다 -
+			<b>관리자(ADMIN)</b>는 모든 화면과 승인·삭제 등 최종 처리를 할 수 있고,
+			<b>담당자(STAFF)</b>는 배정된 창고의 입출고·조회 업무 위주로 쓸 수 있습니다
+			(사용자 관리/감사로그 화면은 담당자에게 막혀 있습니다 - 상단 메뉴 버튼이 흐리게 보이면 그 화면입니다).
+		</p>
+
+		<section class="guide-grid">
+
+			<div class="guide-card">
+				<h5>메인 화면</h5>
+				<ul>
+					<li>전체 재고량, 카테고리별 비율, 오늘의 입고·출고 비교를 한눈에 봅니다.</li>
+					<li>미해결 알림과 최근 처리 현황이 요약으로 뜹니다.</li>
+					<li>관리자는 우측 상단에서 시뮬레이터·자동관리 켜기/끄기, 데이터 초기화를 할 수 있습니다.</li>
+				</ul>
+			</div>
+
+			<div class="guide-card">
+				<h5>입출고 관리 - 품목 관리</h5>
+				<ul>
+					<li>품목 등록/수정, 사용 중·비활성 전환(비활성 품목은 입출고에서 고를 수 없음).</li>
+					<li>검색창에서 품목 코드/품목명/카테고리/단위 중 골라 검색할 수 있습니다.</li>
+					<li>품목별 엑셀 내보내기는 통계 화면(보고서 및 내보내기)에 있습니다.</li>
+				</ul>
+			</div>
+
+			<div class="guide-card">
+				<h5>입출고 관리 - 입출고 등록</h5>
+				<ul>
+					<li>입고 등록: 품목·구역·공급처·수량을 넣으면 로트가 새로 생깁니다(유통기한은 자동 계산).</li>
+					<li>출고 등록: 품목과 수량을 넣으면 유통기한이 임박한 로트부터(FEFO) 추천해 줍니다.</li>
+					<li>구역은 품목 단위(EA/BOX 등)와 이름이 같은 구역만 고를 수 있습니다.</li>
+				</ul>
+			</div>
+
+			<div class="guide-card">
+				<h5>입출고 관리 - 창고/구역 관리 · 재고 이동 · 감사로그</h5>
+				<ul>
+					<li>창고 및 구역 관리: 창고·구역 등록, 구역별 용량과 현재 사용량을 확인합니다.</li>
+					<li>창고 간 재고 이동: 로트 단위로 다른 구역으로 옮깁니다(용량 초과 시 막힘).</li>
+					<li>감사로그 <span class="admin-only">(관리자 전용)</span>: 재고 직접수정/삭제 이력을 확인하고, 필요하면 되돌릴 수 있습니다.</li>
+				</ul>
+			</div>
+
+			<div class="guide-card">
+				<h5>반품 및 폐기 관리</h5>
+				<ul>
+					<li>로트를 골라 반품(고객반품/공급처반품) 또는 폐기(파손/유통기한만료/기타)로 처리합니다.</li>
+					<li>수량 전체를 처리하면 로트 자체가, 일부만 처리하면 로트가 분할되어 처리됩니다.</li>
+					<li>품목명·카테고리로 이력을 검색할 수 있습니다.</li>
+				</ul>
+			</div>
+
+			<div class="guide-card">
+				<h5>알림</h5>
+				<ul>
+					<li>재고부족·재고초과·이상출고·창고정리추천 등 조치가 필요한 알림이 모입니다.</li>
+					<li>재고부족/재고초과/이상출고는 눌러 보면 "자동 제안 및 승인" 화면으로 안내합니다
+						(재고부족은 자동 발주 승인 검토, 재고초과는 공급처반품 처리, 이상출고는 출고 승인 검토).</li>
+					<li>창고정리추천은 "다시 찾기"로 지금 기준으로 새로 찾아볼 수 있고, 실제 실행은 승인 화면에서 합니다.</li>
+				</ul>
+			</div>
+
+			<div class="guide-card">
+				<h5>통계</h5>
+				<ul>
+					<li>통계 대시보드: 회전율 상위 품목, 거래처별 출고 TOP5, 입출고량 집계 그래프와
+						그 옆의 재고 소진 예상(며칠 뒤 바닥나는지)을 보여줍니다.</li>
+					<li>보고서 및 내보내기: 일일 보고서 문서와, 품목/입출고 이력을 엑셀·PDF로 내려받습니다.</li>
+				</ul>
+			</div>
+
+			<div class="guide-card">
+				<h5>설정 및 권한 관리</h5>
+				<ul>
+					<li>사용자 관리 <span class="admin-only">(관리자 전용)</span>: 계정 등록/수정, 담당 창고 배정.</li>
+					<li>자동 제안 및 승인: 발주·출고 승인요청 처리(승인/반려는 관리자 전용), 창고정리추천 선택
+						처리(결과를 표로 보여줌), 재고초과 반품 처리 - 이 화면 자체는 담당자도 볼 수 있습니다.</li>
+					<li>권한 관리: 기능별로 관리자/담당자가 무엇을 할 수 있는지 표로 확인합니다.</li>
+				</ul>
+			</div>
+
+		</section>
+
+	</main>
+
+	</div>
+
+<script>
+
+	/* 오른쪽 위에 로그인한 사람을 보여 줍니다(다른 화면과 같은 방식) -
+	   이 안에서 담당자에게는 사용자 관리/자동 제안 및 승인 버튼도 같이 흐리게 처리됩니다. */
+	drawUserBar();
+
+</script>
+</body>
+
+
+</html>

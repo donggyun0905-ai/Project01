@@ -1,0 +1,47 @@
+/* 사용 방법 */
+
+.usage-intro {
+	background: #fff;
+	border-radius: 12px;
+	padding: 18px 22px;
+	margin-bottom: 24px;
+	font-size: 14px;
+	color: #444;
+	line-height: 1.6;
+}
+
+.guide-grid {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 20px;
+}
+
+.guide-card {
+	background: #fff;
+	border-radius: 12px;
+	padding: 20px 24px;
+}
+
+.guide-card h5 {
+	font-size: 16px;
+	font-weight: bold;
+	margin-bottom: 12px;
+	color: #1455c0;
+}
+
+.guide-card ul {
+	padding-left: 18px;
+}
+
+.guide-card li {
+	font-size: 14px;
+	color: #333;
+	line-height: 1.6;
+	margin-bottom: 6px;
+}
+
+.admin-only {
+	font-size: 13px;
+	font-weight: normal;
+	color: #999;
+}
