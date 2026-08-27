@@ -484,7 +484,10 @@
 			outQtys[i] = data[i].outboundQty;
 		}
 
-		drawBarChart();
+		// 여기서 바로 그리지 않습니다. 반품/폐기(dispQtys)까지 다 모인 뒤
+		// loadDisposalBar 쪽에서 한 번만 그려야 그래프가 한 번만 바뀌면서
+		// 깜빡임이 한 번으로 줄어듭니다 (입출고 따로 한 번, 반품/폐기 붙어서 한 번,
+		// 이렇게 두 번 그리던 걸 하나로 합칩니다).
 		loadDisposalBar();
 	}
 
@@ -502,13 +505,34 @@
 			return;
 		}
 
+		fetchDisposalPage(1, []);
+	}
+
+	/* /api/returns 는 record_id(등록 순서) 기준 내림차순으로 주고, 한 페이지에
+	   최대 200건까지만 옵니다(서버 Pagination.MAX_SIZE). 조회 기간(7일) 안에
+	   반품/폐기가 200건을 넘으면 1페이지만 받아서는 등록 순서상 뒤로 밀린
+	   데이터가 조용히 빠지므로, total을 보고 필요한 페이지까지 이어서 받습니다. */
+	function fetchDisposalPage(page, accItems) {
+
 		let pick = document.querySelector("#pickDate").value;
 		let to = new Date(pick);
 		let from = new Date(pick);
 		from.setDate(from.getDate() - 6);
 
-		let path = "/api/returns?from=" + getDateText(from) + "&to=" + getDateText(to) + "&size=200";
-		apiGet(path, putDisposalBar);
+		let path = "/api/returns?from=" + getDateText(from) + "&to=" + getDateText(to)
+			+ "&page=" + page + "&size=200";
+
+		apiGet(path, function (data) {
+
+			let merged = accItems.concat(data.items);
+			let totalPages = Math.ceil(data.total / 200);
+
+			if (page < totalPages) {
+				fetchDisposalPage(page + 1, merged);
+			} else {
+				putDisposalBar({ items: merged });
+			}
+		});
 	}
 
 	function putDisposalBar(data) {
@@ -583,9 +607,18 @@
 	   입출고 현황 막대그래프를 그린다
 	   ========================================================= */
 	function drawBarChart() {
-		// 이미 그려둔 그래프가 있으면 먼저 지운다 (안 지우면 겹쳐서 이상해진다)
+
+		// 그래프가 이미 있으면 통째로 지웠다가 새로 만들지 않고, 데이터만
+		// 갈아끼웁니다 (destroy() 후 new Chart()를 하면 캔버스가 잠깐 빈 채로
+		// 있다가 다시 그려지면서 화면이 깜빡입니다. update()는 그 빈 순간 없이
+		// 막대 높이만 부드럽게 바뀝니다).
 		if (barChart != null) {
-			barChart.destroy();
+			barChart.data.labels = days;
+			barChart.data.datasets[0].data = inQtys;
+			barChart.data.datasets[1].data = outQtys;
+			barChart.data.datasets[2].data = dispQtys;
+			barChart.update();
+			return;
 		}
 
 		let area = document.querySelector("#barChart");
