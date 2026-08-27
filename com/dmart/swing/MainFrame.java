@@ -44,11 +44,7 @@ public class MainFrame extends JFrame {
         add(rightWrap, BorderLayout.CENTER);
 
         contentPanel.add(new DashboardPanel(), "dashboard");
-        contentPanel.add(new ItemPanel(), "item");
-        contentPanel.add(new InOutPanel(), "inout");
-        contentPanel.add(new WarehouseZonePanel(), "warehouse");
-        contentPanel.add(new TransferPanel(), "transfer");
-        contentPanel.add(new AuditLogPanel(), "audit");
+        contentPanel.add(new InOutManagementPanel(), "inout-management");
         contentPanel.add(new ReturnDisposalPanel(), "return");
 
         cardLayout.show(contentPanel, "dashboard");
@@ -64,11 +60,7 @@ public class MainFrame extends JFrame {
         sidebar.add(buildLogo());
 
         sidebar.add(navButton("메인 화면", "dashboard"));
-        sidebar.add(navButton("품목 관리", "item"));
-        sidebar.add(navButton("입출고 등록", "inout"));
-        sidebar.add(navButton("창고 및 구역 관리", "warehouse"));
-        sidebar.add(navButton("창고 간 재고 이동", "transfer"));
-        sidebar.add(navButton("감사로그", "audit"));
+        sidebar.add(navButton("입출고 관리", "inout-management"));
         sidebar.add(navButton("반품 및 폐기 관리", "return"));
 
         sidebar.add(Box.createVerticalGlue());
