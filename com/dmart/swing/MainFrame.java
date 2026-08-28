@@ -1,8 +1,12 @@
 package com.dmart.swing;
 
+import com.dmart.dao.ApprovalDao;
 import com.dmart.dao.SystemToggleDao;
 import com.dmart.db.DBConnection;
 import com.dmart.service.DataResetService;
+import com.dmart.swing.panels.AlertPanel;
+import com.dmart.swing.panels.SettingGroupPanel;
+import com.dmart.swing.panels.StatisticsGroupPanel;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -22,18 +26,35 @@ public class MainFrame extends JFrame {
 
     private final SystemToggleDao systemToggleDao = new SystemToggleDao();
     private final DataResetService dataResetService = new DataResetService();
+    private final ApprovalDao approvalDao = new ApprovalDao();
 
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel contentPanel = new JPanel(cardLayout);
 
+    private final DashboardPanel dashboardPanel = new DashboardPanel();
+    private final InOutManagementPanel inOutManagementPanel = new InOutManagementPanel();
+    private final ReturnDisposalPanel returnDisposalPanel = new ReturnDisposalPanel();
+    // 팀원 담당 화면(알림/통계/설정 및 권한 관리) - settingGroupPanel을 먼저 만들어야
+    // alertPanel의 "승인 관리로 이동" 콜백이 그 안의 showApprovalTab을 참조할 수 있다.
+    private final SettingGroupPanel settingGroupPanel = new SettingGroupPanel();
+    private final StatisticsGroupPanel statisticsGroupPanel = new StatisticsGroupPanel();
+    private final AlertPanel alertPanel = new AlertPanel(tabIndex -> {
+        cardLayout.show(contentPanel, "setting");
+        settingGroupPanel.showApprovalTab(tabIndex);
+    });
+
     private JButton simulatorBtn;
     private JButton autoManageBtn;
+    private JLabel waitBadgeLabel;
 
     public MainFrame() {
         super("DOWN MART - " + Session.getUser().getName() + "님");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1280, 800);
+        setSize(1350, 850);
         setLocationRelativeTo(null);
+        // 화면 중앙에 작게 뜨면 뒤에 열린 다른 창(브라우저/IDE 등)에 끼여 있는 것처럼
+        // 보이므로, 시작할 때 화면 전체를 채우는 진짜 창으로 띄운다.
+        setExtendedState(JFrame.MAXIMIZED_BOTH);
 
         setLayout(new BorderLayout());
         add(buildSidebar(), BorderLayout.WEST);
@@ -43,9 +64,12 @@ public class MainFrame extends JFrame {
         rightWrap.add(contentPanel, BorderLayout.CENTER);
         add(rightWrap, BorderLayout.CENTER);
 
-        contentPanel.add(new DashboardPanel(), "dashboard");
-        contentPanel.add(new InOutManagementPanel(), "inout-management");
-        contentPanel.add(new ReturnDisposalPanel(), "return");
+        contentPanel.add(dashboardPanel, "dashboard");
+        contentPanel.add(inOutManagementPanel, "inout-management");
+        contentPanel.add(returnDisposalPanel, "return");
+        contentPanel.add(alertPanel, "alert");
+        contentPanel.add(statisticsGroupPanel, "statistics");
+        contentPanel.add(settingGroupPanel, "setting");
 
         cardLayout.show(contentPanel, "dashboard");
     }
@@ -62,6 +86,9 @@ public class MainFrame extends JFrame {
         sidebar.add(navButton("메인 화면", "dashboard"));
         sidebar.add(navButton("입출고 관리", "inout-management"));
         sidebar.add(navButton("반품 및 폐기 관리", "return"));
+        sidebar.add(navButton("알림", "alert"));
+        sidebar.add(navButton("통계", "statistics"));
+        sidebar.add(navButton("설정 및 권한 관리", "setting"));
 
         sidebar.add(Box.createVerticalGlue());
 
@@ -141,7 +168,29 @@ public class MainFrame extends JFrame {
         bar.setBackground(Color.WHITE);
         bar.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(0xdddddd)));
 
+        // 화면마다 따로 있던 새로고침 버튼들을 없애고, 여기 하나로 - 지금 보이는 화면만 다시 불러온다.
+        JButton screenRefreshBtn = new JButton("새로고침");
+        screenRefreshBtn.addActionListener(e -> refreshCurrentScreen());
+        bar.add(screenRefreshBtn);
+
         if (Session.isAdmin()) {
+            waitBadgeLabel = new JLabel(" ");
+            waitBadgeLabel.setForeground(new Color(0xB05A00));
+            waitBadgeLabel.setFont(waitBadgeLabel.getFont().deriveFont(Font.BOLD));
+            waitBadgeLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            // js/common.js putWaitCount() - <a href="approval.html"> 배지와 같이, 누르면 승인 요청 탭으로 간다.
+            waitBadgeLabel.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    cardLayout.show(contentPanel, "setting");
+                    settingGroupPanel.showApprovalTab(0);
+                }
+            });
+            bar.add(waitBadgeLabel);
+            refreshWaitBadge();
+            AppEventBus.subscribe("approval", this::refreshWaitBadge);
+            new Timer(5000, e -> refreshWaitBadge()).start();
+
             simulatorBtn = new JButton("시뮬레이터");
             simulatorBtn.addActionListener(e -> toggleFlag(SIMULATOR, simulatorBtn, "시뮬레이터"));
 
@@ -170,6 +219,28 @@ public class MainFrame extends JFrame {
         bar.add(welcome);
 
         return bar;
+    }
+
+    // 지금 CardLayout에서 보이는 화면 하나만 찾아 다시 불러온다 (숨겨진 카드는 isVisible()==false).
+    private void refreshCurrentScreen() {
+        for (Component c : contentPanel.getComponents()) {
+            if (c.isVisible() && c instanceof Refreshable refreshable) {
+                refreshable.refreshAll();
+            }
+        }
+    }
+
+    // 웹 버전 putWaitCount(js/common.js) - 대기 중인 승인요청이 있으면 배지로 보여준다.
+    private void refreshWaitBadge() {
+        if (waitBadgeLabel == null) {
+            return;
+        }
+        try (Connection conn = DBConnection.getConnection()) {
+            int count = approvalDao.count(conn, "대기", null, null);
+            waitBadgeLabel.setText(count == 0 ? " " : "승인 대기 " + count + "건");
+        } catch (Exception e) {
+            waitBadgeLabel.setText(" ");
+        }
     }
 
     private void toggleFlag(String toggleName, JButton btn, String label) {

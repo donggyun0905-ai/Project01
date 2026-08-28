@@ -13,6 +13,8 @@ import com.dmart.dto.Zone;
 import javax.swing.*;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableCellEditor;
+import javax.swing.table.TableCellRenderer;
 import java.awt.*;
 import java.sql.Connection;
 import java.time.LocalDate;
@@ -25,12 +27,14 @@ import java.util.Map;
 // 품목 관리 - item.html의 CRUD를 옮김. 삭제 대신 비활성화(재고가 남아있으면 막힘) +
 // 되살리기, 검색 필드 선택(전체/품목코드/품목명/카테고리/단위), 사용중/비활성 필터,
 // 총재고 색상 표시, 행 더블클릭 시 재고 상세(로트별 창고/구역/유통기한) 모달을 지원한다.
-public class ItemPanel extends JPanel {
+public class ItemPanel extends JPanel implements Refreshable {
 
     private static final int COL_ID = 0;
     private static final int COL_MIN = 4;
     private static final int COL_MAX = 5;
     private static final int COL_STOCK = 7;
+    private static final int COL_STATUS = 8;
+    private static final int COL_MANAGE = 9;
 
     private final ItemDao itemDao = new ItemDao();
     private final StockLotDao stockLotDao = new StockLotDao();
@@ -38,15 +42,14 @@ public class ItemPanel extends JPanel {
     private final ZoneDao zoneDao = new ZoneDao();
 
     private final DefaultTableModel tableModel = new DefaultTableModel(
-            new Object[]{"ID", "품목명", "카테고리", "단위", "재고부족 기준", "재고초과 기준", "유통기한(일)", "총 재고", "상태"}, 0) {
-        public boolean isCellEditable(int r, int c) { return false; }
+            new Object[]{"ID", "품목명", "카테고리", "단위", "재고부족 기준", "재고초과 기준", "유통기한(일)", "총 재고", "상태", "관리"}, 0) {
+        public boolean isCellEditable(int r, int c) { return c == COL_MANAGE; }
     };
     private final JTable table = new JTable(tableModel);
 
     private final JComboBox<String> fieldBox = new JComboBox<>(new String[]{"전체", "품목 코드", "품목명", "카테고리", "단위"});
     private final JTextField searchField = new JTextField(14);
     private final JComboBox<String> activeFilterBox = new JComboBox<>(new String[]{"사용 중", "비활성"});
-    private final JButton toggleActiveBtn = new JButton("비활성화");
     private final JLabel countLabel = new JLabel(" ");
 
     public ItemPanel() {
@@ -58,7 +61,12 @@ public class ItemPanel extends JPanel {
         add(countLabel, BorderLayout.SOUTH);
 
         table.getColumnModel().getColumn(COL_STOCK).setCellRenderer(new StockCellRenderer());
-        table.getSelectionModel().addListSelectionListener(e -> updateToggleButtonLabel());
+        table.getColumnModel().getColumn(COL_MANAGE).setCellRenderer(new ManageButtonsRenderer());
+        table.getColumnModel().getColumn(COL_MANAGE).setCellEditor(new ManageButtonsEditor());
+        int manageWidth = 170;
+        table.getColumnModel().getColumn(COL_MANAGE).setPreferredWidth(manageWidth);
+        table.getColumnModel().getColumn(COL_MANAGE).setMinWidth(manageWidth);
+        UiUtil.applyStandardRowHeight(table);
         table.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mouseClicked(java.awt.event.MouseEvent e) {
@@ -95,33 +103,11 @@ public class ItemPanel extends JPanel {
             openForm(null);
         });
 
-        JButton editBtn = new JButton("수정");
-        editBtn.addActionListener(e -> {
-            if (!requireAdmin()) { return; }
-            Item selected = getSelectedItem();
-            if (selected == null) {
-                UiUtil.showError(this, "수정할 품목을 선택해 주세요.");
-                return;
-            }
-            openForm(selected);
-        });
-
-        toggleActiveBtn.addActionListener(e -> {
-            if (!requireAdmin()) { return; }
-            toggleActive();
-        });
-
-        JButton refreshBtn = new JButton("새로고침");
-        refreshBtn.addActionListener(e -> refresh());
-
         JButton detailBtn = new JButton("재고 상세");
         detailBtn.addActionListener(e -> openStockDetail());
 
         right.add(addBtn);
-        right.add(editBtn);
-        right.add(toggleActiveBtn);
         right.add(detailBtn);
-        right.add(refreshBtn);
         wrap.add(right, BorderLayout.EAST);
         return wrap;
     }
@@ -148,15 +134,7 @@ public class ItemPanel extends JPanel {
         }
     }
 
-    private void updateToggleButtonLabel() {
-        int row = table.getSelectedRow();
-        if (row < 0) {
-            toggleActiveBtn.setText("비활성화");
-            return;
-        }
-        String status = (String) tableModel.getValueAt(row, tableModel.getColumnCount() - 1);
-        toggleActiveBtn.setText("사용중".equals(status) ? "비활성화" : "되살리기");
-    }
+    public void refreshAll() { refresh(); }
 
     private void refresh() {
         try (Connection conn = DBConnection.getConnection()) {
@@ -190,11 +168,11 @@ public class ItemPanel extends JPanel {
                         item.getThresholdMin(), item.getCapacityMax(),
                         item.getShelfLifeDays() == null ? "-" : item.getShelfLifeDays() + "일",
                         totalStock,
-                        Boolean.TRUE.equals(item.getIsActive()) ? "사용중" : "비활성"
+                        Boolean.TRUE.equals(item.getIsActive()) ? "사용중" : "비활성",
+                        ""
                 });
             }
             countLabel.setText("총 " + total + "건");
-            updateToggleButtonLabel();
 
         } catch (Exception e) {
             UiUtil.showError(this, e);
@@ -262,14 +240,35 @@ public class ItemPanel extends JPanel {
         }
     }
 
+    private Item getItemAtRow(int modelRow) {
+        try (Connection conn = DBConnection.getConnection()) {
+            Long itemId = ((Number) tableModel.getValueAt(modelRow, COL_ID)).longValue();
+            return itemDao.findById(conn, itemId);
+        } catch (Exception e) {
+            UiUtil.showError(this, e);
+            return null;
+        }
+    }
+
+    private void onEditRow(int modelRow) {
+        if (!requireAdmin()) { return; }
+        Item item = getItemAtRow(modelRow);
+        if (item != null) {
+            openForm(item);
+        }
+    }
+
+    private void onToggleRow(int modelRow) {
+        if (!requireAdmin()) { return; }
+        Item item = getItemAtRow(modelRow);
+        if (item != null) {
+            toggleActive(item);
+        }
+    }
+
     // item.html doDisable()/doEnable() - 실제로 지우지 않고 사용 여부만 바꾼다.
     // 재고가 남아있으면(출고/폐기로 0을 만들기 전에는) 비활성화를 막는다.
-    private void toggleActive() {
-        Item selected = getSelectedItem();
-        if (selected == null) {
-            UiUtil.showError(this, "대상 품목을 선택해 주세요.");
-            return;
-        }
+    private void toggleActive(Item selected) {
         boolean currentlyActive = Boolean.TRUE.equals(selected.getIsActive());
 
         try {
@@ -375,6 +374,7 @@ public class ItemPanel extends JPanel {
         }
 
         JTable lotTable = new JTable(lotModel);
+        UiUtil.applyStandardRowHeight(lotTable);
         lotTable.getColumnModel().getColumn(4).setCellRenderer(new NearExpiryRenderer());
 
         JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(this),
@@ -424,6 +424,64 @@ public class ItemPanel extends JPanel {
             }
             setText(value == null ? "" : String.format("%,d", ((Number) value).intValue()));
             return c;
+        }
+    }
+
+    // item.html의 관리 칸 - 수정 버튼은 항상 같고, 두 번째 버튼은 그 행의 상태(사용중/비활성)에
+    // 따라 "비활성"/"되살리기"로 바뀐다(doDisable/doEnable).
+    private class ManageButtonsRenderer extends JPanel implements TableCellRenderer {
+        private final JButton editBtn = new JButton("수정");
+        private final JButton toggleBtn = new JButton("비활성");
+
+        ManageButtonsRenderer() {
+            super(new FlowLayout(FlowLayout.CENTER, 4, 0));
+            add(editBtn);
+            add(toggleBtn);
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
+                                                         boolean hasFocus, int row, int column) {
+            int modelRow = table.convertRowIndexToModel(row);
+            String status = (String) tableModel.getValueAt(modelRow, COL_STATUS);
+            toggleBtn.setText("사용중".equals(status) ? "비활성" : "되살리기");
+            setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
+            return this;
+        }
+    }
+
+    private class ManageButtonsEditor extends AbstractCellEditor implements TableCellEditor {
+        private final JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 4, 0));
+        private final JButton editBtn = new JButton("수정");
+        private final JButton toggleBtn = new JButton("비활성");
+        private int row;
+
+        ManageButtonsEditor() {
+            panel.add(editBtn);
+            panel.add(toggleBtn);
+            editBtn.addActionListener(e -> {
+                int clickedRow = row;
+                fireEditingStopped();
+                onEditRow(clickedRow);
+            });
+            toggleBtn.addActionListener(e -> {
+                int clickedRow = row;
+                fireEditingStopped();
+                onToggleRow(clickedRow);
+            });
+        }
+
+        @Override
+        public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
+            this.row = table.convertRowIndexToModel(row);
+            String status = (String) tableModel.getValueAt(this.row, COL_STATUS);
+            toggleBtn.setText("사용중".equals(status) ? "비활성" : "되살리기");
+            return panel;
+        }
+
+        @Override
+        public Object getCellEditorValue() {
+            return "";
         }
     }
 

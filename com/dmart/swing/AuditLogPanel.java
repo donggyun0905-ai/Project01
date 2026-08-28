@@ -13,19 +13,26 @@ import com.dmart.service.StockLotAdjustmentService;
 import com.dmart.util.JsonUtil;
 
 import javax.swing.*;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableCellEditor;
 import java.awt.*;
 import java.sql.Connection;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-// 감사로그 - audit.html을 옮김. 검색(변경유형/로트ID/품목명/담당자/기간) + 페이징 +
-// 품목명/변경전후 값 표시 + 삭제 기록 복원 + 로트 직접수정/삭제(10.2~10.4).
-public class AuditLogPanel extends JPanel {
+// 감사로그 - audit.html을 그대로 옮김. 검색(변경유형/로트번호/품목명/담당자/기간) + 페이징 +
+// 표 마지막 칸에 "되돌리기" 버튼을 바로 넣는다(삭제 기록이면서 아직 복원 안 된 행만 버튼이 뜨고,
+// 이미 복원됐으면 "되돌림", 그 외에는 "-"). html에 없는 "로트 직접수정/삭제" 창구는 뺐다.
+public class AuditLogPanel extends JPanel implements Refreshable {
 
     private static final int PAGE_SIZE = 20;
+    private static final int COL_RESTORE = 10;
+
+    private static final Map<String, String> TYPE_CODE = Map.of("수정", "UPDATE", "삭제", "DELETE", "복구", "RESTORE");
 
     private final StockChangeLogDao logDao = new StockChangeLogDao();
     private final StockLotDao stockLotDao = new StockLotDao();
@@ -34,19 +41,20 @@ public class AuditLogPanel extends JPanel {
     private final StockLotAdjustmentService adjustmentService = new StockLotAdjustmentService();
 
     private final DefaultTableModel logModel = new DefaultTableModel(
-            new Object[]{"로그 ID", "일시", "품목명", "로트 ID", "종류", "변경 전", "변경 후", "사유", "처리자", "복원됨"}, 0) {
-        public boolean isCellEditable(int r, int c) { return false; }
+            new Object[]{"NO", "변경 일시", "담당자", "변경 유형", "품목명", "품목 번호", "로트 번호",
+                    "변경 전(수량/상태)", "변경 후(수량/상태)", "사유", "되돌리기"}, 0) {
+        public boolean isCellEditable(int r, int c) { return c == COL_RESTORE && isRestorable(r); }
     };
     private final JTable logTable = new JTable(logModel);
+    private List<StockChangeLog> currentLogs = new ArrayList<>();
 
-    private final JComboBox<String> typeBox = new JComboBox<>(new String[]{"전체", "UPDATE", "DELETE", "RESTORE"});
+    private final JComboBox<String> typeBox = new JComboBox<>(new String[]{"전체", "수정", "삭제", "복구"});
     private final JTextField lotIdField = new JTextField(6);
     private final JTextField itemKeywordField = new JTextField(10);
     private final JTextField userKeywordField = new JTextField(8);
     private final JTextField fromField = new JTextField(10);
     private final JTextField toField = new JTextField(10);
     private final Pager pager = new Pager(PAGE_SIZE);
-    private final JButton restoreBtn = new JButton("선택 항목 되돌리기");
 
     public AuditLogPanel() {
         setLayout(new BorderLayout(10, 10));
@@ -62,9 +70,9 @@ public class AuditLogPanel extends JPanel {
         center.add(pager.build(this::refresh), BorderLayout.SOUTH);
         add(center, BorderLayout.CENTER);
 
-        add(buildBottomBar(), BorderLayout.SOUTH);
-
-        logTable.getSelectionModel().addListSelectionListener(e -> updateRestoreButtonState());
+        logTable.getColumnModel().getColumn(COL_RESTORE).setCellRenderer(new RestoreCellRenderer());
+        logTable.getColumnModel().getColumn(COL_RESTORE).setCellEditor(new RestoreCellEditor());
+        UiUtil.applyStandardRowHeight(logTable);
 
         refresh();
         AppEventBus.subscribe("auditLog", this::refresh);
@@ -72,9 +80,10 @@ public class AuditLogPanel extends JPanel {
 
     private JComponent buildSearchRow() {
         JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
-        row.add(new JLabel("종류"));
+        row.add(new JLabel("변경 유형"));
+        typeBox.addActionListener(e -> { pager.page = 1; refresh(); });
         row.add(typeBox);
-        row.add(new JLabel("로트ID"));
+        row.add(new JLabel("로트 번호"));
         row.add(lotIdField);
         row.add(new JLabel("품목명"));
         row.add(itemKeywordField);
@@ -84,36 +93,28 @@ public class AuditLogPanel extends JPanel {
         row.add(fromField);
         row.add(new JLabel("~"));
         row.add(toField);
-        JButton searchBtn = new JButton("검색");
+        JButton searchBtn = new JButton("조회");
         searchBtn.addActionListener(e -> { pager.page = 1; refresh(); });
         row.add(searchBtn);
         return row;
     }
 
-    private JComponent buildBottomBar() {
-        JPanel bar = new JPanel();
-        restoreBtn.addActionListener(e -> restoreSelected());
-        JButton adjustBtn = new JButton("로트 직접수정/삭제");
-        adjustBtn.addActionListener(e -> openAdjustForm());
-        bar.add(restoreBtn);
-        bar.add(adjustBtn);
-        return bar;
+    // audit.html - 되돌리기는 "삭제" 기록에만 붙인다(휴지통 개념). "수정" 기록은 그 이후에
+    // 실제 출고/이동 등이 이미 일어났을 수 있어 되돌리기 대상이 아니다(서버도 DELETE 외엔 거절함).
+    private boolean isRestorable(int modelRow) {
+        if (modelRow < 0 || modelRow >= currentLogs.size()) {
+            return false;
+        }
+        StockChangeLog log = currentLogs.get(modelRow);
+        return "DELETE".equals(log.getChangeType()) && !Boolean.TRUE.equals(log.getIsReverted());
     }
 
-    private void updateRestoreButtonState() {
-        int row = logTable.getSelectedRow();
-        if (row < 0) {
-            restoreBtn.setEnabled(false);
-            return;
-        }
-        String type = (String) logModel.getValueAt(row, 4);
-        String reverted = (String) logModel.getValueAt(row, 9);
-        restoreBtn.setEnabled("DELETE".equals(type) && "아니오".equals(reverted));
-    }
+    public void refreshAll() { refresh(); }
 
     private void refresh() {
         try (Connection conn = DBConnection.getConnection()) {
-            String type = "전체".equals(typeBox.getSelectedItem()) ? null : (String) typeBox.getSelectedItem();
+            Object selectedType = typeBox.getSelectedItem();
+            String type = "전체".equals(selectedType) ? null : TYPE_CODE.get(selectedType);
             Long lotId = parseLongOrNull(lotIdField.getText());
             String itemKeyword = blankToNull(itemKeywordField.getText());
             String userKeyword = blankToNull(userKeywordField.getText());
@@ -124,6 +125,7 @@ public class AuditLogPanel extends JPanel {
             pager.total = total;
             int offset = (pager.page - 1) * PAGE_SIZE;
             List<StockChangeLog> logs = logDao.findPage(conn, lotId, type, from, to, itemKeyword, userKeyword, offset, PAGE_SIZE);
+            currentLogs = logs;
 
             Map<Long, Item> itemMap = new HashMap<>();
             for (Item item : itemDao.findAll(conn)) {
@@ -135,31 +137,52 @@ public class AuditLogPanel extends JPanel {
             }
 
             logModel.setRowCount(0);
-            for (StockChangeLog log : logs) {
+            int startNo = offset;
+            for (int i = 0; i < logs.size(); i++) {
+                StockChangeLog log = logs.get(i);
                 String itemName = "-";
+                String itemNo = "-";
                 StockLot lot = stockLotDao.findById(conn, log.getLotId());
                 if (lot != null) {
                     Item item = itemMap.get(lot.getItemId());
                     if (item != null) {
                         itemName = item.getItemName();
+                        itemNo = "ITEM-" + item.getItemId();
                     }
                 }
                 AppUser user = userMap.get(log.getChangedBy());
 
+                String restoreCell;
+                if (!"DELETE".equals(log.getChangeType())) {
+                    restoreCell = "-";
+                } else if (Boolean.TRUE.equals(log.getIsReverted())) {
+                    restoreCell = "되돌림";
+                } else {
+                    restoreCell = "되돌리기";
+                }
+
                 logModel.addRow(new Object[]{
-                        log.getLogId(), log.getChangedAt(), itemName, log.getLotId(), log.getChangeType(),
+                        startNo + i + 1, log.getChangedAt(),
+                        user != null ? user.getName() : ("사용자 " + log.getChangedBy()),
+                        changeTypeText(log.getChangeType()),
+                        itemName, itemNo, "LOT-" + log.getLotId(),
                         shortValue(log.getBeforeValue()), shortValue(log.getAfterValue()),
                         log.getReason() == null ? "-" : log.getReason(),
-                        user != null ? user.getName() : ("사용자 " + log.getChangedBy()),
-                        Boolean.TRUE.equals(log.getIsReverted()) ? "예" : "아니오"
+                        restoreCell
                 });
             }
             pager.updateLabel();
-            updateRestoreButtonState();
 
         } catch (Exception e) {
             UiUtil.showError(this, e);
         }
+    }
+
+    private String changeTypeText(String type) {
+        if ("UPDATE".equals(type)) { return "수정"; }
+        if ("DELETE".equals(type)) { return "삭제"; }
+        if ("RESTORE".equals(type)) { return "복구"; }
+        return type;
     }
 
     // audit.html shortValue() - beforeValue/afterValue는 {"quantity":n,"status":"NORMAL"} 형태의
@@ -186,61 +209,21 @@ public class AuditLogPanel extends JPanel {
         }
     }
 
-    // 10.4 - DELETE 기록만 복원 가능(휴지통 개념). StockLotAdjustmentService.restore()가 그대로 검증해 준다.
-    private void restoreSelected() {
-        int row = logTable.getSelectedRow();
-        if (row < 0) {
-            UiUtil.showError(this, "복원할 삭제기록을 선택해 주세요.");
-            return;
-        }
-        Long logId = ((Number) logModel.getValueAt(row, 0)).longValue();
-        String before = (String) logModel.getValueAt(row, 5);
-        if (!UiUtil.confirm(this, "로그(id=" + logId + ")를 복원할까요?\n복원하면: " + before + " 상태로 되돌아갑니다.")) {
+    // audit.html doRestore()/afterRestore() - 변경 전 값으로 재고를 되돌리고, 되돌린 일 자체도
+    // 새 기록(RESTORE)으로 남긴다.
+    private void restoreRow(int modelRow) {
+        StockChangeLog log = currentLogs.get(modelRow);
+        String before = (String) logModel.getValueAt(modelRow, 7);
+        String after = (String) logModel.getValueAt(modelRow, 8);
+        if (!UiUtil.confirm(this, "LOT-" + log.getLotId() + " 를 아래 상태로 되돌릴까요?\n\n지금 : " + after + "\n되돌린 뒤 : " + before)) {
             return;
         }
         try {
-            StockLotAdjustmentService.RestoreResult result = adjustmentService.restore(logId, Session.getUserId());
-            UiUtil.showInfo(this, "복원 완료 - 로트 " + result.lotId + " (수량 " + result.restoredQuantity + ", 상태 " + result.restoredStatus + ")");
+            StockLotAdjustmentService.RestoreResult result = adjustmentService.restore(log.getLogId(), Session.getUserId());
             refresh();
             AppEventBus.publish("auditLog");
-        } catch (Exception e) {
-            UiUtil.showError(this, e);
-        }
-    }
-
-    // 10.2/10.3 - 재고 실사 오차 등을 관리자가 직접 보정하거나(수량/상태 변경), 잘못 등록된
-    // 로트를 소프트 삭제한다. 로트 ID를 직접 입력받는 간단한 창구.
-    private void openAdjustForm() {
-        JTextField lotIdField = new JTextField();
-        JTextField quantityField = new JTextField();
-        JComboBox<String> statusBox = new JComboBox<>(new String[]{"(변경 안 함)", "NORMAL", "DISPOSED", "RETURNED"});
-        JTextField reasonField = new JTextField();
-        JCheckBox deleteBox = new JCheckBox("이 로트 자체를 삭제(소프트 삭제)");
-
-        boolean ok = UiUtil.showFormDialog(this, "로트 직접수정 / 삭제",
-                new String[]{"로트 ID", "새 수량(선택, 비우면 안 바꿈)", "새 상태(선택)", "사유(필수)", ""},
-                new JComponent[]{lotIdField, quantityField, statusBox, reasonField, deleteBox});
-        if (!ok) {
-            return;
-        }
-
-        try {
-            Long lotId = Long.parseLong(lotIdField.getText().trim());
-            String reason = reasonField.getText().trim();
-
-            if (deleteBox.isSelected()) {
-                adjustmentService.delete(lotId, reason, Session.getUserId());
-                UiUtil.showInfo(this, "로트 " + lotId + "를 삭제(소프트 삭제) 처리했습니다.");
-            } else {
-                Integer qty = UiUtil.parseIntOrNull(quantityField.getText());
-                String status = "(변경 안 함)".equals(statusBox.getSelectedItem()) ? null : (String) statusBox.getSelectedItem();
-                StockLotAdjustmentService.AdjustResult result = adjustmentService.adjust(lotId, qty, status, reason, Session.getUserId());
-                UiUtil.showInfo(this, "수정 완료 - 로트 " + result.lotId + " (수량 " + result.quantity + ", 상태 " + result.status + ")");
-            }
-            refresh();
-            AppEventBus.publish("auditLog");
-        } catch (NumberFormatException nfe) {
-            UiUtil.showError(this, "로트 ID/수량은 숫자로 입력해 주세요.");
+            UiUtil.showInfo(this, "되돌렸습니다.\nLOT-" + result.lotId + " 이(가) 수량 " + result.restoredQuantity
+                    + ", 상태 " + result.restoredStatus + " 로 복구되었습니다.");
         } catch (Exception e) {
             UiUtil.showError(this, e);
         }
@@ -273,6 +256,48 @@ public class AuditLogPanel extends JPanel {
             return LocalDate.parse(text.trim());
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    // 되돌릴 수 있는 행만 실제 버튼을 보여준다 - 아니면 표의 값("되돌림"/"-")을 그냥 그린다.
+    private class RestoreCellRenderer extends DefaultTableCellRenderer {
+        private final JButton button = new JButton("되돌리기");
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
+                                                         boolean hasFocus, int row, int column) {
+            int modelRow = table.convertRowIndexToModel(row);
+            if (isRestorable(modelRow)) {
+                return button;
+            }
+            Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            setHorizontalAlignment(CENTER);
+            return c;
+        }
+    }
+
+    // isCellEditable이 restorable한 행에서만 true를 돌려주므로, 이 에디터는 눌렸을 때 항상
+    // 되돌리기를 실행하면 된다.
+    private class RestoreCellEditor extends AbstractCellEditor implements TableCellEditor {
+        private final JButton button = new JButton("되돌리기");
+        private int row;
+
+        RestoreCellEditor() {
+            button.addActionListener(e -> {
+                int clickedRow = row;
+                fireEditingStopped();
+                restoreRow(clickedRow);
+            });
+        }
+
+        @Override
+        public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
+            this.row = table.convertRowIndexToModel(row);
+            return button;
+        }
+
+        @Override
+        public Object getCellEditorValue() {
+            return "되돌리기";
         }
     }
 }

@@ -32,7 +32,7 @@ import java.util.Map;
 // 메인 화면 - dashboard.html을 옮김. 요약 카드 5개 + 입출고 현황 막대그래프 + 창고별 재고
 // 비중 도넛그래프(호버 시 팔레트/박스/EA 소분류) + 실시간 알림(5초마다 자동 갱신).
 // 차트 라이브러리가 없어 BarChartPanel/DonutChartPanel로 직접 그린다.
-public class DashboardPanel extends JPanel {
+public class DashboardPanel extends JPanel implements Refreshable {
 
     private final ItemDao itemDao = new ItemDao();
     private final WarehouseDao warehouseDao = new WarehouseDao();
@@ -103,10 +103,7 @@ public class DashboardPanel extends JPanel {
         JPanel titleRow = new JPanel(new BorderLayout());
         JLabel title = new JLabel("메인 화면");
         title.setFont(title.getFont().deriveFont(Font.BOLD, 22f));
-        JButton refreshBtn = new JButton("새로고침");
-        refreshBtn.addActionListener(e -> refreshAll());
         titleRow.add(title, BorderLayout.WEST);
-        titleRow.add(refreshBtn, BorderLayout.EAST);
 
         JPanel filterRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 8));
         filterRow.add(new JLabel("창고"));
@@ -174,7 +171,7 @@ public class DashboardPanel extends JPanel {
         return d.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
     }
 
-    private void refreshAll() {
+    public void refreshAll() {
         refreshItemCount();
         refreshWarehouseStockAndDonut();
         refreshDailyCompare();
