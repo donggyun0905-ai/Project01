@@ -436,9 +436,13 @@ public class WarehouseZonePanel extends JPanel implements Refreshable {
                 warehouseNames.put(wh.getWarehouseId(), wh.getName() + "(" + wh.getLocation() + ")");
             }
 
+            // [성능] 구역 수만큼 sumQuantityByZoneId를 왕복하는 대신, 한 번의 GROUP BY로
+            // 전체를 모아온 뒤 여기서는 Map만 조회한다.
+            Map<Long, Integer> stockByZone = stockLotDao.sumQuantityGroupByZoneId(conn);
+
             zoneModel.setRowCount(0);
             for (Zone zone : zones) {
-                int used = stockLotDao.sumQuantityByZoneId(conn, zone.getZoneId());
+                int used = stockByZone.getOrDefault(zone.getZoneId(), 0);
                 int percent = zone.getCapacity() != null && zone.getCapacity() > 0
                         ? (int) Math.round(used * 100.0 / zone.getCapacity()) : 0;
                 zoneModel.addRow(new Object[]{

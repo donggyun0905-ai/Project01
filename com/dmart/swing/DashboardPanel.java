@@ -341,8 +341,12 @@ public class DashboardPanel extends JPanel implements Refreshable {
             unitTotal.put("BOX", 0);
             unitTotal.put("EA", 0);
 
+            // [성능] 구역 수만큼 sumQuantityByZoneId를 왕복하는 대신, 한 번의 GROUP BY로
+            // 전체를 모아온 뒤 여기서는 Map만 조회한다 - 메인 화면은 로그인 직후 가장 먼저
+            // 보이는 화면이라 여기 로딩 지연이 가장 눈에 띈다.
+            Map<Long, Integer> stockByZone = stockLotDao.sumQuantityGroupByZoneId(conn);
             for (Zone zone : zoneDao.findAll(conn)) {
-                int used = stockLotDao.sumQuantityByZoneId(conn, zone.getZoneId());
+                int used = stockByZone.getOrDefault(zone.getZoneId(), 0);
                 String group = whGroupOf.get(zone.getWarehouseId());
                 String unit = zone.getZoneName();
 

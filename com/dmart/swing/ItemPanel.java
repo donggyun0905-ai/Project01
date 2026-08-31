@@ -200,9 +200,13 @@ public class ItemPanel extends JPanel implements Refreshable {
             int offset = (pager.page - 1) * PAGE_SIZE;
             List<Item> items = itemDao.findPage(conn, category, keyword, unit, itemId, active, sortDesc, offset, PAGE_SIZE);
 
+            // [성능] 페이지에 있는 품목 수만큼 sumQuantityByItemId를 왕복하는 대신, 한 번의
+            // GROUP BY로 전체를 모아온 뒤 여기서는 Map만 조회한다.
+            Map<Long, Integer> stockByItem = stockLotDao.sumQuantityGroupByItemId(conn);
+
             tableModel.setRowCount(0);
             for (Item item : items) {
-                int totalStock = stockLotDao.sumQuantityByItemId(conn, item.getItemId());
+                int totalStock = stockByItem.getOrDefault(item.getItemId(), 0);
                 tableModel.addRow(new Object[]{
                         item.getItemId(), item.getItemName(), nz(item.getCategory()), item.getUnit(),
                         item.getThresholdMin(), item.getCapacityMax(),

@@ -16,6 +16,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
@@ -170,10 +171,16 @@ public class SimulatorService {
         List<Item> items = itemDao.findAll(conn);
         items.removeIf(i -> i.getIsActive() != null && !i.getIsActive());
 
+        // [성능] 시뮬레이터가 켜져 있으면 이 메서드가 몇 초마다 반복 실행되는데, 예전엔
+        // 품목 하나하나(250개+)마다 sumQuantityByItemId를 왕복 조회해서 그때마다 DB 왕복이
+        // 250번+ 쌓였다(다른 화면 로딩이 같이 느려지는 원인). 한 번의 GROUP BY로 모아온
+        // Map만 조회하도록 바꾼다.
+        Map<Long, Integer> stockByItem = stockLotDao.sumQuantityGroupByItemId(conn);
+
         List<Item> shortage = new java.util.ArrayList<>();
         List<Item> roomLeft = new java.util.ArrayList<>();
         for (Item i : items) {
-            int stock = stockLotDao.sumQuantityByItemId(conn, i.getItemId());
+            int stock = stockByItem.getOrDefault(i.getItemId(), 0);
             if (i.getThresholdMin() != null && stock < i.getThresholdMin()) {
                 shortage.add(i);
             }

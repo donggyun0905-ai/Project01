@@ -5,7 +5,9 @@ import com.dmart.dto.StockLot;
 import java.sql.*;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class StockLotDao {
 
@@ -167,6 +169,31 @@ public class StockLotDao {
                 return rs.getInt(1);
             }
         }
+    }
+
+    // [성능] 화면이 구역/품목마다 sumQuantityByZoneId/sumQuantityByItemId를 반복 호출하면
+    // (창고및구역관리 - 구역 수만큼, 메인화면 도넛차트 - 구역 수만큼, 품목관리 - 페이지당 10번)
+    // 왕복 횟수만큼 지연이 쌓인다. 한 번의 GROUP BY로 전부 모아온 뒤 화면에서는 Map만 조회하게 한다.
+    public Map<Long, Integer> sumQuantityGroupByZoneId(Connection conn) throws SQLException {
+        String sql = "SELECT zone_id, COALESCE(SUM(quantity), 0) qty FROM STOCK_LOT WHERE status = 'NORMAL' GROUP BY zone_id";
+        Map<Long, Integer> result = new HashMap<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                result.put(rs.getLong("zone_id"), rs.getInt("qty"));
+            }
+        }
+        return result;
+    }
+
+    public Map<Long, Integer> sumQuantityGroupByItemId(Connection conn) throws SQLException {
+        String sql = "SELECT item_id, COALESCE(SUM(quantity), 0) qty FROM STOCK_LOT WHERE status = 'NORMAL' GROUP BY item_id";
+        Map<Long, Integer> result = new HashMap<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                result.put(rs.getLong("item_id"), rs.getInt("qty"));
+            }
+        }
+        return result;
     }
 
     // 승인 자동실행(발주)에서 zoneId/partnerId 기본값을 정할 때 사용 — 12번 참고.
