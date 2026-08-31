@@ -611,10 +611,49 @@ public class ReportPanel extends BasePanel implements Refreshable {
         }
     }
 
+    /**
+     * 파일 저장 대화상자를 엽니다.
+     *
+     * [버그 수정] 예전엔 두 가지가 빠져 있었습니다.
+     *   1) 확장자 검사 없음 - 파일명 칸에서 사용자가 ".xlsx"를 지우고 저장하면 확장자
+     *      없는 파일이 그대로 만들어졌습니다. 이제 선택한 파일이 원하는 확장자로 안
+     *      끝나면 자동으로 붙여 줍니다.
+     *   2) 덮어쓰기 확인 없음 - Swing 기본 JFileChooser는 (OS 네이티브 대화상자와
+     *      달리) 같은 이름 파일이 있어도 아무 경고 없이 그냥 진행합니다. 그래서 전에
+     *      저장해 둔 보고서를 실수로 말없이 덮어쓸 수 있었습니다. 이제 이미 있는
+     *      파일이면 확인창을 띄우고, "아니오"를 고르면 파일 선택 창을 다시 엽니다.
+     */
     private File chooseSaveFile(String defaultName) {
-        JFileChooser chooser = new JFileChooser();
-        chooser.setSelectedFile(new File(defaultName));
-        int result = chooser.showSaveDialog(this);
-        return result == JFileChooser.APPROVE_OPTION ? chooser.getSelectedFile() : null;
+
+        String ext = defaultName.contains(".")
+                ? defaultName.substring(defaultName.lastIndexOf('.') + 1).toLowerCase()
+                : "";
+
+        while (true) {
+            JFileChooser chooser = new JFileChooser();
+            chooser.setSelectedFile(new File(defaultName));
+            int result = chooser.showSaveDialog(this);
+            if (result != JFileChooser.APPROVE_OPTION) {
+                return null; // 취소
+            }
+
+            File file = chooser.getSelectedFile();
+
+            // 확장자가 안 맞으면 붙여 줍니다 (이미 다른 대문자/소문자로 맞게 끝나면 그대로 둠)
+            if (!ext.isEmpty() && !file.getName().toLowerCase().endsWith("." + ext)) {
+                file = new File(file.getParentFile(), file.getName() + "." + ext);
+            }
+
+            if (file.exists()) {
+                int confirm = DmartDialog.showConfirmDialog(this,
+                        file.getName() + " 파일이 이미 있습니다. 덮어쓸까요?",
+                        "확인", JOptionPane.YES_NO_OPTION);
+                if (confirm != JOptionPane.YES_OPTION) {
+                    continue; // "아니오" - 다시 파일 선택 창을 엽니다
+                }
+            }
+
+            return file;
+        }
     }
 }

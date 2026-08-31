@@ -500,11 +500,28 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
                 } else if ("outbound".equals(result.executedService)) {
                     msg.append("\n요청 ").append(result.requestedQty)
                        .append("개 중 ").append(result.fulfilledQty).append("개 출고 처리됨");
-                    if (result.shortageApprovalId != null) {
-                        msg.append("\n부족분은 자동 발주(승인ID ").append(result.shortageApprovalId).append(")로 이어졌습니다");
-                    }
                 } else if ("inbound".equals(result.executedService)) {
                     msg.append("\n입고 처리됨");
+                }
+
+                // [버그 수정] 예전엔 "부족했던 만큼은 자동 발주로 이어졌습니다" 한 줄로 뭉뚱그려서,
+                // 그 부족분이 자동 입고까지 되고 나서 요청한 만큼 전부 출고됐는지, 아니면 자동
+                // 입고를 해도 여전히 못 채운 게 있는지 사용자가 알 수 없었습니다. 원본처럼
+                // fulfilledQty와 requestedQty를 비교해서 실제로 몇 개가 출고되지 못했는지
+                // 정확히 알려줍니다. (원본과 같이 executedService와 무관하게 검사합니다 -
+                // shortageApprovalId 자체가 출고일 때만 채워지는 값이라 자연히 출고에만 걸립니다)
+                if (result.shortageApprovalId != null) {
+                    if (result.fulfilledQty != null && result.requestedQty != null
+                            && result.fulfilledQty >= result.requestedQty) {
+                        msg.append("\n\n재고가 부족했던 만큼은 승인 없이 자동으로 입고 처리한 뒤 요청한 수량을 전부 출고했습니다")
+                           .append(" (자동 발주 승인번호 ").append(result.shortageApprovalId).append(").");
+                    } else {
+                        int notFulfilled = (result.requestedQty == null ? 0 : result.requestedQty)
+                                - (result.fulfilledQty == null ? 0 : result.fulfilledQty);
+                        msg.append("\n\n재고가 부족해서 자동으로 입고까지는 처리했지만(자동 발주 승인번호 ")
+                           .append(result.shortageApprovalId).append("), 그래도 ").append(notFulfilled)
+                           .append("개는 출고하지 못했습니다.");
+                    }
                 }
             }
             DmartDialog.showMessageDialog(this, msg.toString());
