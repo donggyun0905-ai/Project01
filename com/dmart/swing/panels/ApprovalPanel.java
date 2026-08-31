@@ -165,6 +165,7 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
             if (nameField.hasFocus() || dialogOpen) {
                 return;
             }
+            loadMasterData();
             loadRequestData();
             loadConsolData();
             loadExcessData();
@@ -175,6 +176,11 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         for (String topic : new String[]{"approval", "alert", "outbound", "disposal"}) {
             AppEventBus.subscribe(topic, this::refreshAll);
         }
+        // [버그 수정] loadMasterData()(itemNames 등)를 처음 한 번만 불러오고 다시 안 불러와서,
+        // 앱이 켜져 있는 동안 새로 등록된 품목은 이 화면에서 "품목 253"처럼 이름 없이 ID로만
+        // 떴다(재고부족 알림→발주 승인 요청이 그 사이에 새로 만들어진 품목을 가리키는 경우 등).
+        // 품목 관리에서 등록하면 바로 반영되게 별도로 구독한다.
+        AppEventBus.subscribe("item", this::loadMasterData);
     }
 
     @Override
@@ -182,6 +188,7 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         if (nameField.hasFocus() || dialogOpen) {
             return;
         }
+        loadMasterData();
         loadRequestData();
         loadConsolData();
         loadExcessData();
