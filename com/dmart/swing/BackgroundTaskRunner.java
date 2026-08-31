@@ -4,6 +4,7 @@ import com.dmart.dao.SystemToggleDao;
 import com.dmart.db.DBConnection;
 import com.dmart.service.AutoManageService;
 import com.dmart.service.SimulatorService;
+import com.dmart.service.WarehouseConsolidationService;
 
 import java.sql.Connection;
 import java.util.Set;
@@ -22,12 +23,17 @@ public class BackgroundTaskRunner {
 
     private static final long SIMULATOR_INTERVAL_SECONDS = 8;
     private static final long AUTO_MANAGE_INTERVAL_SECONDS = 5;
+    // 웹 버전은 WarehouseConsolidationStartupListener가 톰캣 기동 시 딱 1번만 스캔했다 - 톰캣
+    // 없이 이 앱만 켜져 있으면 그 스캔이 평생 한 번도 안 돌아 "창고정리추천" 알림이 절대 안
+    // 생기던 문제였다. 토글과 무관하게(항상 켜져 있는 부가 기능) 주기적으로 다시 스캔한다.
+    private static final long CONSOLIDATION_INTERVAL_SECONDS = 15;
 
     private static final AtomicBoolean started = new AtomicBoolean(false);
 
     private static final SystemToggleDao systemToggleDao = new SystemToggleDao();
     private static final SimulatorService simulatorService = new SimulatorService();
     private static final AutoManageService autoManageService = new AutoManageService();
+    private static final WarehouseConsolidationService warehouseConsolidationService = new WarehouseConsolidationService();
 
     public static void ensureStarted() {
         if (!started.compareAndSet(false, true)) {
@@ -44,6 +50,19 @@ public class BackgroundTaskRunner {
                 SIMULATOR_INTERVAL_SECONDS, SIMULATOR_INTERVAL_SECONDS, TimeUnit.SECONDS);
         executor.scheduleAtFixedRate(() -> tick(AUTO_MANAGE, autoManageService::runOnce),
                 AUTO_MANAGE_INTERVAL_SECONDS, AUTO_MANAGE_INTERVAL_SECONDS, TimeUnit.SECONDS);
+        executor.scheduleAtFixedRate(BackgroundTaskRunner::runConsolidationScan,
+                CONSOLIDATION_INTERVAL_SECONDS, CONSOLIDATION_INTERVAL_SECONDS, TimeUnit.SECONDS);
+    }
+
+    private static void runConsolidationScan() {
+        try {
+            int created = warehouseConsolidationService.scan();
+            if (created > 0) {
+                AppEventBus.publish(Set.of("approval", "alert"));
+            }
+        } catch (Exception e) {
+            System.err.println("[창고 정리 추천] 스캔 중 오류: " + e.getMessage());
+        }
     }
 
     @FunctionalInterface

@@ -29,7 +29,7 @@ import java.util.Map;
 // 로트별 이동 수량을 직접 입력해서 확정한다(출고 등록 화면과 같은 방식).
 public class TransferPanel extends JPanel implements Refreshable {
 
-    private static final int PAGE_SIZE = 20;
+    private static final int PAGE_SIZE = 10; // common.js의 pageSize와 동일
 
     private final ItemDao itemDao = new ItemDao();
     private final ZoneDao zoneDao = new ZoneDao();
@@ -54,17 +54,14 @@ public class TransferPanel extends JPanel implements Refreshable {
     };
     private final JTable historyTable = new JTable(historyModel);
     private final JTextField historyKeywordField = new JTextField(12);
-    private final JTextField historyFromField = new JTextField(10);
-    private final JTextField historyToField = new JTextField(10);
+    private final JTextField historyFromField = new DatePickerField(10);
+    private final JTextField historyToField = new DatePickerField(10);
     private final Pager historyPager = new Pager(PAGE_SIZE);
 
     public TransferPanel() {
-        setLayout(new BorderLayout(10, 10));
+        setLayout(new BorderLayout(10, 20));
         setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-
-        JLabel title = new JLabel("창고 간 재고 이동");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 22f));
-        add(title, BorderLayout.NORTH);
+        setBackground(UiUtil.COLOR_BODY_BG);
 
         loadItems();
         loadWarehouses(fromWarehouseBox);
@@ -78,28 +75,27 @@ public class TransferPanel extends JPanel implements Refreshable {
 
         JLabel dateLabel = new JLabel(LocalDate.now().toString());
 
-        // movement.html의 form-box(grid-template-columns: repeat(4,1fr)) - 라벨이 입력칸
-        // 위에 오고, 4칸씩 나란히 정렬된다.
-        JPanel form = new JPanel(new GridLayout(0, 4, 20, 16));
-        form.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
-        form.add(buildFieldGroup("이동일", dateLabel));
-        form.add(buildFieldGroup("품목명", itemBox));
-        form.add(buildFieldGroup("품목 코드", itemCodeLabel));
-        form.add(buildFieldGroup("출발 창고", fromWarehouseBox));
-        form.add(buildFieldGroup("출발 구역", fromZoneBox, fromAvailLabel));
-        form.add(buildFieldGroup("도착 창고", toWarehouseBox));
-        form.add(buildFieldGroup("도착 구역", toZoneBox, toRoomLabel));
+        // movement.html의 form-box(grid-template-columns: repeat(4,1fr)) 그대로 - 라벨이
+        // 입력칸 위에 오고, 4칸씩 나란히 정렬된다(다른 화면과 같은 UiUtil.formGroup/formGrid 사용).
+        JPanel form = UiUtil.formGrid(4,
+                UiUtil.formGroup("이동일", dateLabel),
+                UiUtil.formGroup("품목명", itemBox),
+                UiUtil.formGroup("품목 코드", itemCodeLabel),
+                UiUtil.formGroup("출발 창고", fromWarehouseBox),
+                UiUtil.formGroup("출발 구역", fromZoneBox, fromAvailLabel),
+                UiUtil.formGroup("도착 창고", toWarehouseBox),
+                UiUtil.formGroup("도착 구역", toZoneBox, toRoomLabel));
 
-        JButton recommendBtn = new JButton("자동 추천 및 확인");
-        recommendBtn.setFont(recommendBtn.getFont().deriveFont(Font.BOLD, 14f));
+        RoundedButton recommendBtn = new RoundedButton("자동 추천 및 확인", UiUtil.COLOR_BTN_MOVEMENT, Color.WHITE);
         recommendBtn.addActionListener(e -> onRecommendClicked());
+        UiUtil.sizeAsRegisterButton(recommendBtn);
 
-        JPanel top = new JPanel(new BorderLayout());
+        Card top = new Card(new BorderLayout(0, 10));
         top.add(form, BorderLayout.CENTER);
-        top.add(recommendBtn, BorderLayout.SOUTH);
+        top.add(UiUtil.compactLeft(recommendBtn), BorderLayout.SOUTH);
 
-        add(top, BorderLayout.CENTER);
-        add(buildHistoryArea(), BorderLayout.SOUTH);
+        add(top, BorderLayout.NORTH);
+        add(buildHistoryArea(), BorderLayout.CENTER);
 
         // 처음 열렸을 때 첫 창고/품목으로 기본값을 채워 둔다 (html은 사용자가 직접 입력하지만,
         // 콤보박스라 첫 항목이 이미 골라져 있는 게 자연스럽다).
@@ -111,26 +107,9 @@ public class TransferPanel extends JPanel implements Refreshable {
 
         refreshHistory();
         AppEventBus.subscribe("transfer", this::refreshHistory);
-    }
-
-    // movement.html의 .form-group(라벨이 입력칸 위) - 라벨 하나 아래로 필드(+안내 라벨)를 쌓는다.
-    private JComponent buildFieldGroup(String labelText, JComponent... fields) {
-        JPanel group = new JPanel();
-        group.setLayout(new BoxLayout(group, BoxLayout.Y_AXIS));
-
-        JLabel label = new JLabel(labelText);
-        label.setFont(label.getFont().deriveFont(Font.BOLD, 13f));
-        label.setAlignmentX(Component.LEFT_ALIGNMENT);
-        group.add(label);
-        group.add(Box.createVerticalStrut(4));
-
-        for (JComponent field : fields) {
-            field.setAlignmentX(Component.LEFT_ALIGNMENT);
-            field.setMaximumSize(new Dimension(Integer.MAX_VALUE, field.getPreferredSize().height));
-            group.add(field);
-            group.add(Box.createVerticalStrut(2));
-        }
-        return group;
+        // movement.html의 connectRealtimeRefresh(refreshIfIdle,["transfer"]) + setInterval(...,5000) -
+        // 다른 컴퓨터/다른 실행에서 생긴 변화도 놓치지 않도록 5초 폴링을 안전망으로 같이 둔다.
+        new Timer(5000, e -> { if (isShowing()) { refreshHistory(); } }).start();
     }
 
     private void loadItems() {
@@ -156,7 +135,9 @@ public class TransferPanel extends JPanel implements Refreshable {
     }
 
     // 품목명을 고르면 코드가 채워지고, 그 품목 단위와 같은 이름의 구역을 출발/도착 양쪽에서
-    // 자동으로 찾아 고른다 (movement.html changeItem()과 동일).
+    // 자동으로 찾아 고른다 (movement.html changeItem()과 동일). 추가로 출발 창고 드롭박스는
+    // 이 품목이 실제로 있는 창고만(수량과 함께) 보여주도록 다시 채운다 - 재고가 없는 창고를
+    // 골라서 옮길 게 없다는 걸 뒤늦게 알게 되는 걸 막는다.
     private void onItemChanged() {
         ItemOption item = (ItemOption) itemBox.getSelectedItem();
         if (item == null) {
@@ -164,10 +145,44 @@ public class TransferPanel extends JPanel implements Refreshable {
             return;
         }
         itemCodeLabel.setText("ITEM-" + item.item.getItemId());
+        loadWarehousesWithStock(item.item.getItemId());
         pickZoneMatchingUnit(fromZoneBox, item.item.getUnit());
         pickZoneMatchingUnit(toZoneBox, item.item.getUnit());
         updateFromAvailLabel();
         updateToRoomLabel();
+    }
+
+    // 이 품목의 정상 재고가 있는 창고만, 창고별 합계 수량과 함께 출발 창고 드롭박스에 채운다.
+    private void loadWarehousesWithStock(Long itemId) {
+        fromWarehouseBox.removeAllItems();
+        try (Connection conn = DBConnection.getConnection()) {
+            Map<Long, Long> zoneWarehouseId = new HashMap<>();
+            for (Zone zone : zoneDao.findAll(conn)) {
+                zoneWarehouseId.put(zone.getZoneId(), zone.getWarehouseId());
+            }
+
+            Map<Long, Integer> qtyByWarehouse = new HashMap<>();
+            List<StockLot> lots = stockLotDao.findPage(conn, itemId, null, null, "NORMAL", null, null, null, false, 0, 100000);
+            for (StockLot lot : lots) {
+                if (lot.getQuantity() == null || lot.getQuantity() <= 0) {
+                    continue;
+                }
+                Long whId = zoneWarehouseId.get(lot.getZoneId());
+                if (whId == null) {
+                    continue;
+                }
+                qtyByWarehouse.merge(whId, lot.getQuantity(), Integer::sum);
+            }
+
+            for (Warehouse wh : warehouseDao.findAll(conn)) {
+                Integer qty = qtyByWarehouse.get(wh.getWarehouseId());
+                if (qty != null && qty > 0) {
+                    fromWarehouseBox.addItem(new WarehouseOption(wh, qty));
+                }
+            }
+        } catch (Exception e) {
+            UiUtil.showError(this, e);
+        }
     }
 
     private void onFromWarehouseChanged() {
@@ -305,9 +320,8 @@ public class TransferPanel extends JPanel implements Refreshable {
             lots.sort(Comparator.comparing(StockLot::getInboundDate));
         }
 
-        JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(this),
-                "이동 로트 자동 추천 및 선택", Dialog.ModalityType.APPLICATION_MODAL);
-        dialog.setLayout(new BorderLayout(8, 8));
+        // movement.html #moveLotModal(.move-modal, width:1420 height:820)
+        JDialog dialog = UiUtil.createHtmlDialog(this, "이동 로트 자동 추천 및 선택");
 
         JLabel infoLabel = new JLabel("<html>" + item.item.getItemName() + " - "
                 + (fefo ? "유통기한 관리 대상입니다. <b>FEFO(유통기한 기준)</b> 순으로 로트를 보여줍니다."
@@ -325,7 +339,10 @@ public class TransferPanel extends JPanel implements Refreshable {
         top.setBorder(BorderFactory.createEmptyBorder(10, 10, 0, 10));
         top.add(infoLabel, BorderLayout.NORTH);
         top.add(totalRow, BorderLayout.SOUTH);
-        dialog.add(top, BorderLayout.NORTH);
+
+        JPanel body = new JPanel(new BorderLayout(8, 8));
+        body.add(top, BorderLayout.NORTH);
+        dialog.add(body, BorderLayout.CENTER);
 
         DefaultTableModel lotModel = new DefaultTableModel(
                 new Object[]{"순서", "로트 ID", "입고일", "유통기한", "사용가능", "이동 수량"}, 0) {
@@ -339,6 +356,10 @@ public class TransferPanel extends JPanel implements Refreshable {
         }
         JTable lotTable = new JTable(lotModel);
         UiUtil.applyStandardRowHeight(lotTable);
+        UiUtil.applyStandardHeaderStyle(lotTable);
+        // movement.html #moveLotModal 표 colgroup 비율(순서8/로트번호18/입고일18/유통기한26/이동수량30%)에
+        // 우리 표에만 있는 사용가능 칸을 더한 비율.
+        UiUtil.setColumnWidths(lotTable, 8, 16, 16, 22, 12, 26);
 
         lotModel.addTableModelListener(ev -> {
             if (ev.getColumn() != 5) {
@@ -395,12 +416,9 @@ public class TransferPanel extends JPanel implements Refreshable {
             totalQtyField.setText(String.valueOf(requested));
         });
 
-        dialog.add(new JScrollPane(lotTable), BorderLayout.CENTER);
+        body.add(new JScrollPane(lotTable), BorderLayout.CENTER);
 
-        JButton cancelBtn = new JButton("취소");
-        cancelBtn.addActionListener(ev -> dialog.dispose());
-        JButton registerBtn = new JButton("이동 등록");
-        registerBtn.addActionListener(ev -> {
+        Runnable doRegister = () -> {
             int total = 0;
             for (int r = 0; r < lotModel.getRowCount(); r++) {
                 total += ((Number) lotModel.getValueAt(r, 5)).intValue();
@@ -442,36 +460,39 @@ public class TransferPanel extends JPanel implements Refreshable {
             updateFromAvailLabel();
             updateToRoomLabel();
             AppEventBus.publish("transfer");
-        });
+        };
 
-        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
-        bottom.add(cancelBtn);
-        bottom.add(registerBtn);
-        dialog.add(bottom, BorderLayout.SOUTH);
+        dialog.add(UiUtil.buildModalFooter(dialog, "이동 등록", UiUtil.COLOR_BTN_MOVEMENT, doRegister), BorderLayout.SOUTH);
 
-        dialog.setSize(700, 500);
+        dialog.setSize(1420, 820);
         dialog.setLocationRelativeTo(SwingUtilities.getWindowAncestor(this));
-        dialog.setVisible(true);
+        UiUtil.showHtmlDialog(dialog);
     }
 
     private JComponent buildHistoryArea() {
-        JPanel wrap = new JPanel(new BorderLayout(6, 6));
-        wrap.setBorder(BorderFactory.createTitledBorder("이동 이력"));
+        Card wrap = new Card(new BorderLayout(6, 6));
+        JLabel cardTitle = new JLabel("이동 이력");
+        cardTitle.setFont(cardTitle.getFont().deriveFont(Font.BOLD, 15f));
 
         JPanel searchRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+        searchRow.setOpaque(false);
+        searchRow.add(cardTitle);
+        searchRow.add(Box.createHorizontalStrut(20));
         searchRow.add(new JLabel("품목명"));
         searchRow.add(historyKeywordField);
         searchRow.add(new JLabel("기간"));
         searchRow.add(historyFromField);
         searchRow.add(new JLabel("~"));
         searchRow.add(historyToField);
-        searchRow.add(new JLabel("(yyyy-MM-dd, 비우면 전체)"));
         JButton searchBtn = new JButton("검색");
         searchBtn.addActionListener(e -> { historyPager.page = 1; refreshHistory(); });
         searchRow.add(searchBtn);
         wrap.add(searchRow, BorderLayout.NORTH);
 
         UiUtil.applyStandardRowHeight(historyTable);
+        UiUtil.applyStandardHeaderStyle(historyTable);
+        // movement.html colgroup 비율(이동일시15/품목명18/품목번호12/로트번호12/수량10/출발구역16/도착구역17)
+        UiUtil.setColumnWidths(historyTable, 10, 15, 17, 11, 9, 15, 16);
         wrap.add(new JScrollPane(historyTable), BorderLayout.CENTER);
         wrap.add(historyPager.build(this::refreshHistory), BorderLayout.SOUTH);
         wrap.setPreferredSize(new Dimension(0, 320));
@@ -490,7 +511,7 @@ public class TransferPanel extends JPanel implements Refreshable {
             LocalDate to = parseDateOrNull(historyToField.getText());
 
             int total = stockTransferDao.count(conn, null, keyword, from, to);
-            historyPager.total = total;
+            historyPager.clampToTotal(total);
             int offset = (historyPager.page - 1) * PAGE_SIZE;
             List<StockTransfer> list = stockTransferDao.findPage(conn, null, keyword, from, to, offset, PAGE_SIZE);
 
@@ -531,9 +552,11 @@ public class TransferPanel extends JPanel implements Refreshable {
     }
 
     private Map<Long, String> buildZoneLabels(Connection conn) throws Exception {
+        // warehouse.html의 whNames[i]+"("+whLocations[i]+")"와 같은 표기 - "대형"/"중형"/"소형"
+        // 처럼 같은 이름의 창고가 여럿이라, 실제 위치 값을 괄호로 붙여 구별한다.
         Map<Long, String> warehouseNames = new HashMap<>();
         for (Warehouse wh : warehouseDao.findAll(conn)) {
-            warehouseNames.put(wh.getWarehouseId(), wh.getName());
+            warehouseNames.put(wh.getWarehouseId(), wh.getName() + "(" + wh.getLocation() + ")");
         }
         Map<Long, String> zoneLabels = new HashMap<>();
         for (Zone zone : zoneDao.findAll(conn)) {
@@ -548,10 +571,19 @@ public class TransferPanel extends JPanel implements Refreshable {
         public String toString() { return item.getItemName() + " (" + item.getUnit() + ")"; }
     }
 
+    // warehouse.html의 창고 드롭다운(whNames[i]+"("+whLocations[i]+")")과 같은 표기 - "대형"/
+    // "중형"/"소형"처럼 같은 이름의 창고가 여럿이라, 실제 위치 값을 괄호로 붙여 구별한다.
+    // stockQty가 null이면 도착 창고 드롭박스처럼 그냥 "이름(위치)"만 보여주고, 값이 있으면
+    // 출발 창고 드롭박스처럼 그 창고에 있는 이 품목 수량까지 뒤에 붙여 보여준다.
     private static class WarehouseOption {
         final Warehouse warehouse;
-        WarehouseOption(Warehouse warehouse) { this.warehouse = warehouse; }
-        public String toString() { return warehouse.getName(); }
+        final Integer stockQty;
+        WarehouseOption(Warehouse warehouse) { this(warehouse, null); }
+        WarehouseOption(Warehouse warehouse, Integer stockQty) { this.warehouse = warehouse; this.stockQty = stockQty; }
+        public String toString() {
+            String base = warehouse.getName() + "(" + warehouse.getLocation() + ")";
+            return stockQty == null ? base : base + " - " + String.format("%,d", stockQty) + "개";
+        }
     }
 
     private static class ZoneOption {

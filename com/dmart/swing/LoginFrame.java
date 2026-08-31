@@ -76,9 +76,14 @@ public class LoginFrame extends JFrame {
         row.setOpaque(false);
         row.setAlignmentX(Component.CENTER_ALIGNMENT);
 
+        // login.css .form-group label{width:90px} - 라벨 폭을 고정해야 "아이디"(2글자)와
+        // "비밀번호"(4글자)의 너비가 달라도 그 옆 입력칸이 같은 x 위치에서 시작한다.
         JLabel label = new JLabel(labelText);
         label.setFont(label.getFont().deriveFont(Font.BOLD, 14f));
         label.setForeground(NAVY);
+        Dimension labelSize = new Dimension(80, label.getPreferredSize().height);
+        label.setPreferredSize(labelSize);
+        label.setMinimumSize(labelSize);
         row.add(label);
 
         GlassPanel fieldWrap = new GlassPanel(0.75f, 8);

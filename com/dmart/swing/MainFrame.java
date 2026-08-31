@@ -29,9 +29,13 @@ public class MainFrame extends JFrame {
     private final ApprovalDao approvalDao = new ApprovalDao();
 
     private final CardLayout cardLayout = new CardLayout();
-    private final JPanel contentPanel = new JPanel(cardLayout);
+    private final JPanel contentPanel = new JPanel(cardLayout) {{ setBackground(UiUtil.COLOR_BODY_BG); }};
 
-    private final DashboardPanel dashboardPanel = new DashboardPanel();
+    private final DashboardPanel dashboardPanel = new DashboardPanel(() -> {
+        activeCardName = "alert";
+        cardLayout.show(contentPanel, "alert");
+        refreshNavHighlight();
+    });
     private final InOutManagementPanel inOutManagementPanel = new InOutManagementPanel();
     private final ReturnDisposalPanel returnDisposalPanel = new ReturnDisposalPanel();
     // 팀원 담당 화면(알림/통계/설정 및 권한 관리) - settingGroupPanel을 먼저 만들어야
@@ -43,9 +47,9 @@ public class MainFrame extends JFrame {
         settingGroupPanel.showApprovalTab(tabIndex);
     });
 
-    private JButton simulatorBtn;
-    private JButton autoManageBtn;
-    private JLabel waitBadgeLabel;
+    private RoundedButton simulatorBtn;
+    private RoundedButton autoManageBtn;
+    private Badge waitBadgeLabel;
 
     public MainFrame() {
         super("DOWN MART - " + Session.getUser().getName() + "님");
@@ -72,6 +76,7 @@ public class MainFrame extends JFrame {
         contentPanel.add(settingGroupPanel, "setting");
 
         cardLayout.show(contentPanel, "dashboard");
+        refreshNavHighlight();
     }
 
     private JComponent buildSidebar() {
@@ -118,7 +123,9 @@ public class MainFrame extends JFrame {
         MouseAdapter goDashboard = new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
+                activeCardName = "dashboard";
                 cardLayout.show(contentPanel, "dashboard");
+                refreshNavHighlight();
             }
         };
 
@@ -170,20 +177,25 @@ public class MainFrame extends JFrame {
 
         // 화면마다 따로 있던 새로고침 버튼들을 없애고, 여기 하나로 - 지금 보이는 화면만 다시 불러온다.
         JButton screenRefreshBtn = new JButton("새로고침");
+        // 입력창 높이에 맞추려고 키운 전역 Button.margin(9,14,9,14)을 그대로 물려받으면 이
+        // 작은 알약 모양 상단바 버튼들만 유난히 커 보인다 - 원래 크기(FlatLaf 기본값)로 되돌린다.
+        screenRefreshBtn.setMargin(new Insets(2, 14, 2, 14));
         screenRefreshBtn.addActionListener(e -> refreshCurrentScreen());
         bar.add(screenRefreshBtn);
 
         if (Session.isAdmin()) {
-            waitBadgeLabel = new JLabel(" ");
-            waitBadgeLabel.setForeground(new Color(0xB05A00));
-            waitBadgeLabel.setFont(waitBadgeLabel.getFont().deriveFont(Font.BOLD));
+            // css .wait-badge - 배경 있는 알약(pill) 모양 배지. 0건이면 안 보이게(setVisible)
+            // 해서, 예전처럼 빈 글자만 있는 어정쩡한 알약이 남지 않게 한다.
+            waitBadgeLabel = new Badge(" ", UiUtil.COLOR_WAIT_BADGE, Color.WHITE);
             waitBadgeLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             // js/common.js putWaitCount() - <a href="approval.html"> 배지와 같이, 누르면 승인 요청 탭으로 간다.
             waitBadgeLabel.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {
+                    activeCardName = "setting";
                     cardLayout.show(contentPanel, "setting");
                     settingGroupPanel.showApprovalTab(0);
+                    refreshNavHighlight();
                 }
             });
             bar.add(waitBadgeLabel);
@@ -191,13 +203,20 @@ public class MainFrame extends JFrame {
             AppEventBus.subscribe("approval", this::refreshWaitBadge);
             new Timer(5000, e -> refreshWaitBadge()).start();
 
-            simulatorBtn = new JButton("시뮬레이터");
+            // css .sys-toggle-btn - 알약 모양, 기본 회색 / on일 때 초록. 상단바 알약 버튼들은
+            // 입력창 크기 기준(전역 Button.margin)을 따를 필요가 없어 작은 여백으로 되돌린다.
+            Insets pillMargin = new Insets(3, 12, 3, 12);
+            simulatorBtn = new RoundedButton("시뮬레이터", UiUtil.COLOR_BTN_GRAY, new Color(0x555555), 14);
+            simulatorBtn.setMargin(pillMargin);
             simulatorBtn.addActionListener(e -> toggleFlag(SIMULATOR, simulatorBtn, "시뮬레이터"));
 
-            autoManageBtn = new JButton("자동관리");
+            autoManageBtn = new RoundedButton("자동관리", UiUtil.COLOR_BTN_GRAY, new Color(0x555555), 14);
+            autoManageBtn.setMargin(pillMargin);
             autoManageBtn.addActionListener(e -> toggleFlag(AUTO_MANAGE, autoManageBtn, "자동관리"));
 
-            JButton resetBtn = new JButton("데이터 초기화");
+            // css .sys-reset-btn - 알약 모양, 빨간 계열.
+            RoundedButton resetBtn = new RoundedButton("데이터 초기화", UiUtil.COLOR_SYS_RESET_BG, UiUtil.COLOR_SYS_RESET_FG, 14);
+            resetBtn.setMargin(pillMargin);
             resetBtn.addActionListener(e -> resetSystemData());
 
             bar.add(simulatorBtn);
@@ -208,10 +227,10 @@ public class MainFrame extends JFrame {
         }
 
         boolean admin = Session.isAdmin();
-        JLabel roleBadge = new JLabel(" " + (admin ? "관리자" : "담당자") + " ");
-        roleBadge.setOpaque(true);
-        roleBadge.setBackground(admin ? new Color(0x1F3A63) : new Color(0xdddddd));
-        roleBadge.setForeground(admin ? Color.WHITE : Color.DARK_GRAY);
+        // css .user-role/.user-role.admin - 관리자는 파란 배지, 담당자는 회색 배지.
+        Badge roleBadge = new Badge(admin ? "관리자" : "담당자",
+                admin ? UiUtil.COLOR_PRIMARY : UiUtil.COLOR_BTN_GRAY,
+                admin ? Color.WHITE : new Color(0x555555));
         bar.add(roleBadge);
 
         JLabel welcome = new JLabel(Session.getUser().getName() + "님 환영합니다");
@@ -237,13 +256,14 @@ public class MainFrame extends JFrame {
         }
         try (Connection conn = DBConnection.getConnection()) {
             int count = approvalDao.count(conn, "대기", null, null);
+            waitBadgeLabel.setVisible(count != 0);
             waitBadgeLabel.setText(count == 0 ? " " : "승인 대기 " + count + "건");
         } catch (Exception e) {
-            waitBadgeLabel.setText(" ");
+            waitBadgeLabel.setVisible(false);
         }
     }
 
-    private void toggleFlag(String toggleName, JButton btn, String label) {
+    private void toggleFlag(String toggleName, RoundedButton btn, String label) {
         try (Connection conn = DBConnection.getConnection()) {
             boolean current = systemToggleDao.isOn(conn, toggleName);
             systemToggleDao.setOn(conn, toggleName, !current);
@@ -265,14 +285,12 @@ public class MainFrame extends JFrame {
         }
     }
 
-    private void applyToggleStyle(JButton btn, String label, boolean on) {
+    private void applyToggleStyle(RoundedButton btn, String label, boolean on) {
         if (btn == null) {
             return;
         }
         btn.setText(label + (on ? " (ON)" : " (OFF)"));
-        btn.setOpaque(on);
-        btn.setBackground(on ? new Color(0x347A55) : null);
-        btn.setForeground(on ? Color.WHITE : Color.BLACK);
+        btn.setColors(on ? UiUtil.COLOR_SYS_TOGGLE_ON : UiUtil.COLOR_BTN_GRAY, on ? Color.WHITE : new Color(0x555555));
     }
 
     // 웹 버전 resetSystemData(js/common.js) - 재고/입출고/알림/승인만 기준점으로 되돌린다
@@ -293,11 +311,31 @@ public class MainFrame extends JFrame {
         }
     }
 
+    private final java.util.List<JButton> navButtons = new java.util.ArrayList<>();
+    private String activeCardName = "dashboard";
+
+    // css .sidebar-menu a - 평소엔 투명, 지금 화면이면 밝은 회색 + 굵게, 알약(pill) 모양.
     private JButton navButton(String label, String cardName) {
-        JButton btn = new JButton(label);
+        RoundedButton btn = new RoundedButton(label, UiUtil.COLOR_SIDEBAR, Color.WHITE, 20);
         btn.setAlignmentX(Component.CENTER_ALIGNMENT);
         btn.setMaximumSize(new Dimension(180, 40));
-        btn.addActionListener(e -> cardLayout.show(contentPanel, cardName));
+        btn.setPreferredSize(new Dimension(160, 40));
+        btn.putClientProperty("cardName", cardName);
+        btn.addActionListener(e -> {
+            activeCardName = cardName;
+            cardLayout.show(contentPanel, cardName);
+            refreshNavHighlight();
+        });
+        navButtons.add(btn);
         return btn;
+    }
+
+    private void refreshNavHighlight() {
+        for (JButton btn : navButtons) {
+            RoundedButton rb = (RoundedButton) btn;
+            boolean active = activeCardName.equals(btn.getClientProperty("cardName"));
+            rb.setColors(active ? UiUtil.COLOR_SIDEBAR_ACTIVE : UiUtil.COLOR_SIDEBAR, Color.WHITE);
+            rb.setFont(active ? UiUtil.FONT_BUTTON : new Font(UiUtil.FONT_BUTTON.getName(), Font.PLAIN, 14));
+        }
     }
 }

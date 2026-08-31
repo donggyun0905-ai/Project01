@@ -21,9 +21,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.sql.Connection;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -44,7 +42,9 @@ public class DashboardPanel extends JPanel implements Refreshable {
     private final StatisticsService statisticsService = new StatisticsService();
 
     private final JComboBox<String> warehouseGroupBox = new JComboBox<>(new String[]{"전체", "대형", "중형", "소형"});
-    private final JSpinner dateSpinner = new JSpinner(new SpinnerDateModel());
+    // 날짜 선택창은 팀원이 만든 DatePickerField(달력 팝업) 하나로 통일한다 - 이 화면만
+    // JSpinner를 따로 썼던 걸 다른 화면들과 같은 컴포넌트로 맞춘다.
+    private final JTextField dateField = new DatePickerField(LocalDate.now().toString(), 10);
 
     private final SummaryCard[] cards = new SummaryCard[5];
 
@@ -60,21 +60,35 @@ public class DashboardPanel extends JPanel implements Refreshable {
 
     private Map<Long, String> itemNameCache = new HashMap<>();
 
-    public DashboardPanel() {
-        setLayout(new BorderLayout(10, 10));
+    // dashboard.css .tag-재고부족/.tag-재고초과/.tag-이상출고/.tag-예측알림/.tag-자동입고/
+    // .tag-자동실행실패/.tag-창고정리추천 색 그대로 (배경, 글자색).
+    private static final Map<String, Color[]> ALERT_COLORS = Map.of(
+            "재고부족", new Color[]{Color.decode("#ffe5e3"), Color.decode("#d9453b")},
+            "재고초과", new Color[]{Color.decode("#e3f0ff"), Color.decode("#2570c4")},
+            "이상출고", new Color[]{Color.decode("#fff2e0"), Color.decode("#cc8400")},
+            "예측알림", new Color[]{Color.decode("#eae6ff"), Color.decode("#5b45c4")},
+            "자동입고", new Color[]{Color.decode("#e3f7e8"), Color.decode("#1f9254")},
+            "자동실행실패", new Color[]{Color.decode("#fde2e2"), Color.decode("#c23c3c")},
+            "창고정리추천", new Color[]{Color.decode("#eafaf6"), Color.decode("#158a72")}
+    );
+
+    private final Runnable onGoToAlert;
+
+    public DashboardPanel(Runnable onGoToAlert) {
+        this.onGoToAlert = onGoToAlert;
+        setLayout(new BorderLayout(10, 15));
         setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        setBackground(UiUtil.COLOR_BODY_BG);
 
         add(buildHeader(), BorderLayout.NORTH);
 
-        JPanel center = new JPanel(new BorderLayout(10, 10));
+        JPanel center = new JPanel(new BorderLayout(10, 15));
+        center.setOpaque(false);
         center.add(buildCardsRow(), BorderLayout.NORTH);
         center.add(buildChartsRow(), BorderLayout.CENTER);
-        center.add(buildAlertArea(), BorderLayout.SOUTH);
         add(center, BorderLayout.CENTER);
 
-        dateSpinner.setEditor(new JSpinner.DateEditor(dateSpinner, "yyyy-MM-dd"));
-        dateSpinner.setValue(new Date());
-        dateSpinner.addChangeListener(e -> {
+        dateField.addActionListener(e -> {
             refreshDailyCompare();
             refreshBarChart();
         });
@@ -98,22 +112,40 @@ public class DashboardPanel extends JPanel implements Refreshable {
     }
 
     private JComponent buildHeader() {
-        JPanel wrap = new JPanel(new BorderLayout());
+        JPanel wrap = new JPanel(new BorderLayout(0, 15));
+        wrap.setOpaque(false);
 
-        JPanel titleRow = new JPanel(new BorderLayout());
-        JLabel title = new JLabel("메인 화면");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 22f));
-        titleRow.add(title, BorderLayout.WEST);
+        // dashboard.html의 .form-box(흰 카드, grid-template-columns: repeat(4,1fr)) - 창고/기준일을
+        // 그냥 늘어놓지 않고 카드로 감싸고, 각 필드를 라벨-위-필드 모양으로 넓게 놓는다.
+        Card filterCard = new Card(new FlowLayout(FlowLayout.LEFT, 24, 0));
+        filterCard.add(buildFilterField("창고", warehouseGroupBox));
+        filterCard.add(buildFilterField("기준일", dateField));
+        wrap.add(filterCard, BorderLayout.SOUTH);
 
-        JPanel filterRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 8));
-        filterRow.add(new JLabel("창고"));
-        filterRow.add(warehouseGroupBox);
-        filterRow.add(new JLabel("기준일"));
-        filterRow.add(dateSpinner);
-
-        wrap.add(titleRow, BorderLayout.NORTH);
-        wrap.add(filterRow, BorderLayout.SOUTH);
         return wrap;
+    }
+
+    // 라벨을 필드 위에 놓고, 높이는 그대로 둔 채 폭만 넓힌다(요청: "창고 드롭박스를 높이는
+    // 그대로 두고 넓이를 좀 더 넓히기, 기준일 또한 동일 좌우 넓히기").
+    private JComponent buildFilterField(String labelText, JComponent field) {
+        JPanel group = new JPanel();
+        group.setOpaque(false);
+        group.setLayout(new BoxLayout(group, BoxLayout.Y_AXIS));
+
+        JLabel label = new JLabel(labelText);
+        label.setFont(label.getFont().deriveFont(Font.BOLD, 13f));
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        group.add(label);
+        group.add(Box.createVerticalStrut(6));
+
+        int height = field.getPreferredSize().height;
+        Dimension widened = new Dimension(240, height);
+        field.setPreferredSize(widened);
+        field.setMaximumSize(widened);
+        field.setAlignmentX(Component.LEFT_ALIGNMENT);
+        group.add(field);
+
+        return group;
     }
 
     private JComponent buildCardsRow() {
@@ -132,43 +164,125 @@ public class DashboardPanel extends JPanel implements Refreshable {
         return row;
     }
 
+    // dashboard.html의 .panel-wrap{display:flex} - 입출고현황/창고별재고비중/실시간알림
+    // 3개를 한 줄에 나란히 놓는다(전에는 알림이 따로 아래 줄에 떨어져 있었다).
     private JComponent buildChartsRow() {
-        JPanel grid = new JPanel(new GridLayout(1, 2, 12, 0));
-        grid.add(wrapWithTitle("입출고 현황 (최근 7일)", barChartPanel));
+        JComponent barCard = wrapWithTitleCentered("입출고 현황 (최근 7일)", barChartPanel);
 
+        // Card(흰 배경)에 얹는 안쪽 패널들은 기본 JPanel이 자기 배경(회색 계열)을 따로 칠해서
+        // 위 차트 카드와 색이 달라 보였다 - opaque(false)로 카드의 흰 배경이 그대로 비치게 한다.
         JPanel donutWrap = new JPanel(new BorderLayout(6, 6));
+        donutWrap.setOpaque(false);
         donutWrap.add(donutChartPanel, BorderLayout.CENTER);
         donutTotalLabel.setFont(donutTotalLabel.getFont().deriveFont(Font.BOLD, 13f));
+        legendPanel.setOpaque(false);
         legendPanel.setLayout(new BoxLayout(legendPanel, BoxLayout.Y_AXIS));
         JPanel south = new JPanel(new BorderLayout());
+        south.setOpaque(false);
         south.add(donutTotalLabel, BorderLayout.NORTH);
         south.add(legendPanel, BorderLayout.SOUTH);
         donutWrap.add(south, BorderLayout.SOUTH);
-        grid.add(wrapWithTitle("창고별 재고 비중", donutWrap));
+        JComponent donutCard = wrapWithTitle("창고별 재고 비중", donutWrap);
 
+        JComponent alertCard = buildAlertArea();
+
+        // GridLayout/GridBagLayout은 각 칸의 최소/선호 크기가 크면 weightx 비율을 무시하고
+        // 그 칸을 더 넓게 잡아버린다(알림 카드 내용이 넓어서 실제로 그랬다) - 정확히
+        // 45%/30%/25%를 보장하려고 그냥 이 패널 폭을 기준으로 직접 셋다(null 레이아웃).
+        final int gap = 12;
+        JPanel grid = new JPanel(null) {
+            @Override
+            public void doLayout() {
+                int w = getWidth();
+                int h = getHeight();
+                int barW = (int) Math.round((w - gap * 2) * 0.45);
+                int donutW = (int) Math.round((w - gap * 2) * 0.30);
+                int alertW = w - gap * 2 - barW - donutW;
+                int x = 0;
+                barCard.setBounds(x, 0, barW, h);
+                x += barW + gap;
+                donutCard.setBounds(x, 0, donutW, h);
+                x += donutW + gap;
+                alertCard.setBounds(x, 0, alertW, h);
+            }
+        };
+        grid.setOpaque(false);
+        grid.add(barCard);
+        grid.add(donutCard);
+        grid.add(alertCard);
         return grid;
     }
 
     private JComponent buildAlertArea() {
-        JPanel wrap = new JPanel(new BorderLayout());
-        wrap.setBorder(BorderFactory.createTitledBorder("실시간 알림 (미해결, 최근 5건)"));
+        Card wrap = new Card(new BorderLayout(0, 10));
+
+        // dashboard.html의 .card-header(양 끝 정렬) - 제목 왼쪽, "전체 보기" 링크 오른쪽.
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+        JLabel titleLabel = new JLabel("실시간 알림");
+        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, 15f));
+        header.add(titleLabel, BorderLayout.WEST);
+
+        JLabel viewAllLabel = new JLabel("전체 보기");
+        viewAllLabel.setFont(viewAllLabel.getFont().deriveFont(13f));
+        viewAllLabel.setForeground(new Color(0x999999));
+        viewAllLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        viewAllLabel.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                onGoToAlert.run();
+            }
+        });
+        header.add(viewAllLabel, BorderLayout.EAST);
+        wrap.add(header, BorderLayout.NORTH);
+
+        alertListPanel.setOpaque(false);
         alertListPanel.setLayout(new BoxLayout(alertListPanel, BoxLayout.Y_AXIS));
-        JScrollPane scroll = new JScrollPane(alertListPanel);
-        scroll.setPreferredSize(new Dimension(0, 190));
-        wrap.add(scroll, BorderLayout.CENTER);
+        // 스크롤 없이 그냥 카드 안에 얹는다 - 최대 5건뿐이라 스크롤이 필요 없고, 긴 메시지는
+        // buildAlertRow의 줄바꿈 처리 덕에 카드 폭을 벗어나지 않는다.
+        wrap.add(alertListPanel, BorderLayout.CENTER);
         return wrap;
     }
 
     private JComponent wrapWithTitle(String title, JComponent content) {
-        JPanel wrap = new JPanel(new BorderLayout());
-        wrap.setBorder(BorderFactory.createTitledBorder(title));
+        Card wrap = new Card(new BorderLayout(0, 10));
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, 15f));
+        wrap.add(titleLabel, BorderLayout.NORTH);
         wrap.add(content, BorderLayout.CENTER);
         return wrap;
     }
 
+    // wrapWithTitle과 같지만, content를 카드 높이만큼 늘리지 않고 원래 크기 그대로 카드
+    // 정중앙에 둔다(GridBagLayout은 weightx/weighty가 기본값 0일 때 내용을 늘리지 않고
+    // 가운데에 둔다 - 표 관리 칸 버튼 정렬에 쓴 것과 같은 방식).
+    private JComponent wrapWithTitleCentered(String title, JComponent content) {
+        Card wrap = new Card(new BorderLayout(0, 10));
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, 15f));
+        wrap.add(titleLabel, BorderLayout.NORTH);
+        // 폭은 카드(3분의 1 너비)에 맞춰 늘리고(그래프 고정폭이 카드보다 넓으면 양옆이
+        // 잘려서 안 보였다), 높이는 고정값 그대로 두고 위아래에 빈 공간(글루)을 똑같이
+        // 둬서 세로 가운데에 오게 한다 - 표 관리 칸(GridBagLayout)과 달리 이 화면은 카드
+        // 크기가 여러 레이아웃을 거쳐 정해져서 BoxLayout+글루 방식이 더 안정적으로 동작한다.
+        JPanel centerHolder = new JPanel();
+        centerHolder.setOpaque(false);
+        centerHolder.setLayout(new BoxLayout(centerHolder, BoxLayout.Y_AXIS));
+        content.setAlignmentX(Component.CENTER_ALIGNMENT);
+        content.setMaximumSize(new Dimension(Integer.MAX_VALUE, content.getPreferredSize().height));
+        centerHolder.add(Box.createVerticalGlue());
+        centerHolder.add(content);
+        centerHolder.add(Box.createVerticalGlue());
+        wrap.add(centerHolder, BorderLayout.CENTER);
+        return wrap;
+    }
+
     private LocalDate pickDate() {
-        Date d = (Date) dateSpinner.getValue();
-        return d.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+        try {
+            return LocalDate.parse(dateField.getText().trim());
+        } catch (Exception e) {
+            return LocalDate.now();
+        }
     }
 
     public void refreshAll() {
@@ -200,8 +314,13 @@ public class DashboardPanel extends JPanel implements Refreshable {
     private void refreshWarehouseStockAndDonut() {
         try (Connection conn = DBConnection.getConnection()) {
             Map<Long, String> whGroupOf = new HashMap<>();
+            // [버그 수정] 범례의 "(N개소)"가 "대형 5/중형 3/소형 2"로 고정 문자열이었다 -
+            // 창고 및 구역 관리에서 창고를 추가/삭제해도 이 숫자는 그대로 남아 실제 개수와
+            // 어긋났다. 창고 목록에서 그룹별로 직접 세어 항상 최신 개수를 쓴다.
+            Map<String, Integer> groupWarehouseCount = new LinkedHashMap<>();
             for (Warehouse wh : warehouseDao.findAll(conn)) {
                 whGroupOf.put(wh.getWarehouseId(), wh.getName());
+                groupWarehouseCount.merge(wh.getName(), 1, Integer::sum);
             }
 
             String[] groupKeys = {"대형", "중형", "소형"};
@@ -243,7 +362,10 @@ public class DashboardPanel extends JPanel implements Refreshable {
             cards[1].setValue(String.format("%,d", total));
             cards[1].setBreakdown(unitTotal.get("PALLET"), unitTotal.get("BOX"), unitTotal.get("EA"));
 
-            String[] names = {"대형 창고 (5개소)", "중형 창고 (3개소)", "소형 창고 (2개소)"};
+            String[] names = new String[groupKeys.length];
+            for (int i = 0; i < groupKeys.length; i++) {
+                names[i] = groupKeys[i] + " 창고 (" + groupWarehouseCount.getOrDefault(groupKeys[i], 0) + "개소)";
+            }
             Color[] colors = {Color.decode("#EBDCC3"), Color.decode("#347A55"), Color.decode("#1F3A63")};
 
             java.util.List<DonutChartPanel.Segment> segs = new java.util.ArrayList<>();
@@ -268,12 +390,38 @@ public class DashboardPanel extends JPanel implements Refreshable {
         }
     }
 
+    // dashboard.css .legend-row(테두리 아래줄) / .legend-color(12x12 둥근 사각 색상표시) 그대로.
     private JComponent buildLegendRow(Color color, String name, int qty) {
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
-        JLabel swatch = new JLabel("■");
-        swatch.setForeground(color);
-        row.add(swatch);
-        row.add(new JLabel(name + " : " + String.format("%,d", qty)));
+        JPanel row = new JPanel(new BorderLayout(10, 0));
+        row.setOpaque(false);
+        row.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(0xf0f0f0)),
+                BorderFactory.createEmptyBorder(10, 0, 10, 0)));
+
+        JComponent swatch = new JComponent() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(color);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 3, 3);
+                g2.dispose();
+            }
+        };
+        swatch.setPreferredSize(new Dimension(12, 12));
+        swatch.setOpaque(false);
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        left.setOpaque(false);
+        left.add(swatch);
+        JLabel nameLabel = new JLabel(name);
+        nameLabel.setForeground(new Color(0x555555));
+        left.add(nameLabel);
+        row.add(left, BorderLayout.WEST);
+
+        JLabel numLabel = new JLabel(String.format("%,d", qty));
+        numLabel.setFont(numLabel.getFont().deriveFont(Font.BOLD));
+        row.add(numLabel, BorderLayout.EAST);
+
         return row;
     }
 
@@ -339,30 +487,61 @@ public class DashboardPanel extends JPanel implements Refreshable {
         }
     }
 
+    // dashboard.css .alert-row(줄마다 아래 테두리) / .tag-*(종류별 알약 배지) / .alert-item(굵게) /
+    // .alert-msg(옅은 회색) 그대로. 태그가 다 똑같은 회색이라 구분이 안 된다는 지적이 있어서,
+    // 종류별 색을 넣고 내용 부분에 테두리 박스를 둘러 한 건씩 뚜렷하게 나뉘어 보이게 했다.
     private JComponent buildAlertRow(Alert a) {
         JPanel row = new JPanel();
+        row.setOpaque(false);
         row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
-        row.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(0xeeeeee)),
-                BorderFactory.createEmptyBorder(4, 2, 4, 2)));
+        row.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
+        // BoxLayout.Y_AXIS는 자식이 자기 폭보다 좁으면 기본으로 가운데 정렬한다 - 카드 폭
+        // 전체를 채우고 왼쪽부터 시작하게 명시한다.
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
 
         String itemName = itemNameCache.getOrDefault(a.getItemId(), "품목 " + a.getItemId());
         String time = a.getCreatedAt() == null ? "" : a.getCreatedAt().format(DateTimeFormatter.ofPattern("HH:mm"));
 
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBackground(Color.WHITE);
+        content.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        content.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(0xf0f0f0), 1, true),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        JLabel tag = new JLabel(" " + a.getAlertType() + " ");
-        tag.setOpaque(true);
-        tag.setBackground(new Color(0xf0f0f0));
-        top.add(tag);
-        top.add(new JLabel(itemName));
-        top.add(new JLabel(time));
-        row.add(top);
+        top.setOpaque(false);
+        top.setAlignmentX(Component.LEFT_ALIGNMENT);
+        top.setMaximumSize(new Dimension(Integer.MAX_VALUE, top.getPreferredSize().height));
+        Color[] colors = ALERT_COLORS.getOrDefault(a.getAlertType(), new Color[]{new Color(0xf0f0f0), new Color(0x555555)});
+        top.add(new Badge(a.getAlertType(), colors[0], colors[1]));
+        JLabel itemLabel = new JLabel(itemName);
+        itemLabel.setFont(itemLabel.getFont().deriveFont(Font.BOLD, 14f));
+        top.add(itemLabel);
+        JLabel timeLabel = new JLabel(time);
+        timeLabel.setForeground(new Color(0x999999));
+        timeLabel.setFont(timeLabel.getFont().deriveFont(12f));
+        top.add(timeLabel);
+        content.add(top);
 
-        JLabel msg = new JLabel(prettyAlertMessage(a.getMessage()));
-        msg.setForeground(Color.DARK_GRAY);
-        msg.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 0));
-        row.add(msg);
+        // 메시지가 길면 JLabel은 줄바꿈 없이 카드 폭을 넘어버려 가로 스크롤이 생겼다 -
+        // JTextArea(줄바꿈 켬)로 바꿔서 카드 폭 안에서 자동으로 줄바꿈되게 한다.
+        JTextArea msg = new JTextArea(prettyAlertMessage(a.getMessage()));
+        msg.setLineWrap(true);
+        msg.setWrapStyleWord(true);
+        msg.setEditable(false);
+        msg.setFocusable(false);
+        msg.setOpaque(false);
+        msg.setForeground(new Color(0x888888));
+        msg.setFont(msg.getFont().deriveFont(12f));
+        msg.setBorder(BorderFactory.createEmptyBorder(4, 2, 0, 0));
+        msg.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(msg);
 
+        row.add(content);
         return row;
     }
 
@@ -420,33 +599,58 @@ public class DashboardPanel extends JPanel implements Refreshable {
         }
     }
 
-    private static class SummaryCard extends JPanel {
+    // dashboard.css .summary-card{display:flex;justify-content:space-between} - 이름/값/증감은
+    // 왼쪽에, PALLET/BOX/EA 소분류(.summary-breakdown{flex-direction:column})는 오른쪽에
+    // 세로로 쌓는다(전에는 한 줄로 붙어 나왔었다).
+    private static class SummaryCard extends Card {
         private final JLabel valueLabel = new JLabel("-");
-        private final JLabel diffLabel = new JLabel(" ");
-        private final JLabel breakdownLabel = new JLabel(" ");
+        private final Badge diffBadge = new Badge(" ", new Color(0xf0f0f0), Color.GRAY);
+        private final JLabel palletLabel = new JLabel(" ");
+        private final JLabel boxLabel = new JLabel(" ");
+        private final JLabel eaLabel = new JLabel(" ");
+        private boolean diffAdded = false;
 
         SummaryCard(String name, boolean hasDiff, boolean hasBreakdown) {
-            setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
-            setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(new Color(0xdddddd)),
-                    BorderFactory.createEmptyBorder(12, 14, 12, 14)));
+            super();
+            setLayout(new BorderLayout(10, 0));
+            setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
+
+            JPanel left = new JPanel();
+            left.setOpaque(false);
+            left.setLayout(new BoxLayout(left, BoxLayout.Y_AXIS));
 
             JLabel nameLabel = new JLabel(name);
-            nameLabel.setForeground(Color.GRAY);
-            valueLabel.setFont(valueLabel.getFont().deriveFont(Font.BOLD, 22f));
+            nameLabel.setForeground(new Color(0x666666));
+            nameLabel.setFont(nameLabel.getFont().deriveFont(15f));
+            valueLabel.setFont(valueLabel.getFont().deriveFont(Font.BOLD, 26f));
 
-            add(nameLabel);
-            add(Box.createVerticalStrut(6));
-            add(valueLabel);
+            nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            valueLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            left.add(nameLabel);
+            left.add(Box.createVerticalStrut(10));
+            left.add(valueLabel);
 
             if (hasDiff) {
-                diffLabel.setFont(diffLabel.getFont().deriveFont(11f));
-                add(diffLabel);
+                diffBadge.setAlignmentX(Component.LEFT_ALIGNMENT);
+                left.add(Box.createVerticalStrut(10));
+                left.add(diffBadge);
+                diffAdded = true;
             }
+            add(left, BorderLayout.WEST);
+
             if (hasBreakdown) {
-                breakdownLabel.setFont(breakdownLabel.getFont().deriveFont(11f));
-                breakdownLabel.setForeground(Color.GRAY);
-                add(breakdownLabel);
+                JPanel right = new JPanel();
+                right.setOpaque(false);
+                right.setLayout(new BoxLayout(right, BoxLayout.Y_AXIS));
+                right.add(Box.createVerticalGlue());
+                for (JLabel l : new JLabel[]{palletLabel, boxLabel, eaLabel}) {
+                    l.setFont(l.getFont().deriveFont(12f));
+                    l.setForeground(new Color(0x999999));
+                    l.setAlignmentX(Component.RIGHT_ALIGNMENT);
+                    right.add(l);
+                    right.add(Box.createVerticalStrut(4));
+                }
+                add(right, BorderLayout.EAST);
             }
         }
 
@@ -454,20 +658,26 @@ public class DashboardPanel extends JPanel implements Refreshable {
             valueLabel.setText(text);
         }
 
+        // dashboard.css .diff-up(배경 #e5f7ee/글자 #2a9a63)/.diff-down(배경 #ffe5e3/글자 #d9453b) 알약 배지.
         void setDiff(double diff) {
+            if (!diffAdded) { return; }
             if (diff > 0) {
-                diffLabel.setText("▲ " + fmt(diff) + "% 전일 대비");
-                diffLabel.setForeground(new Color(0xd23f31));
+                diffBadge.setText("▲ " + fmt(diff) + "% 전일 대비");
+                diffBadge.setBadgeColor(new Color(0xe5f7ee), new Color(0x2a9a63));
+                diffBadge.setVisible(true);
             } else if (diff < 0) {
-                diffLabel.setText("▼ " + fmt(-diff) + "% 전일 대비");
-                diffLabel.setForeground(new Color(0x3b6fd4));
+                diffBadge.setText("▼ " + fmt(-diff) + "% 전일 대비");
+                diffBadge.setBadgeColor(new Color(0xffe5e3), new Color(0xd9453b));
+                diffBadge.setVisible(true);
             } else {
-                diffLabel.setText(" ");
+                diffBadge.setVisible(false);
             }
         }
 
         void setBreakdown(int pallet, int box, int ea) {
-            breakdownLabel.setText(String.format("PALLET %,d   BOX %,d   EA %,d", pallet, box, ea));
+            palletLabel.setText("PALLET " + String.format("%,d", pallet));
+            boxLabel.setText("BOX " + String.format("%,d", box));
+            eaLabel.setText("EA " + String.format("%,d", ea));
         }
 
         private String fmt(double d) {

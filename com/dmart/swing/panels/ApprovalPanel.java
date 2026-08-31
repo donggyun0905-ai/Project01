@@ -10,6 +10,7 @@ import com.dmart.swing.AppEventBus;
 import com.dmart.swing.Refreshable;
 import com.dmart.swing.Session;
 import com.dmart.swing.UiUtil;
+import static com.dmart.swing.panels.SwingStyle.*;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -63,11 +64,18 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
     private final JComboBox<String> typeCombo = new JComboBox<>(new String[] { "전체", "발주", "출고", "이상출고" });
     private final JTextField nameField = new JTextField(14);
 
-    private final JTabbedPane tabs = new JTabbedPane();
+    // JTabbedPane 기본 모양이 다른 화면들(통계/설정 상단 전환 버튼)이랑 너무 달라서,
+    // 그것들과 똑같은 방식(둥근 버튼 줄 + CardLayout)으로 만들었습니다.
+    private final CardLayout tabLayout = new CardLayout();
+    private final JPanel tabContent = new JPanel(tabLayout);
+    private final JButton tabRequestBtn = toggleButton("승인 요청");
+    private final JButton tabConsolBtn = toggleButton("창고 정리 추천");
+    private final JButton tabExcessBtn = toggleButton("재고초과 반품");
 
     /** 알림 화면 등 밖에서 특정 탭(0=승인 요청, 1=창고 정리 추천, 2=재고초과 반품)으로 바로 이동시킬 때 씁니다. */
     public void selectTab(int index) {
-        tabs.setSelectedIndex(index);
+        JButton[] buttons = { tabRequestBtn, tabConsolBtn, tabExcessBtn };
+        buttons[index].doClick();
     }
 
     private final DefaultTableModel requestModel = new DefaultTableModel(
@@ -107,21 +115,43 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
 
     public ApprovalPanel() {
         super("자동 제안 및 승인");
+        SwingStyle.styleCombo(statusCombo);
+        SwingStyle.styleCombo(typeCombo);
 
-        contentArea.setLayout(new BorderLayout(0, 10));
+        contentArea.setLayout(new BorderLayout(0, 15));
         contentArea.add(buildTopArea(), BorderLayout.NORTH);
-        contentArea.add(tabs, BorderLayout.CENTER);
 
-        tabs.addTab("승인 요청", buildRequestTab());
-        tabs.addTab("창고 정리 추천", buildConsolTab());
-        tabs.addTab("재고초과 반품", buildExcessTab());
+        JPanel tabWrap = new JPanel(new BorderLayout(0, 12));
+        tabWrap.setOpaque(false);
 
-        tabs.addChangeListener(e -> {
-            int idx = tabs.getSelectedIndex();
-            if (idx == 0) loadRequestData();
-            else if (idx == 1) loadConsolData();
-            else loadExcessData();
-        });
+        JPanel tabButtonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        tabButtonRow.setOpaque(false);
+        JButton[] tabButtons = { tabRequestBtn, tabConsolBtn, tabExcessBtn };
+        String[] cardNames = { "request", "consol", "excess" };
+        Runnable[] onSelect = {
+                this::loadRequestData,
+                this::loadConsolData,
+                this::loadExcessData
+        };
+        for (int i = 0; i < tabButtons.length; i++) {
+            int idx = i;
+            tabButtonRow.add(tabButtons[i]);
+            tabButtons[i].addActionListener(e -> {
+                tabLayout.show(tabContent, cardNames[idx]);
+                for (JButton b : tabButtons) b.getModel().setSelected(b == tabButtons[idx]);
+                for (JButton b : tabButtons) b.repaint();
+                onSelect[idx].run();
+            });
+        }
+        tabRequestBtn.getModel().setSelected(true); // 처음엔 승인 요청 탭
+
+        tabContent.add(buildRequestTab(), "request");
+        tabContent.add(buildConsolTab(), "consol");
+        tabContent.add(buildExcessTab(), "excess");
+
+        tabWrap.add(tabButtonRow, BorderLayout.NORTH);
+        tabWrap.add(tabContent, BorderLayout.CENTER);
+        contentArea.add(tabWrap, BorderLayout.CENTER);
 
         loadMasterData();
         loadRequestData();
@@ -163,24 +193,29 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
     private boolean dialogOpen = false;
 
     private JPanel buildTopArea() {
-        JPanel row = new JPanel(new BorderLayout());
-        JPanel filterRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        RoundedPanel row = new RoundedPanel(CARD_ARC, Color.WHITE);
+        row.setLayout(new BorderLayout());
+        row.setBorder(BorderFactory.createEmptyBorder(16, 20, 16, 20));
+
+        JPanel filterRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        filterRow.setOpaque(false);
         filterRow.add(new JLabel("상태"));
         filterRow.add(statusCombo);
         filterRow.add(new JLabel("유형"));
         filterRow.add(typeCombo);
         filterRow.add(new JLabel("품목명"));
-        filterRow.add(nameField);
-        JButton searchButton = new JButton("조회");
+        filterRow.add(fieldWrap(nameField));
+        JButton searchButton = primaryButton("조회");
         searchButton.addActionListener(e -> { requestPage = 1; loadRequestData(); });
         nameField.addActionListener(e -> { requestPage = 1; loadRequestData(); });
         statusCombo.addActionListener(e -> { requestPage = 1; loadRequestData(); });
         typeCombo.addActionListener(e -> { requestPage = 1; loadRequestData(); });
         filterRow.add(searchButton);
 
-        JButton registerButton = new JButton("승인 요청 등록");
+        JButton registerButton = filledButton("승인 요청 등록", new Color(0x5E, 0x7F, 0xA3), Color.WHITE, 8);
         registerButton.addActionListener(e -> openRegisterDialog());
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        right.setOpaque(false);
         right.add(registerButton);
 
         row.add(filterRow, BorderLayout.WEST);
@@ -227,33 +262,70 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         return whLabel + " " + z.getZoneName();
     }
 
+    /** css/원본 addComma()와 같은 천 단위 쉼표 표기 - "1250" -> "1,250" */
+    private String addComma(int n) {
+        return String.format("%,d", n);
+    }
+
     private JPanel buildRequestTab() {
-        JPanel panel = new JPanel(new BorderLayout(0, 8));
+        RoundedPanel panel = new RoundedPanel(CARD_ARC, Color.WHITE);
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
         UiUtil.applyStandardRowHeight(requestTable);
-        javax.swing.table.DefaultTableCellRenderer requestCenterRenderer = new javax.swing.table.DefaultTableCellRenderer();
-        requestCenterRenderer.setHorizontalAlignment(SwingConstants.CENTER);
+        // [버그 수정] 원본 표엔 없는, 마우스로 컬럼 순서를 바꾸는 조작을 막습니다.
+        requestTable.getTableHeader().setReorderingAllowed(false);
+        requestTable.setShowGrid(false);
+        requestTable.setIntercellSpacing(new Dimension(0, 0));
+        requestTable.setSelectionBackground(new Color(0xf7, 0xf7, 0xf7));
+        // [버그 수정] 선택 글자색을 안 정해두면 FlatLaf 기본값(흰색)을 쓰는데, 이 표의 선택
+        // 배경(#f7f7f7)은 밝은 회색이라 흰 글자가 안 보였다 - 검정으로 고정한다. 표 자체를
+        // 포커스 불가로 두면(마우스 선택은 그대로 됨) html에 없는 셀 테두리도 안 생긴다.
+        requestTable.setSelectionForeground(Color.BLACK);
+        requestTable.setFocusable(false);
+        requestTable.getTableHeader().setBackground(new Color(0xd9, 0xd9, 0xd9));
+        requestTable.getTableHeader().setFont(requestTable.getFont().deriveFont(Font.BOLD, 16f));
+        requestTable.getTableHeader().setPreferredSize(new Dimension(0, 44));
+        BottomBorderCenterRenderer requestCenterRenderer = new BottomBorderCenterRenderer();
         for (int col = 0; col < 5; col++) {
             requestTable.getColumnModel().getColumn(col).setCellRenderer(requestCenterRenderer);
         }
-        ((javax.swing.table.DefaultTableCellRenderer) requestTable.getTableHeader().getDefaultRenderer())
-                .setHorizontalAlignment(SwingConstants.CENTER);
+        javax.swing.table.DefaultTableCellRenderer requestHeaderRenderer =
+                (javax.swing.table.DefaultTableCellRenderer) requestTable.getTableHeader().getDefaultRenderer();
+        requestHeaderRenderer.setHorizontalAlignment(SwingConstants.CENTER);
+        requestHeaderRenderer.setBackground(new Color(0xd9, 0xd9, 0xd9));
+        requestHeaderRenderer.setOpaque(true);
 
         // "관리" 칸 - 원본처럼 행마다 "상세보기" 버튼이 바로 붙어 있습니다 (행 전체 클릭 아님)
         requestTable.getColumnModel().getColumn(5).setCellRenderer((table, value, isSelected, hasFocus, row, column) ->
-                new JButton("상세보기"));
+                tableButtonCell(table, isSelected, filledButton("상세보기", new Color(0xe5, 0xe5, 0xe5), Color.BLACK, 6)));
         requestTable.getColumnModel().getColumn(5).setCellEditor(new ButtonCellEditor(row -> {
-            JButton button = new JButton("상세보기");
+            JButton button = filledButton("상세보기", new Color(0xe5, 0xe5, 0xe5), Color.BLACK, 6);
             button.addActionListener(e -> {
                 if (row < requestList.size()) openDetail(requestList.get(row));
             });
-            return button;
+            // 편집 상태도 렌더러와 같은 배경/구분선을 쓰게 감쌉니다 (안 그러면 누를 때 색이 깜빡임)
+            return tableButtonCell(requestTable, true, button);
         }));
+        // 행을 더블클릭해도 "상세보기" 버튼을 누른 것과 똑같이 상세 창이 뜨게 한다.
+        requestTable.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    int viewRow = requestTable.rowAtPoint(e.getPoint());
+                    if (viewRow < 0) { return; }
+                    int modelRow = requestTable.convertRowIndexToModel(viewRow);
+                    if (modelRow < requestList.size()) {
+                        openDetail(requestList.get(modelRow));
+                    }
+                }
+            }
+        });
 
         // 쪽 번호 (원본과 같이 10건씩)
         JPanel pageBar = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        JButton prevButton = new JButton("이전");
+        pageBar.setOpaque(false);
+        JButton prevButton = secondaryButton("이전");
         prevButton.addActionListener(e -> { if (requestPage > 1) { requestPage--; loadRequestData(); } });
-        JButton nextButton = new JButton("다음");
+        JButton nextButton = secondaryButton("다음");
         nextButton.addActionListener(e -> {
             int totalPages = Math.max(1, (int) Math.ceil(requestTotalCount / (double) REQUEST_PAGE_SIZE));
             if (requestPage < totalPages) { requestPage++; loadRequestData(); }
@@ -262,9 +334,11 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         pageBar.add(requestPageLabel);
         pageBar.add(nextButton);
 
+        requestTable.setBackground(Color.WHITE);
         JScrollPane requestScroll = new JScrollPane(requestTable);
-        int requestTableHeight = requestTable.getRowHeight() * REQUEST_PAGE_SIZE
-                + requestTable.getTableHeader().getPreferredSize().height + 2;
+        requestScroll.getViewport().setBackground(Color.WHITE);
+        requestScroll.setBorder(BorderFactory.createLineBorder(new Color(0xee, 0xee, 0xee)));
+        int requestTableHeight = requestTable.getRowHeight() * REQUEST_PAGE_SIZE + 44 + 2;
         requestScroll.setPreferredSize(new Dimension(0, requestTableHeight));
         requestScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, requestTableHeight));
 
@@ -319,7 +393,7 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
             requestPageLabel.setText(requestPage + " / " + totalPages + " 쪽 (전체 " + requestTotalCount + "건)");
 
         } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "조회 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
+            DmartDialog.showMessageDialog(this, "조회 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
             ex.printStackTrace();
         }
     }
@@ -342,42 +416,58 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         String approvedAt = a.getApprovedAt() == null ? "-" : a.getApprovedAt().format(DT_FMT);
         String type = displayType(a);
 
-        JPanel form = new JPanel(new GridLayout(0, 2, 10, 8));
-        form.add(new JLabel("품목명")); form.add(new JLabel(itemName));
-        form.add(new JLabel("요청 유형")); form.add(new JLabel(type));
-        form.add(new JLabel("요청 수량")); form.add(new JLabel(a.getRequestedQty() + unit));
-        form.add(new JLabel("거래처")); form.add(new JLabel(partnerName));
-        form.add(new JLabel("요청자")); form.add(new JLabel(requester));
-        form.add(new JLabel("요청일시")); form.add(new JLabel(requestedAt));
-        form.add(new JLabel("상태")); form.add(new JLabel(a.getStatus()));
-        form.add(new JLabel("승인 처리자")); form.add(new JLabel(approver));
-        form.add(new JLabel("승인 처리일")); form.add(new JLabel(approvedAt));
+        // css .alert-form { grid-template-columns: repeat(2,1fr); gap: 24px 40px }
+        JPanel form = new JPanel(new GridLayout(0, 2, 40, 24));
+        form.setOpaque(false);
+        form.setBorder(BorderFactory.createEmptyBorder(30, 30, 30, 30)); // css .alert-form padding: 30px
+        form.add(detailField("품목명", itemName));
+        form.add(detailField("요청 유형", type));
+        form.add(detailField("요청 수량", a.getRequestedQty() + unit));
+        form.add(detailField("거래처", partnerName));
+        form.add(detailField("요청자", requester));
+        form.add(detailField("요청일시", requestedAt));
+        form.add(detailField("상태", a.getStatus()));
+        form.add(detailField("승인 처리자", approver));
+        form.add(detailField("승인 처리일", approvedAt));
 
-        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), type + " 승인 요청", true);
-        dialog.setLayout(new BorderLayout(10, 10));
-        ((JPanel) dialog.getContentPane()).setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
-        dialog.add(form, BorderLayout.CENTER);
+        JPanel body = new JPanel(new BorderLayout());
+        body.setOpaque(false);
+        body.putClientProperty("dmart.noPadding", Boolean.TRUE);
+        body.add(form, BorderLayout.CENTER);
 
-        JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton cancelButton = new JButton("닫기");
-        cancelButton.addActionListener(e -> dialog.dispose());
-        JButton rejectButton = new JButton("반려");
-        JButton approveButton = new JButton("승인");
+        /* css .modal-footer button { flex:1; height:42px } - 반려/승인이 폭을 반씩 나눠 갖습니다.
+           원본 apModal 푸터에는 "닫기"가 없고(헤더의 x로 닫습니다) 반려/승인 둘뿐입니다. */
         boolean pending = "대기".equals(a.getStatus());
+        JButton rejectButton = modalCancelButton("반려");
+        JButton approveButton = modalPrimaryButton("승인");
         rejectButton.setEnabled(pending);
         approveButton.setEnabled(pending);
+
+        JDialog dialog = DmartDialog.createDialog(this, type + " 승인 요청",
+                body, DmartDialog.WIDTH_WIDE, rejectButton, approveButton);
+
         rejectButton.addActionListener(e -> { dialog.dispose(); decide(a, "반려"); });
         approveButton.addActionListener(e -> { dialog.dispose(); decide(a, "승인"); });
-        buttonRow.add(cancelButton);
-        buttonRow.add(rejectButton);
-        buttonRow.add(approveButton);
-        dialog.add(buttonRow, BorderLayout.SOUTH);
 
-        dialog.pack();
-        dialog.setLocationRelativeTo(this);
         dialogOpen = true;
-        dialog.setVisible(true); // 모달이라 여기서 멈췄다가, 닫히면 아래 줄로 이어집니다
+        DmartDialog.show(dialog, this); // 모달이라 여기서 멈췄다가, 닫히면 아래 줄로 이어집니다
         dialogOpen = false;
+    }
+
+    /** 라벨(15px, 회색) 위 / 값(16px) 아래 세로 배치 - 상세보기 팝업 필드 하나 */
+    private JPanel detailField(String label, String value) {
+        JPanel p = new JPanel();
+        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+        p.setOpaque(false);
+        JLabel labelComp = new JLabel(label);
+        labelComp.setForeground(new Color(0x66, 0x66, 0x66));
+        labelComp.setFont(labelComp.getFont().deriveFont(15f));
+        JLabel valueComp = new JLabel(value);
+        valueComp.setFont(valueComp.getFont().deriveFont(Font.PLAIN, 16f));
+        valueComp.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
+        p.add(labelComp);
+        p.add(valueComp);
+        return p;
     }
 
     private void decide(Approval a, String status) {
@@ -388,7 +478,7 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
                 ? itemName + " " + a.getRequestedQty() + unit + " 을 승인할까요?\n\n승인하면 " + a.getRequestType() + " 가 바로 처리됩니다."
                 : "이 요청을 반려할까요?";
 
-        int confirm = JOptionPane.showConfirmDialog(this, ask, "확인", JOptionPane.YES_NO_OPTION);
+        int confirm = DmartDialog.showConfirmDialog(this, ask, "확인", JOptionPane.YES_NO_OPTION);
         if (confirm != JOptionPane.YES_OPTION) return;
 
         try {
@@ -400,7 +490,14 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
                 msg.append("반려했습니다.");
             } else {
                 msg.append("승인했습니다.");
-                if ("outbound".equals(result.executedService)) {
+
+                // [버그 수정] 예전엔 outbound/inbound 처리 메시지를 먼저 붙이고 나서 실패
+                // 여부를 "또" 검사해서 덧붙이는 구조라, 자동 실행이 실패했는데도 "처리됨"과
+                // "실패" 문구가 동시에 떴습니다(둘이 서로 모순). 원본(afterDecide)처럼
+                // if / else if 로 묶어서, 실패했으면 실패 문구만 보이게 했습니다.
+                if (Boolean.TRUE.equals(result.executionFailed)) {
+                    msg.append("\n\n다만 자동 실행에 실패했습니다.\n").append(result.executionError);
+                } else if ("outbound".equals(result.executedService)) {
                     msg.append("\n요청 ").append(result.requestedQty)
                        .append("개 중 ").append(result.fulfilledQty).append("개 출고 처리됨");
                     if (result.shortageApprovalId != null) {
@@ -409,15 +506,12 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
                 } else if ("inbound".equals(result.executedService)) {
                     msg.append("\n입고 처리됨");
                 }
-                if (Boolean.TRUE.equals(result.executionFailed)) {
-                    msg.append("\n(처리 중 문제: ").append(result.executionError).append(")");
-                }
             }
-            JOptionPane.showMessageDialog(this, msg.toString());
+            DmartDialog.showMessageDialog(this, msg.toString());
             loadRequestData();
 
         } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "처리 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
+            DmartDialog.showMessageDialog(this, "처리 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
             ex.printStackTrace();
         }
     }
@@ -476,8 +570,10 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
             });
 
             JComboBox<String> typeCombo2 = new JComboBox<>(new String[] { "발주", "출고" });
+            SwingStyle.styleCombo(typeCombo2);
             JTextField qtyField = new JTextField(10);
             JComboBox<Partner> partnerCombo = new JComboBox<>();
+            SwingStyle.styleCombo(partnerCombo);
             partnerCombo.setRenderer(new NameRenderer(o -> ((Partner) o).getName()));
             JLabel partnerLabel = new JLabel("공급처");
 
@@ -492,67 +588,79 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
             refillPartners.run();
             typeCombo2.addActionListener(e -> refillPartners.run());
 
-            JPanel form = new JPanel(new GridLayout(0, 2, 8, 8));
-            form.add(new JLabel("요청 유형"));
-            form.add(typeCombo2);
-            form.add(new JLabel("품목명"));
-            form.add(itemNameEditor);
-            form.add(new JLabel("요청 수량"));
-            form.add(qtyField);
-            form.add(partnerLabel);
-            form.add(partnerCombo);
+            // css .form-box / .form-group - 라벨이 입력칸 위로 오는 세로 배치
+            JPanel form = formBox();
+            form.add(formGroup("요청 유형", typeCombo2));
+            form.add(Box.createVerticalStrut(FORM_GROUP_GAP));
+            form.add(formGroup("품목명", itemNameEditor));
+            form.add(Box.createVerticalStrut(FORM_GROUP_GAP));
+            form.add(formGroup("요청 수량", qtyField));
+            form.add(Box.createVerticalStrut(FORM_GROUP_GAP));
+            JPanel partnerGroup = formGroup(partnerLabel, partnerCombo);
+            form.add(partnerGroup);
 
-            dialogOpen = true;
-            int result = JOptionPane.showConfirmDialog(this, form, "승인 요청 등록", JOptionPane.OK_CANCEL_OPTION);
-            dialogOpen = false;
-            if (result != JOptionPane.OK_OPTION) return;
+            // [버그 수정] 예전엔 확인창이 닫힌 "다음"에 검증을 했습니다. 그래서 뭘 잘못
+            // 입력하면 안내창만 뜨고 폼 자체는 이미 사라진 뒤라, 사용자가 처음부터 전부
+            // 다시 입력해야 했습니다. 원본(alert() 뜨는 동안 모달은 계속 떠 있음)과 같은
+            // 느낌을 내려고, "확인 누르고 -> 검증 실패하면 같은 폼을 다시 보여주기"를
+            // 반복문으로 감쌌습니다. itemNameEditor/qtyField 등은 매번 새로 만드는 게
+            // 아니라 이 반복문 밖에서 한 번만 만든 같은 객체라, 사용자가 쳐 놓은 값이
+            // 그대로 남은 채로 다시 뜹니다.
+            while (true) {
 
-            String typedName = itemNameEditor.getText().trim();
-            String type = (String) typeCombo2.getSelectedItem();
+                dialogOpen = true;
+                int result = DmartDialog.showConfirmDialog(this, form, "승인 요청 등록", JOptionPane.OK_CANCEL_OPTION);
+                dialogOpen = false;
+                if (result != JOptionPane.OK_OPTION) return;
 
-            if (typedName.isEmpty() || qtyField.getText().trim().isEmpty()) {
-                JOptionPane.showMessageDialog(this, "품목명과 요청 수량을 채워 주세요.");
-                return;
+                String typedName = itemNameEditor.getText().trim();
+                String type = (String) typeCombo2.getSelectedItem();
+
+                if (typedName.isEmpty() || qtyField.getText().trim().isEmpty()) {
+                    DmartDialog.showMessageDialog(this, "품목명과 요청 수량을 채워 주세요.");
+                    continue; // 입력값 그대로 폼을 다시 보여줍니다
+                }
+
+                // 원본(getItemId)과 같이 후보 목록에 있는 이름과 일치해야만 등록을 허용하는데,
+                // 앞뒤 공백 때문에 멀쩡히 고른 것도 못 찾는 일이 없게 양쪽 다 trim해서 비교합니다.
+                Item selectedItem = null;
+                for (Item it : items) {
+                    if (it.getItemName().trim().equals(typedName)) { selectedItem = it; break; }
+                }
+                if (selectedItem == null) {
+                    DmartDialog.showMessageDialog(this, "등록되지 않은 품목입니다.\n후보 목록에서 골라 주세요.\n(입력하신 값: \"" + typedName + "\")");
+                    continue;
+                }
+
+                int qty;
+                try {
+                    qty = Integer.parseInt(qtyField.getText().trim());
+                } catch (NumberFormatException ex) {
+                    DmartDialog.showMessageDialog(this, "요청 수량은 숫자로 입력해 주세요.");
+                    continue;
+                }
+                if (qty <= 0) {
+                    DmartDialog.showMessageDialog(this, "요청 수량은 1개 이상이어야 합니다.");
+                    continue;
+                }
+
+                Partner selectedPartner = (Partner) partnerCombo.getSelectedItem();
+                Long partnerId = selectedPartner != null ? selectedPartner.getPartnerId() : null;
+
+                if ("출고".equals(type) && partnerId == null) {
+                    DmartDialog.showMessageDialog(this, "출고는 거래처가 필수입니다.");
+                    continue;
+                }
+
+                approvalService.create(selectedItem.getItemId(), null, type, qty, partnerId, Session.getUserId());
+
+                DmartDialog.showMessageDialog(this, "등록되었습니다.");
+                loadRequestData();
+                return; // 성공했으니 반복문을 빠져나갑니다
             }
-
-            // 원본(getItemId)과 같이 후보 목록에 있는 이름과 일치해야만 등록을 허용하는데,
-            // 앞뒤 공백 때문에 멀쩡히 고른 것도 못 찾는 일이 없게 양쪽 다 trim해서 비교합니다.
-            Item selectedItem = null;
-            for (Item it : items) {
-                if (it.getItemName().trim().equals(typedName)) { selectedItem = it; break; }
-            }
-            if (selectedItem == null) {
-                JOptionPane.showMessageDialog(this, "등록되지 않은 품목입니다.\n후보 목록에서 골라 주세요.\n(입력하신 값: \"" + typedName + "\")");
-                return;
-            }
-
-            int qty;
-            try {
-                qty = Integer.parseInt(qtyField.getText().trim());
-            } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(this, "요청 수량은 숫자로 입력해 주세요.");
-                return;
-            }
-            if (qty <= 0) {
-                JOptionPane.showMessageDialog(this, "요청 수량은 1개 이상이어야 합니다.");
-                return;
-            }
-
-            Partner selectedPartner = (Partner) partnerCombo.getSelectedItem();
-            Long partnerId = selectedPartner != null ? selectedPartner.getPartnerId() : null;
-
-            if ("출고".equals(type) && partnerId == null) {
-                JOptionPane.showMessageDialog(this, "출고는 거래처가 필수입니다.");
-                return;
-            }
-
-            approvalService.create(selectedItem.getItemId(), null, type, qty, partnerId, Session.getUserId());
-
-            JOptionPane.showMessageDialog(this, "등록되었습니다.");
-            loadRequestData();
 
         } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "등록 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
+            DmartDialog.showMessageDialog(this, "등록 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
             ex.printStackTrace();
         }
     }
@@ -569,22 +677,29 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
     }
 
     private JPanel buildConsolTab() {
-        JPanel panel = new JPanel(new BorderLayout(0, 8));
+        RoundedPanel panel = new RoundedPanel(CARD_ARC, Color.WHITE);
+        panel.setLayout(new BorderLayout(0, 12));
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         // 원본은 "전체 선택"이 표 머리글 체크박스, "선택한 창고 정리 추천 처리"는 하나라도
         // 체크해야 나타나는 별도 바(bulk-bar)입니다. Swing은 표 머리글에 체크박스를 넣기
         // 불안정해서, 세로로 겹쳐 두는 걸로 대신합니다(버튼 위에 전체선택).
         JPanel bulkBar = new JPanel();
+        bulkBar.setOpaque(false);
         bulkBar.setLayout(new BoxLayout(bulkBar, BoxLayout.Y_AXIS));
         bulkBar.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
 
-        JButton bulkButton = new JButton("선택한 창고 정리 추천 처리");
+        JButton bulkButton = filledButton("선택한 창고 정리 추천 처리", new Color(0x5E, 0x7F, 0xA3), Color.WHITE, 8);
         bulkButton.addActionListener(e -> doExecuteAllConsolidation());
         bulkButton.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JPanel selectAllRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 4));
+        JPanel selectAllRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        selectAllRow.setOpaque(false);
         selectAllRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        selectAllRow.setBorder(BorderFactory.createEmptyBorder(8, 0, 0, 0));
         JCheckBox selectAllBox = new JCheckBox("전체 선택");
+        styleCheckBox(selectAllBox);
+        selectAllBox.setOpaque(false);
         selectAllBox.addActionListener(e -> {
             boolean checked = selectAllBox.isSelected();
             for (int i = 0; i < consolModel.getRowCount(); i++) {
@@ -598,30 +713,64 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         bulkBar.add(selectAllRow);
 
         UiUtil.applyStandardRowHeight(consolTable);
+        // [버그 수정] 원본 표엔 없는, 마우스로 컬럼 순서를 바꾸는 조작을 막습니다.
+        consolTable.getTableHeader().setReorderingAllowed(false);
+        consolTable.setShowGrid(false);
+        consolTable.setIntercellSpacing(new Dimension(0, 0));
+        consolTable.setSelectionBackground(new Color(0xf7, 0xf7, 0xf7));
+        consolTable.setSelectionForeground(Color.BLACK);
+        consolTable.setFocusable(false);
+        consolTable.getTableHeader().setBackground(new Color(0xd9, 0xd9, 0xd9));
+        consolTable.getTableHeader().setFont(consolTable.getFont().deriveFont(Font.BOLD, 16f));
+        consolTable.getTableHeader().setPreferredSize(new Dimension(0, 44));
         consolTable.getColumnModel().getColumn(0).setPreferredWidth(40);
+        consolTable.getColumnModel().getColumn(0).setCellRenderer((t, value, isSelected, hasFocus, row, column) -> {
+            JCheckBox box = new JCheckBox();
+            styleCheckBox(box);
+            box.setSelected(Boolean.TRUE.equals(value));
+            return tableCheckCell(t, isSelected, box);
+        });
+        consolTable.getColumnModel().getColumn(0).setCellEditor(new javax.swing.DefaultCellEditor(new JCheckBox()) {
+            private final JCheckBox editorBox = new JCheckBox();
+            { styleCheckBox(editorBox); editorComponent = editorBox; editorBox.addActionListener(e -> stopCellEditing()); }
+            @Override
+            public Component getTableCellEditorComponent(JTable t, Object value, boolean isSelected, int row, int column) {
+                editorBox.setSelected(Boolean.TRUE.equals(value));
+                return editorBox;
+            }
+            @Override
+            public Object getCellEditorValue() { return editorBox.isSelected(); }
+        });
         consolTable.getColumnModel().getColumn(2).setPreferredWidth(380);
         consolTable.getColumnModel().getColumn(3).setPreferredWidth(90);
         consolModel.addTableModelListener(e -> {
             if (e.getColumn() == 0) countConsolChecked();
         });
-        javax.swing.table.DefaultTableCellRenderer consolCenterRenderer = new javax.swing.table.DefaultTableCellRenderer();
-        consolCenterRenderer.setHorizontalAlignment(SwingConstants.CENTER);
+        BottomBorderCenterRenderer consolCenterRenderer = new BottomBorderCenterRenderer();
         consolTable.getColumnModel().getColumn(1).setCellRenderer(consolCenterRenderer);
         consolTable.getColumnModel().getColumn(2).setCellRenderer(consolCenterRenderer);
-        ((javax.swing.table.DefaultTableCellRenderer) consolTable.getTableHeader().getDefaultRenderer())
-                .setHorizontalAlignment(SwingConstants.CENTER);
+        javax.swing.table.DefaultTableCellRenderer consolHeaderRenderer =
+                (javax.swing.table.DefaultTableCellRenderer) consolTable.getTableHeader().getDefaultRenderer();
+        consolHeaderRenderer.setHorizontalAlignment(SwingConstants.CENTER);
+        consolHeaderRenderer.setBackground(new Color(0xd9, 0xd9, 0xd9));
+        consolHeaderRenderer.setOpaque(true);
 
         // "조치" 칸 - 원본처럼 행마다 "지금 실행" 버튼이 바로 붙어 있습니다
         consolTable.getColumnModel().getColumn(3).setCellRenderer((table, value, isSelected, hasFocus, row, column) ->
-                new JButton("지금 실행"));
+                tableButtonCell(table, isSelected, filledButton("지금 실행", new Color(0xe5, 0xe5, 0xe5), Color.BLACK, 6)));
         consolTable.getColumnModel().getColumn(3).setCellEditor(new ButtonCellEditor(row -> {
-            JButton button = new JButton("지금 실행");
+            JButton button = filledButton("지금 실행", new Color(0xe5, 0xe5, 0xe5), Color.BLACK, 6);
             button.addActionListener(e -> doExecuteConsolidation(row));
-            return button;
+            return tableButtonCell(consolTable, true, button);
         }));
 
+        consolTable.setBackground(Color.WHITE);
+        JScrollPane consolScroll = new JScrollPane(consolTable);
+        consolScroll.getViewport().setBackground(Color.WHITE);
+        consolScroll.setBorder(BorderFactory.createLineBorder(new Color(0xee, 0xee, 0xee)));
+
         panel.add(bulkBar, BorderLayout.NORTH);
-        panel.add(new JScrollPane(consolTable), BorderLayout.CENTER);
+        panel.add(consolScroll, BorderLayout.CENTER);
         return panel;
     }
 
@@ -648,7 +797,7 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
             drawConsolList();
 
         } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "조회 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
+            DmartDialog.showMessageDialog(this, "조회 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
             ex.printStackTrace();
         }
     }
@@ -668,7 +817,8 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
     private void drawConsolList() {
 
         consolModel.setRowCount(0);
-        tabs.setTitleAt(1, consolAlertIds.isEmpty() ? "창고 정리 추천" : "창고 정리 추천 (" + consolAlertIds.size() + ")");
+        tabConsolBtn.setText(consolAlertIds.isEmpty() ? "창고 정리 추천" : "창고 정리 추천 (" + consolAlertIds.size() + ")");
+        tabConsolBtn.getParent().revalidate();
 
         if (consolAlertIds.isEmpty()) {
             consolCheckLabel.setText("정리할 항목이 없습니다.");
@@ -681,7 +831,7 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
             String itemName = itemNames.getOrDefault(itemId, "품목 " + itemId);
             String unit = itemUnits.getOrDefault(itemId, "");
             String content = zoneLabel(move.fromZoneId) + " \u2192 " + zoneLabel(move.toZoneId)
-                    + " (" + move.quantity + unit + ")";
+                    + " (" + addComma(move.quantity) + unit + ")";
             consolModel.addRow(new Object[] { false, itemName, content, "지금 실행" });
         }
         countConsolChecked();
@@ -695,22 +845,37 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         consolCheckLabel.setText(count == 0 ? "처리할 항목을 골라 주세요." : count + "건 선택됨");
     }
 
-    private int executeOneConsolidation(Connection conn, Long itemId, ConsolMove move) throws SQLException {
+    /** 로트별 이동 결과 - 원본 sendOneMove/failOneMove와 같이 몇 개를 옮겼는지와
+     *  실패한 이유를 같이 들고 다닙니다 (실패를 조용히 삼키지 않기 위함) */
+    private static class ConsolExecResult {
+        int movedQty = 0;
+        final List<String> failures = new java.util.ArrayList<>();
+    }
+
+    private ConsolExecResult executeOneConsolidation(Connection conn, Long itemId, ConsolMove move) throws SQLException {
 
         List<StockLot> lots = stockLotDao.findPage(conn, itemId, move.fromZoneId, null, "NORMAL", null, null, null, false, 0, 200);
-        int movedQty = 0;
+        ConsolExecResult result = new ConsolExecResult();
 
         for (StockLot lot : lots) {
             if (lot.getQuantity() == null || lot.getQuantity() <= 0) continue;
             try {
                 transferService.transfer(lot.getLotId(), move.fromZoneId, move.toZoneId,
                         lot.getQuantity(), Session.getUserId());
-                movedQty += lot.getQuantity();
+                result.movedQty += lot.getQuantity();
             } catch (SQLException | RuntimeException ex) {
+                // [버그 수정] 예전엔 여기서 printStackTrace만 하고 넘어가서, 로트가 전부
+                // 실패해도 movedQty=0으로 "0개를 옮겼습니다"라고만 뜨고 알림은 그대로
+                // 해결 처리돼 버렸습니다 - 실제로는 아무것도 안 옮겼는데 성공한 것처럼
+                // 보이는 셈입니다. 원본 approval.html의 failOneMove("일부는 옮기지
+                // 못했습니다: " + message)와 같이, 실패 사유를 모아뒀다가 사용자에게
+                // 그대로 보여줍니다.
+                String reason = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
+                result.failures.add("로트 " + lot.getLotId() + " (" + lot.getQuantity() + "개): " + reason);
                 ex.printStackTrace();
             }
         }
-        return movedQty;
+        return result;
     }
 
     private void doExecuteConsolidation(int i) {
@@ -720,20 +885,42 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         String itemName = itemNames.getOrDefault(itemId, "품목 " + itemId);
 
         String ask = zoneLabel(move.fromZoneId) + " \u2192 " + zoneLabel(move.toZoneId) + "로 "
-                + move.quantity + "개를 지금 옮길까요?";
-        int confirm = JOptionPane.showConfirmDialog(this, ask, "확인", JOptionPane.YES_NO_OPTION);
+                + addComma(move.quantity) + "개를 지금 옮길까요?";
+        int confirm = DmartDialog.showConfirmDialog(this, ask, "확인", JOptionPane.YES_NO_OPTION);
         if (confirm != JOptionPane.YES_OPTION) return;
 
         try (Connection conn = DBConnection.getConnection()) {
-            int movedQty = executeOneConsolidation(conn, itemId, move);
+            ConsolExecResult result = executeOneConsolidation(conn, itemId, move);
+
+            // [버그 수정] 로트가 하나도 없어서 movedQty=0인 것(원래 옮길 게 없었던 정상 상황)과
+            // 시도했는데 전부 실패해서 movedQty=0인 것(문제가 생긴 상황)을 구분합니다.
+            // 후자는 원본처럼 실패 사유를 그대로 보여주고, 알림도 해결 처리하지 않습니다 -
+            // 아무것도 못 옮겼는데 "처리 완료"로 남으면 다음에 또 정리해야 한다는 걸
+            // 놓치게 됩니다.
+            if (result.movedQty == 0 && !result.failures.isEmpty()) {
+                DmartDialog.showMessageDialog(this,
+                        "옮기지 못했습니다:\n" + String.join("\n", result.failures)
+                        + "\n\n창고 간 재고 이동 화면에서 직접 처리해 주세요.",
+                        "오류", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
             Alert alert = alertDao.findById(conn, consolAlertIds.get(i));
             if (alert != null) { alert.setIsResolved(true); alertDao.update(conn, alert); }
 
             loadConsolData();
-            JOptionPane.showMessageDialog(this, itemName + " " + movedQty + "개를 옮겼습니다.");
+
+            if (!result.failures.isEmpty()) {
+                // 일부만 실패한 경우 - 원본처럼 성공/실패를 같이 알려줍니다
+                DmartDialog.showMessageDialog(this,
+                        itemName + " " + result.movedQty + "개를 옮겼습니다.\n\n"
+                        + "다만 일부는 옮기지 못했습니다:\n" + String.join("\n", result.failures));
+            } else {
+                DmartDialog.showMessageDialog(this, itemName + " " + result.movedQty + "개를 옮겼습니다.");
+            }
 
         } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "처리 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
+            DmartDialog.showMessageDialog(this, "처리 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
             ex.printStackTrace();
         }
     }
@@ -746,66 +933,97 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         }
 
         if (checked.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "처리할 창고 정리 추천을 골라 주세요.");
+            DmartDialog.showMessageDialog(this, "처리할 창고 정리 추천을 골라 주세요.");
             return;
         }
 
-        int confirm = JOptionPane.showConfirmDialog(this,
+        int confirm = DmartDialog.showConfirmDialog(this,
                 "고른 창고 정리 추천 " + checked.size() + "건을 지금 처리할까요?", "확인", JOptionPane.YES_NO_OPTION);
         if (confirm != JOptionPane.YES_OPTION) return;
 
         StringBuilder resultMsg = new StringBuilder("처리 결과:\n");
         int successCount = 0;
+        List<String> allFailures = new java.util.ArrayList<>(); // [버그 수정] 여기도 실패를 조용히 삼키지 않고 모아서 보여줍니다
 
         try (Connection conn = DBConnection.getConnection()) {
             for (int i : checked) {
                 ConsolMove move = consolMoves.get(i);
                 Long itemId = consolItemIds.get(i);
-                int movedQty = executeOneConsolidation(conn, itemId, move);
+                String itemName = itemNames.getOrDefault(itemId, "품목 " + itemId);
+                ConsolExecResult result = executeOneConsolidation(conn, itemId, move);
 
-                if (movedQty > 0) {
+                if (result.movedQty > 0) {
                     successCount++;
-                    resultMsg.append("- ").append(itemNames.getOrDefault(itemId, "품목 " + itemId))
+                    resultMsg.append("- ").append(itemName)
                             .append(" : ").append(zoneLabel(move.fromZoneId)).append(" \u2192 ")
-                            .append(zoneLabel(move.toZoneId)).append(" (").append(movedQty).append("개)\n");
+                            .append(zoneLabel(move.toZoneId)).append(" (").append(addComma(result.movedQty)).append("개)\n");
                 }
-                Alert alert = alertDao.findById(conn, consolAlertIds.get(i));
-                if (alert != null) { alert.setIsResolved(true); alertDao.update(conn, alert); }
+                if (!result.failures.isEmpty()) {
+                    for (String f : result.failures) allFailures.add(itemName + " - " + f);
+                }
+
+                // [버그 수정] 시도했는데 전부 실패한 건(움직인 게 0개면서 실패 사유가 있는 경우)은
+                // 알림을 해결 처리하지 않습니다. 옮길 게 애초에 없었던 정상 케이스만 해결 처리합니다.
+                if (result.movedQty > 0 || result.failures.isEmpty()) {
+                    Alert alert = alertDao.findById(conn, consolAlertIds.get(i));
+                    if (alert != null) { alert.setIsResolved(true); alertDao.update(conn, alert); }
+                }
             }
         } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "처리 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
+            DmartDialog.showMessageDialog(this, "처리 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
             ex.printStackTrace();
             return;
         }
 
         String finalMsg = successCount == 0 ? "실제로 이동된 재고가 없습니다." : resultMsg.toString();
-        JOptionPane.showMessageDialog(this, finalMsg);
+        if (!allFailures.isEmpty()) {
+            finalMsg += "\n\n다음은 옮기지 못했습니다:\n" + String.join("\n", allFailures);
+        }
+        DmartDialog.showMessageDialog(this, finalMsg);
         loadConsolData();
     }
 
     private JPanel buildExcessTab() {
-        JPanel panel = new JPanel(new BorderLayout(0, 8));
+        RoundedPanel panel = new RoundedPanel(CARD_ARC, Color.WHITE);
+        panel.setLayout(new BorderLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
         UiUtil.applyStandardRowHeight(excessTable);
-        javax.swing.table.DefaultTableCellRenderer excessCenterRenderer = new javax.swing.table.DefaultTableCellRenderer();
-        excessCenterRenderer.setHorizontalAlignment(SwingConstants.CENTER);
+        // [버그 수정] 원본 표엔 없는, 마우스로 컬럼 순서를 바꾸는 조작을 막습니다.
+        excessTable.getTableHeader().setReorderingAllowed(false);
+        excessTable.setShowGrid(false);
+        excessTable.setIntercellSpacing(new Dimension(0, 0));
+        excessTable.setSelectionBackground(new Color(0xf7, 0xf7, 0xf7));
+        excessTable.setSelectionForeground(Color.BLACK);
+        excessTable.setFocusable(false);
+        excessTable.getTableHeader().setBackground(new Color(0xd9, 0xd9, 0xd9));
+        excessTable.getTableHeader().setFont(excessTable.getFont().deriveFont(Font.BOLD, 16f));
+        excessTable.getTableHeader().setPreferredSize(new Dimension(0, 44));
+        BottomBorderCenterRenderer excessCenterRenderer = new BottomBorderCenterRenderer();
         excessTable.getColumnModel().getColumn(0).setCellRenderer(excessCenterRenderer);
         excessTable.getColumnModel().getColumn(1).setCellRenderer(excessCenterRenderer);
         JTextField excessQtyEditorField = new JTextField();
         excessQtyEditorField.setHorizontalAlignment(SwingConstants.CENTER);
         excessTable.getColumnModel().getColumn(2).setCellEditor(new javax.swing.DefaultCellEditor(excessQtyEditorField));
-        ((javax.swing.table.DefaultTableCellRenderer) excessTable.getTableHeader().getDefaultRenderer())
-                .setHorizontalAlignment(SwingConstants.CENTER);
+        javax.swing.table.DefaultTableCellRenderer excessHeaderRenderer =
+                (javax.swing.table.DefaultTableCellRenderer) excessTable.getTableHeader().getDefaultRenderer();
+        excessHeaderRenderer.setHorizontalAlignment(SwingConstants.CENTER);
+        excessHeaderRenderer.setBackground(new Color(0xd9, 0xd9, 0xd9));
+        excessHeaderRenderer.setOpaque(true);
 
         // "조치" 칸 - 원본처럼 행마다 "반품 처리" 버튼이 바로 붙어 있습니다
         excessTable.getColumnModel().getColumn(3).setCellRenderer((table, value, isSelected, hasFocus, row, column) ->
-                new JButton("반품 처리"));
+                tableButtonCell(table, isSelected, filledButton("반품 처리", new Color(0xe5, 0xe5, 0xe5), Color.BLACK, 6)));
         excessTable.getColumnModel().getColumn(3).setCellEditor(new ButtonCellEditor(row -> {
-            JButton button = new JButton("반품 처리");
+            JButton button = filledButton("반품 처리", new Color(0xe5, 0xe5, 0xe5), Color.BLACK, 6);
             button.addActionListener(e -> doExecuteExcessReturn(row));
-            return button;
+            return tableButtonCell(excessTable, true, button);
         }));
 
-        panel.add(new JScrollPane(excessTable), BorderLayout.CENTER);
+        excessTable.setBackground(Color.WHITE);
+        JScrollPane excessScroll = new JScrollPane(excessTable);
+        excessScroll.getViewport().setBackground(Color.WHITE);
+        excessScroll.setBorder(BorderFactory.createLineBorder(new Color(0xee, 0xee, 0xee)));
+        panel.add(excessScroll, BorderLayout.CENTER);
         return panel;
     }
 
@@ -824,7 +1042,8 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
             }
 
             excessModel.setRowCount(0);
-            tabs.setTitleAt(2, excessAlertIds.isEmpty() ? "재고초과 반품" : "재고초과 반품 (" + excessAlertIds.size() + ")");
+            tabExcessBtn.setText(excessAlertIds.isEmpty() ? "재고초과 반품" : "재고초과 반품 (" + excessAlertIds.size() + ")");
+            tabExcessBtn.getParent().revalidate();
 
             for (Long itemId : excessItemIds) {
                 Item item = itemDao.findById(conn, itemId);
@@ -842,7 +1061,7 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
             }
 
         } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "조회 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
+            DmartDialog.showMessageDialog(this, "조회 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
             ex.printStackTrace();
         }
     }
@@ -858,15 +1077,15 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         try {
             qty = Integer.parseInt(qtyValue.toString().trim());
         } catch (NumberFormatException ex) {
-            JOptionPane.showMessageDialog(this, "반품 수량을 숫자로 입력해 주세요.");
+            DmartDialog.showMessageDialog(this, "반품 수량을 숫자로 입력해 주세요.");
             return;
         }
         if (qty <= 0) {
-            JOptionPane.showMessageDialog(this, "반품 수량을 입력해 주세요.");
+            DmartDialog.showMessageDialog(this, "반품 수량을 입력해 주세요.");
             return;
         }
 
-        int confirm = JOptionPane.showConfirmDialog(this,
+        int confirm = DmartDialog.showConfirmDialog(this,
                 itemName + "을(를) " + qty + "개 공급처로 반품 처리할까요?", "확인", JOptionPane.YES_NO_OPTION);
         if (confirm != JOptionPane.YES_OPTION) return;
 
@@ -894,7 +1113,7 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
             }
 
             if (actuallyReturned == 0) {
-                JOptionPane.showMessageDialog(this, "반품할 재고가 없습니다.");
+                DmartDialog.showMessageDialog(this, "반품할 재고가 없습니다.");
                 return;
             }
 
@@ -908,14 +1127,14 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
                     alertDao.update(conn, alert);
                 }
                 loadExcessData();
-                JOptionPane.showMessageDialog(this, "반품 처리를 완료했습니다.");
+                DmartDialog.showMessageDialog(this, "반품 처리를 완료했습니다.");
             } else {
                 loadExcessData();
-                JOptionPane.showMessageDialog(this, "반품 처리는 했지만 아직 기준을 넘습니다 (현재 " + stockNow + "개).");
+                DmartDialog.showMessageDialog(this, "반품 처리는 했지만 아직 기준을 넘습니다 (현재 " + stockNow + "개).");
             }
 
         } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "처리 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
+            DmartDialog.showMessageDialog(this, "처리 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
             ex.printStackTrace();
         }
     }
@@ -958,6 +1177,29 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
                     ((JButton) c).addActionListener(e -> fireEditingStopped());
                 }
             }
+        }
+    }
+
+    /** css td{padding:18px 10px; border-bottom:1px solid #eeeeee} 느낌의 가운데정렬 + 아래 테두리 셀.
+     *
+     *  [버그 수정] setBorder로 준 아래쪽 구분선은 JTable 셀 렌더러로 쓰일 때 실제로는 그려지지
+     *  않았습니다(행 높이가 글자보다 커서, 표 전체 줄 구분선이 이 칸들에서만 끊겨 보이던
+     *  원인) - paintComponent가 다 그려진 다음 직접 선을 그리는 방식으로 바꿔야 보입니다. */
+    private static class BottomBorderCenterRenderer extends javax.swing.table.DefaultTableCellRenderer {
+        BottomBorderCenterRenderer() {
+            setHorizontalAlignment(SwingConstants.CENTER);
+            setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
+        }
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+            super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            return this;
+        }
+        @Override
+        public void paint(Graphics g) {
+            super.paint(g);
+            g.setColor(new Color(0xee, 0xee, 0xee));
+            g.drawLine(0, getHeight() - 1, getWidth(), getHeight() - 1);
         }
     }
 }

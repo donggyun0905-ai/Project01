@@ -29,6 +29,7 @@ import java.util.Map;
 // 총재고 색상 표시, 행 더블클릭 시 재고 상세(로트별 창고/구역/유통기한) 모달을 지원한다.
 public class ItemPanel extends JPanel implements Refreshable {
 
+    private static final int PAGE_SIZE = 10; // common.js의 pageSize와 동일
     private static final int COL_ID = 0;
     private static final int COL_MIN = 4;
     private static final int COL_MAX = 5;
@@ -51,14 +52,27 @@ public class ItemPanel extends JPanel implements Refreshable {
     private final JTextField searchField = new JTextField(14);
     private final JComboBox<String> activeFilterBox = new JComboBox<>(new String[]{"사용 중", "비활성"});
     private final JLabel countLabel = new JLabel(" ");
+    private final Pager pager = new Pager(PAGE_SIZE);
+
+    // item.html의 NO 컬럼 정렬 화살표(▲/▼, toggleOrder()) - 이 표는 그 자리에 실제 품목
+    // ID를 보여주므로, ID 헤더를 누르면 그 정렬을 그대로 재현한다(오름차순/내림차순 토글).
+    private boolean sortDesc = false;
 
     public ItemPanel() {
-        setLayout(new BorderLayout(10, 10));
+        setLayout(new BorderLayout(10, 20));
         setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        setBackground(UiUtil.COLOR_BODY_BG);
 
         add(buildTop(), BorderLayout.NORTH);
-        add(new JScrollPane(table), BorderLayout.CENTER);
-        add(countLabel, BorderLayout.SOUTH);
+        // css .table-box - 표를 흰 카드로 감싼다.
+        Card tableCard = new Card();
+        tableCard.add(new JScrollPane(table), BorderLayout.CENTER);
+        JPanel south = new JPanel(new BorderLayout());
+        south.setOpaque(false);
+        south.add(countLabel, BorderLayout.WEST);
+        south.add(pager.build(this::refresh), BorderLayout.CENTER);
+        tableCard.add(south, BorderLayout.SOUTH);
+        add(tableCard, BorderLayout.CENTER);
 
         table.getColumnModel().getColumn(COL_STOCK).setCellRenderer(new StockCellRenderer());
         table.getColumnModel().getColumn(COL_MANAGE).setCellRenderer(new ManageButtonsRenderer());
@@ -67,6 +81,10 @@ public class ItemPanel extends JPanel implements Refreshable {
         table.getColumnModel().getColumn(COL_MANAGE).setPreferredWidth(manageWidth);
         table.getColumnModel().getColumn(COL_MANAGE).setMinWidth(manageWidth);
         UiUtil.applyStandardRowHeight(table);
+        UiUtil.applyStandardHeaderStyle(table);
+        // item.html colgroup(8/13/20/13/9/13/12/12%)에 우리 표에만 있는 재고부족/재고초과
+        // 기준 두 칸을 더한 비율. 관리 칸은 바로 아래서 170px로 다시 고정한다.
+        UiUtil.setColumnWidths(table, 6, 20, 12, 8, 10, 10, 10, 10, 8, 17);
         table.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mouseClicked(java.awt.event.MouseEvent e) {
@@ -75,41 +93,60 @@ public class ItemPanel extends JPanel implements Refreshable {
                 }
             }
         });
+        updateIdHeader();
+        table.getTableHeader().addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                int viewCol = table.getTableHeader().columnAtPoint(e.getPoint());
+                if (viewCol < 0 || table.convertColumnIndexToModel(viewCol) != COL_ID) {
+                    return;
+                }
+                sortDesc = !sortDesc;
+                updateIdHeader();
+                pager.page = 1;
+                refresh();
+            }
+        });
 
         refresh();
     }
 
     private JComponent buildTop() {
-        JPanel wrap = new JPanel(new BorderLayout());
+        JPanel outer = new JPanel(new BorderLayout(0, 15));
+        outer.setOpaque(false);
 
-        JLabel title = new JLabel("품목 관리");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 22f));
-        wrap.add(title, BorderLayout.WEST);
+        // css .search-box - 검색/등록 줄을 흰 카드로 감싼다.
+        Card wrap = new Card(new BorderLayout());
+        outer.add(wrap, BorderLayout.CENTER);
 
-        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 4));
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+        right.setOpaque(false);
         right.add(fieldBox);
         right.add(searchField);
         JButton searchBtn = new JButton("검색");
-        searchBtn.addActionListener(e -> refresh());
+        searchBtn.addActionListener(e -> { pager.page = 1; refresh(); });
         right.add(searchBtn);
 
         right.add(new JLabel("  "));
         right.add(activeFilterBox);
-        activeFilterBox.addActionListener(e -> refresh());
+        activeFilterBox.addActionListener(e -> { pager.page = 1; refresh(); });
 
-        JButton addBtn = new JButton("등록");
+        RoundedButton addBtn = new RoundedButton("등록", UiUtil.COLOR_BTN_ITEM, Color.WHITE);
+        UiUtil.sizeAsRegisterButton(addBtn);
         addBtn.addActionListener(e -> {
             if (!requireAdmin()) { return; }
             openForm(null);
         });
 
-        JButton detailBtn = new JButton("재고 상세");
-        detailBtn.addActionListener(e -> openStockDetail());
-
         right.add(addBtn);
-        right.add(detailBtn);
-        wrap.add(right, BorderLayout.EAST);
-        return wrap;
+        wrap.add(right, BorderLayout.CENTER);
+        return outer;
+    }
+
+    // css .sort-icon(▲/▼) - ID 헤더 글자 옆에 지금 정렬 방향을 보여준다.
+    private void updateIdHeader() {
+        table.getColumnModel().getColumn(COL_ID).setHeaderValue("ID " + (sortDesc ? "▼" : "▲"));
+        table.getTableHeader().repaint();
     }
 
     private boolean requireAdmin() {
@@ -157,8 +194,10 @@ public class ItemPanel extends JPanel implements Refreshable {
             }
             boolean active = !"비활성".equals(activeFilterBox.getSelectedItem());
 
-            List<Item> items = itemDao.findPage(conn, category, keyword, unit, itemId, active, false, 0, 100000);
             int total = itemDao.count(conn, category, keyword, unit, itemId, active);
+            pager.clampToTotal(total);
+            int offset = (pager.page - 1) * PAGE_SIZE;
+            List<Item> items = itemDao.findPage(conn, category, keyword, unit, itemId, active, sortDesc, offset, PAGE_SIZE);
 
             tableModel.setRowCount(0);
             for (Item item : items) {
@@ -173,15 +212,28 @@ public class ItemPanel extends JPanel implements Refreshable {
                 });
             }
             countLabel.setText("총 " + total + "건");
+            pager.updateLabel();
 
         } catch (Exception e) {
             UiUtil.showError(this, e);
         }
     }
 
+    // item.html fillCategory()/common.js categoryNames - 카테고리는 자유 입력이 아니라
+    // 정해진 13개 중 고르는 드롭다운이다(오타로 "냉동식품"/"냉동 식품"처럼 갈라지는 걸 막기
+    // 위함). 다만 이 목록에 없는 옛 데이터를 수정할 때 그 값이 사라지면 안 되므로, 편집
+    // 가능한 콤보로 만들어 목록에 없는 기존 값은 그대로 입력칸에 보이게 한다.
+    private static final String[] CATEGORY_OPTIONS = {
+            "냉장식품", "냉동식품", "신선식품", "유제품", "베이커리",
+            "음료", "생활용품", "청소용품", "주방잡화", "문구용품",
+            "완구", "의류잡화", "전자소모품"
+    };
+
     private void openForm(Item existing) {
         JTextField nameField = new JTextField(existing != null ? existing.getItemName() : "");
-        JTextField categoryField = new JTextField(existing != null ? nz(existing.getCategory()) : "");
+        JComboBox<String> categoryField = new JComboBox<>(CATEGORY_OPTIONS);
+        categoryField.setEditable(true);
+        categoryField.setSelectedItem(existing != null ? nz(existing.getCategory()) : "");
         JComboBox<String> unitBox = new JComboBox<>(new String[]{"EA", "BOX", "PALLET"});
         if (existing != null) {
             unitBox.setSelectedItem(existing.getUnit());
@@ -216,7 +268,8 @@ public class ItemPanel extends JPanel implements Refreshable {
         try {
             Item item = existing != null ? existing : new Item();
             item.setItemName(nameField.getText().trim());
-            item.setCategory(categoryField.getText().isBlank() ? null : categoryField.getText().trim());
+            String category = String.valueOf(categoryField.getEditor().getItem()).trim();
+            item.setCategory(category.isEmpty() ? null : category);
             item.setUnit((String) unitBox.getSelectedItem());
             item.setThresholdMin(min);
             item.setCapacityMax(max);
@@ -323,9 +376,11 @@ public class ItemPanel extends JPanel implements Refreshable {
         try (Connection conn = DBConnection.getConnection()) {
             Map<Long, String> zoneNames = new HashMap<>();
             Map<Long, Long> zoneWarehouseId = new HashMap<>();
+            // warehouse.html의 whNames[i]+"("+whLocations[i]+")"와 같은 표기 - "대형"/"중형"/
+            // "소형"처럼 같은 이름의 창고가 여럿이라, 실제 위치 값을 괄호로 붙여 구별한다.
             Map<Long, String> warehouseNames = new HashMap<>();
             for (Warehouse wh : warehouseDao.findAll(conn)) {
-                warehouseNames.put(wh.getWarehouseId(), wh.getName());
+                warehouseNames.put(wh.getWarehouseId(), wh.getName() + "(" + wh.getLocation() + ")");
             }
             for (Zone zone : zoneDao.findAll(conn)) {
                 zoneNames.put(zone.getZoneId(), zone.getZoneName());
@@ -375,25 +430,30 @@ public class ItemPanel extends JPanel implements Refreshable {
 
         JTable lotTable = new JTable(lotModel);
         UiUtil.applyStandardRowHeight(lotTable);
+        UiUtil.applyStandardHeaderStyle(lotTable);
+        // item.html #stockModal 표 colgroup 비율 그대로(로트번호22/창고구역26/수량16/입고일18/유통기한18%)
+        UiUtil.setColumnWidths(lotTable, 22, 26, 16, 18, 18);
         lotTable.getColumnModel().getColumn(4).setCellRenderer(new NearExpiryRenderer());
 
-        JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(this),
-                item.getItemName() + " (ID " + item.getItemId() + ") 재고 상세", Dialog.ModalityType.APPLICATION_MODAL);
-        dialog.setLayout(new BorderLayout(8, 8));
+        // item.html #stockModal(.lot-modal, width:720) - 헤더 제목: "품목명 (ITEM-ID) 재고 상세".
+        JDialog dialog = UiUtil.createHtmlDialog(this,
+                item.getItemName() + " (ITEM-" + item.getItemId() + ") 재고 상세");
+        JPanel body = new JPanel(new BorderLayout(8, 8));
+        body.setBackground(Color.WHITE);
         JPanel top = new JPanel(new GridLayout(2, 1));
-        top.setBorder(BorderFactory.createEmptyBorder(10, 10, 0, 10));
+        top.setBorder(BorderFactory.createEmptyBorder(15, 20, 0, 20));
+        top.setBackground(Color.WHITE);
         top.add(totalLabel);
         top.add(noteLabel);
-        dialog.add(top, BorderLayout.NORTH);
-        dialog.add(new JScrollPane(lotTable), BorderLayout.CENTER);
-        JButton closeBtn = new JButton("닫기");
-        closeBtn.addActionListener(e -> dialog.dispose());
-        JPanel bottom = new JPanel();
-        bottom.add(closeBtn);
-        dialog.add(bottom, BorderLayout.SOUTH);
-        dialog.setSize(600, 420);
+        body.add(top, BorderLayout.NORTH);
+        JScrollPane scroll = new JScrollPane(lotTable);
+        scroll.setBorder(BorderFactory.createEmptyBorder(0, 20, 0, 20));
+        body.add(scroll, BorderLayout.CENTER);
+        dialog.add(body, BorderLayout.CENTER);
+        dialog.add(UiUtil.buildModalCloseFooter(dialog, "닫기"), BorderLayout.SOUTH);
+        dialog.setSize(720, 460);
         dialog.setLocationRelativeTo(this);
-        dialog.setVisible(true);
+        UiUtil.showHtmlDialog(dialog);
     }
 
     private String nz(String s) {
@@ -402,6 +462,7 @@ public class ItemPanel extends JPanel implements Refreshable {
 
     // 재고가 0/부족/초과 상태면 색으로 눈에 띄게 - item.html stockCell()과 동일한 기준.
     private static class StockCellRenderer extends DefaultTableCellRenderer {
+        { setHorizontalAlignment(SwingConstants.CENTER); }
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
                                                          boolean hasFocus, int row, int column) {
@@ -413,11 +474,11 @@ public class ItemPanel extends JPanel implements Refreshable {
 
             Color color = table.getForeground();
             if (total == 0) {
-                color = new Color(0xd23f31);
+                color = UiUtil.COLOR_ZONE_FULL;
             } else if (minObj instanceof Number && total <= ((Number) minObj).intValue()) {
-                color = new Color(0xd68a00);
+                color = UiUtil.COLOR_ZONE_WARN;
             } else if (maxObj instanceof Number && total > ((Number) maxObj).intValue()) {
-                color = new Color(0x3b6fd4);
+                color = UiUtil.COLOR_ZONE_OVER;
             }
             if (!isSelected) {
                 c.setForeground(color);
@@ -429,15 +490,10 @@ public class ItemPanel extends JPanel implements Refreshable {
 
     // item.html의 관리 칸 - 수정 버튼은 항상 같고, 두 번째 버튼은 그 행의 상태(사용중/비활성)에
     // 따라 "비활성"/"되살리기"로 바뀐다(doDisable/doEnable).
-    private class ManageButtonsRenderer extends JPanel implements TableCellRenderer {
+    private class ManageButtonsRenderer implements TableCellRenderer {
         private final JButton editBtn = new JButton("수정");
         private final JButton toggleBtn = new JButton("비활성");
-
-        ManageButtonsRenderer() {
-            super(new FlowLayout(FlowLayout.CENTER, 4, 0));
-            add(editBtn);
-            add(toggleBtn);
-        }
+        private final JPanel panel = UiUtil.rowButtonsPanel(editBtn, toggleBtn);
 
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
@@ -445,20 +501,18 @@ public class ItemPanel extends JPanel implements Refreshable {
             int modelRow = table.convertRowIndexToModel(row);
             String status = (String) tableModel.getValueAt(modelRow, COL_STATUS);
             toggleBtn.setText("사용중".equals(status) ? "비활성" : "되살리기");
-            setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
-            return this;
+            panel.setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
+            return panel;
         }
     }
 
     private class ManageButtonsEditor extends AbstractCellEditor implements TableCellEditor {
-        private final JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 4, 0));
         private final JButton editBtn = new JButton("수정");
         private final JButton toggleBtn = new JButton("비활성");
+        private final JPanel panel = UiUtil.rowButtonsPanel(editBtn, toggleBtn);
         private int row;
 
         ManageButtonsEditor() {
-            panel.add(editBtn);
-            panel.add(toggleBtn);
             editBtn.addActionListener(e -> {
                 int clickedRow = row;
                 fireEditingStopped();
@@ -486,13 +540,14 @@ public class ItemPanel extends JPanel implements Refreshable {
     }
 
     private static class NearExpiryRenderer extends DefaultTableCellRenderer {
+        { setHorizontalAlignment(SwingConstants.CENTER); }
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
                                                          boolean hasFocus, int row, int column) {
             Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
             if (!isSelected) {
                 boolean near = value != null && value.toString().startsWith("⚠");
-                c.setForeground(near ? new Color(0xd23f31) : table.getForeground());
+                c.setForeground(near ? UiUtil.COLOR_NEAR_EXPIRY_FG : table.getForeground());
             }
             return c;
         }

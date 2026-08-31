@@ -59,12 +59,9 @@ public class WarehouseZonePanel extends JPanel implements Refreshable {
     private final List<Warehouse> allowedWarehouses = new ArrayList<>();
 
     public WarehouseZonePanel() {
-        setLayout(new BorderLayout(10, 10));
+        setLayout(new BorderLayout(10, 20));
         setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-
-        JLabel title = new JLabel("창고 및 구역 관리");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 22f));
-        add(title, BorderLayout.NORTH);
+        setBackground(UiUtil.COLOR_BODY_BG);
 
         // html에서는 창고/구역이 탭으로 나뉘어 있었지만, Swing에서는 좌우로 동시에 볼 수 있어
         // 굳이 탭으로 감출 이유가 없다 - 좌측 창고 / 우측 구역, 두 컨테이너를 나란히 둔다.
@@ -73,9 +70,28 @@ public class WarehouseZonePanel extends JPanel implements Refreshable {
         split.setContinuousLayout(true);
         add(split, BorderLayout.CENTER);
 
+        // warehouse.html 창고 표 colgroup 비율(NO10/창고명24/위치44/관리22%)에 우리 표에만
+        // 있는 구역 수 칸을 더한 비율 - installActionButtons가 관리 칸 너비는 다시 고정한다.
+        UiUtil.setColumnWidths(warehouseTable, 9, 22, 40, 12, 20);
         installActionButtons(warehouseTable, WH_COL_MANAGE, new String[]{"수정", "삭제"}, this::onWarehouseRowAction);
-        installActionButtons(zoneTable, ZONE_COL_MANAGE, new String[]{"수정", "삭제", "재고 상세"}, this::onZoneRowAction);
+        // warehouse.html 구역 표 colgroup 비율(NO8/구역명20/최대수용량20/현재사용량24/관리28%)
+        UiUtil.setColumnWidths(zoneTable, 8, 18, 12, 18, 20, 12, 28);
+        installActionButtons(zoneTable, ZONE_COL_MANAGE, new String[]{"수정", "삭제"}, this::onZoneRowAction);
         zoneTable.getColumnModel().getColumn(ZONE_COL_SATURATION).setCellRenderer(new SaturationRenderer());
+
+        // "재고 상세" 버튼을 없애는 대신 행을 더블클릭하면 그 구역의 재고 상세를 바로 연다.
+        zoneTable.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    int row = zoneTable.rowAtPoint(e.getPoint());
+                    if (row >= 0) {
+                        Long id = ((Number) zoneModel.getValueAt(zoneTable.convertRowIndexToModel(row), 0)).longValue();
+                        openZoneStockDetail(id);
+                    }
+                }
+            }
+        });
 
         refreshWarehouses();
         refreshZones();
@@ -90,6 +106,7 @@ public class WarehouseZonePanel extends JPanel implements Refreshable {
         table.getColumnModel().getColumn(column).setPreferredWidth(width);
         table.getColumnModel().getColumn(column).setMinWidth(width);
         UiUtil.applyStandardRowHeight(table);
+        UiUtil.applyStandardHeaderStyle(table);
     }
 
     private void onWarehouseRowAction(int row, String label) {
@@ -150,8 +167,10 @@ public class WarehouseZonePanel extends JPanel implements Refreshable {
        창고 탭
        ============================================================ */
     private JComponent buildWarehouseTab() {
-        JPanel panel = new JPanel(new BorderLayout(10, 10));
-        panel.setBorder(BorderFactory.createTitledBorder("창고"));
+        Card panel = new Card(new BorderLayout(10, 10));
+        JLabel cardTitle = new JLabel("창고");
+        cardTitle.setFont(cardTitle.getFont().deriveFont(Font.BOLD, 15f));
+        panel.add(cardTitle, BorderLayout.NORTH);
         panel.add(new JScrollPane(warehouseTable), BorderLayout.CENTER);
 
         warehouseTable.getSelectionModel().addListSelectionListener(e -> {
@@ -162,13 +181,13 @@ public class WarehouseZonePanel extends JPanel implements Refreshable {
             if (row < 0) {
                 return;
             }
-            Long whId = ((Number) warehouseModel.getValueAt(row, 0)).longValue();
             String whName = (String) warehouseModel.getValueAt(row, 1);
-            zoneWarehouseFilterBox.setSelectedItem(whName + " (ID " + whId + ")");
+            String whLocation = (String) warehouseModel.getValueAt(row, 2);
+            zoneWarehouseFilterBox.setSelectedItem(whName + "(" + whLocation + ")");
         });
 
-        JPanel bar = new JPanel();
-        JButton addBtn = new JButton("창고 등록");
+        JPanel bar = new JPanel(); bar.setOpaque(false);
+        RoundedButton addBtn = new RoundedButton("창고 등록", UiUtil.COLOR_BTN_WAREHOUSE, Color.WHITE);
         addBtn.addActionListener(e -> {
             if (!requireAdmin()) { return; }
             openWarehouseForm(null);
@@ -244,7 +263,7 @@ public class WarehouseZonePanel extends JPanel implements Refreshable {
             zoneWarehouseFilterBox.removeAllItems();
             zoneWarehouseFilterBox.addItem("전체");
             for (Warehouse wh : list) {
-                zoneWarehouseFilterBox.addItem(wh.getName() + " (ID " + wh.getWarehouseId() + ")");
+                zoneWarehouseFilterBox.addItem(wh.getName() + "(" + wh.getLocation() + ")");
             }
             if (prevSelection != null) {
                 zoneWarehouseFilterBox.setSelectedItem(prevSelection);
@@ -258,10 +277,13 @@ public class WarehouseZonePanel extends JPanel implements Refreshable {
        구역 탭
        ============================================================ */
     private JComponent buildZoneTab() {
-        JPanel panel = new JPanel(new BorderLayout(10, 10));
-        panel.setBorder(BorderFactory.createTitledBorder("구역"));
+        Card panel = new Card(new BorderLayout(10, 10));
 
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+        top.setOpaque(false);
+        JLabel cardTitle = new JLabel("구역   ");
+        cardTitle.setFont(cardTitle.getFont().deriveFont(Font.BOLD, 15f));
+        top.add(cardTitle);
         top.add(new JLabel("창고"));
         zoneWarehouseFilterBox.addActionListener(e -> refreshZones());
         top.add(zoneWarehouseFilterBox);
@@ -269,8 +291,8 @@ public class WarehouseZonePanel extends JPanel implements Refreshable {
 
         panel.add(new JScrollPane(zoneTable), BorderLayout.CENTER);
 
-        JPanel bar = new JPanel();
-        JButton addBtn = new JButton("구역 등록");
+        JPanel bar = new JPanel(); bar.setOpaque(false);
+        RoundedButton addBtn = new RoundedButton("구역 등록", UiUtil.COLOR_BTN_WAREHOUSE, Color.WHITE);
         addBtn.addActionListener(e -> {
             if (!requireAdmin()) { return; }
             openZoneForm(null);
@@ -286,7 +308,7 @@ public class WarehouseZonePanel extends JPanel implements Refreshable {
             return null;
         }
         for (Warehouse wh : allowedWarehouses) {
-            if (sel.equals(wh.getName() + " (ID " + wh.getWarehouseId() + ")")) {
+            if (sel.equals(wh.getName() + "(" + wh.getLocation() + ")")) {
                 return wh.getWarehouseId();
             }
         }
@@ -308,8 +330,13 @@ public class WarehouseZonePanel extends JPanel implements Refreshable {
         try (Connection conn = DBConnection.getConnection()) {
             zoneDao.deleteById(conn, id);
             refreshZones();
-        } catch (Exception ex) {
+        } catch (java.sql.SQLIntegrityConstraintViolationException fk) {
+            // [버그 수정] 예전엔 이 삭제 실패를 전부(연결 끊김 등 무관한 오류까지) "참조하는
+            // 이력이 남아있다"로 뭉뚱그려 보여줬다 - 실제 원인(FK 제약 위반)일 때만 이 문구를
+            // 보여주고, 그 외에는 실제 오류를 그대로 보여준다.
             UiUtil.showError(this, "이 구역을 참조하는 이력이 남아 있어 삭제할 수 없습니다.");
+        } catch (Exception ex) {
+            UiUtil.showError(this, ex);
         }
     }
 
@@ -399,9 +426,12 @@ public class WarehouseZonePanel extends JPanel implements Refreshable {
                 }
             }
 
+            // warehouse.html의 whNames[i]+"("+whLocations[i]+")"와 같은 표기 - "대형"/"중형"/
+            // "소형"처럼 같은 이름의 창고가 여럿이라, 이 표의 "창고" 칸이 이름만 보여주면 이
+            // 구역이 정확히 어느 창고 것인지 구별이 안 됐다.
             Map<Long, String> warehouseNames = new HashMap<>();
             for (Warehouse wh : allowedWarehouses) {
-                warehouseNames.put(wh.getWarehouseId(), wh.getName());
+                warehouseNames.put(wh.getWarehouseId(), wh.getName() + "(" + wh.getLocation() + ")");
             }
 
             zoneModel.setRowCount(0);
@@ -457,60 +487,81 @@ public class WarehouseZonePanel extends JPanel implements Refreshable {
             return;
         }
 
-        JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(this), "구역 재고 상세 (ID " + zoneId + ")",
-                Dialog.ModalityType.APPLICATION_MODAL);
-        dialog.setLayout(new BorderLayout(8, 8));
+        // warehouse.html #znStockModal openZoneStock()의 whLabel과 동일: "{창고명}({위치}) {구역명}
+        // 구역 재고 상세" - "대형"/"중형"/"소형"처럼 같은 이름의 창고가 여럿이라 위치까지 붙인다.
+        String title = "구역 재고 상세";
+        try (Connection conn = DBConnection.getConnection()) {
+            Zone zone = zoneDao.findById(conn, zoneId);
+            if (zone != null) {
+                Warehouse wh = warehouseDao.findById(conn, zone.getWarehouseId());
+                title = (wh != null ? wh.getName() + "(" + wh.getLocation() + ") " : "") + zone.getZoneName() + " 구역 재고 상세";
+            }
+        } catch (Exception e) {
+            // 제목 못 구해도 표는 그대로 보여준다.
+        }
+
         JTable detailTable = new JTable(detailModel);
         UiUtil.applyStandardRowHeight(detailTable);
-        dialog.add(new JScrollPane(detailTable), BorderLayout.CENTER);
-        JButton closeBtn = new JButton("닫기");
-        closeBtn.addActionListener(e -> dialog.dispose());
-        JPanel bottom = new JPanel();
-        bottom.add(closeBtn);
-        dialog.add(bottom, BorderLayout.SOUTH);
-        dialog.setSize(420, 360);
+        UiUtil.applyStandardHeaderStyle(detailTable);
+        // warehouse.html #znStockModal 표 colgroup 비율(품목명50/로트수25/수량25%) 그대로.
+        UiUtil.setColumnWidths(detailTable, 50, 25, 25);
+
+        // .lot-modal(width:640, height:auto)
+        JDialog dialog = UiUtil.createHtmlDialog(this, title);
+        JScrollPane scroll = new JScrollPane(detailTable);
+        scroll.setBorder(BorderFactory.createEmptyBorder(16, 20, 0, 20));
+        dialog.add(scroll, BorderLayout.CENTER);
+        dialog.add(UiUtil.buildModalCloseFooter(dialog, "닫기"), BorderLayout.SOUTH);
+        dialog.setSize(640, 420);
         dialog.setLocationRelativeTo(this);
-        dialog.setVisible(true);
+        UiUtil.showHtmlDialog(dialog);
     }
 
+    // warehouse.html의 whNames[i]+"("+whLocations[i]+")"와 같은 표기 - "대형"/"중형"/"소형"
+    // 처럼 같은 이름의 창고가 여럿이라, 실제 위치 값을 괄호로 붙여 구별한다.
     private static class WarehouseOption {
         final Warehouse warehouse;
         WarehouseOption(Warehouse warehouse) { this.warehouse = warehouse; }
-        public String toString() { return warehouse.getName() + " (ID " + warehouse.getWarehouseId() + ")"; }
+        public String toString() { return warehouse.getName() + "(" + warehouse.getLocation() + ")"; }
     }
 
     // 행 안에 실제로 보여줄 버튼들 (수정/삭제 등) - 값은 안 쓰고 그냥 버튼만 그린다.
-    private static class ActionButtonsRenderer extends JPanel implements TableCellRenderer {
+    private static class ActionButtonsRenderer implements TableCellRenderer {
+        private final JPanel panel;
         ActionButtonsRenderer(String[] labels) {
-            super(new FlowLayout(FlowLayout.CENTER, 4, 0));
-            for (String label : labels) {
-                add(new JButton(label));
+            JButton[] buttons = new JButton[labels.length];
+            for (int i = 0; i < labels.length; i++) {
+                buttons[i] = new JButton(labels[i]);
             }
+            panel = UiUtil.rowButtonsPanel(buttons);
         }
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
                                                          boolean hasFocus, int row, int column) {
-            setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
-            return this;
+            panel.setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
+            return panel;
         }
     }
 
     // 실제로 눌러지는 버튼들 - 누르면 편집을 바로 끝내고(fireEditingStopped) 콜백을 부른다.
     // 편집을 먼저 끝내야 콜백 안에서 표를 새로고침(행 재구성)해도 문제가 없다.
     private static class ActionButtonsEditor extends AbstractCellEditor implements TableCellEditor {
-        private final JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 4, 0));
+        private final JPanel panel;
         private int row;
 
         ActionButtonsEditor(String[] labels, BiConsumer<Integer, String> onClick) {
-            for (String label : labels) {
+            JButton[] buttons = new JButton[labels.length];
+            for (int i = 0; i < labels.length; i++) {
+                String label = labels[i];
                 JButton btn = new JButton(label);
                 btn.addActionListener(e -> {
                     int clickedRow = row;
                     fireEditingStopped();
                     onClick.accept(clickedRow, label);
                 });
-                panel.add(btn);
+                buttons[i] = btn;
             }
+            panel = UiUtil.rowButtonsPanel(buttons);
         }
 
         @Override
@@ -527,6 +578,7 @@ public class WarehouseZonePanel extends JPanel implements Refreshable {
 
     // 포화도 70% 이상 주황, 90% 이상 빨강 (web warehouse.html 기준과 동일).
     private static class SaturationRenderer extends DefaultTableCellRenderer {
+        { setHorizontalAlignment(SwingConstants.CENTER); }
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
                                                          boolean hasFocus, int row, int column) {
@@ -534,9 +586,9 @@ public class WarehouseZonePanel extends JPanel implements Refreshable {
             int percent = value instanceof Number ? ((Number) value).intValue() : 0;
             Color color = table.getForeground();
             if (percent >= 90) {
-                color = new Color(0xd23f31);
+                color = UiUtil.COLOR_ZONE_FULL;
             } else if (percent >= 70) {
-                color = new Color(0xd68a00);
+                color = UiUtil.COLOR_ZONE_WARN;
             }
             if (!isSelected) {
                 c.setForeground(color);

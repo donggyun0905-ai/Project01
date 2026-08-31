@@ -29,7 +29,7 @@ import java.util.TreeSet;
 // 입력한 뒤 한 번에 등록한다(출고 등록과 같은 방식, 다만 여러 로트를 체크박스로 고르는 점이 다르다).
 public class ReturnDisposalPanel extends JPanel implements Refreshable {
 
-    private static final int PAGE_SIZE = 20;
+    private static final int PAGE_SIZE = 10; // common.js의 pageSize와 동일
     private static final int LOT_COL_PICKED = 0;
     private static final int LOT_COL_LOT_ID = 1;
     private static final int LOT_COL_ZONE = 2;
@@ -47,8 +47,8 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
 
     // 검색 필터
     private final JComboBox<String> typeFilterBox = new JComboBox<>(new String[]{"전체", "반품", "폐기"});
-    private final JTextField fromField = new JTextField(10);
-    private final JTextField toField = new JTextField(10);
+    private final JTextField fromField = new DatePickerField(10);
+    private final JTextField toField = new DatePickerField(10);
     private final JTextField nameField = new JTextField(10);
     private final JComboBox<String> categoryFilterBox = new JComboBox<>();
 
@@ -61,16 +61,14 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
     private final Pager pager = new Pager(PAGE_SIZE);
 
     public ReturnDisposalPanel() {
-        setLayout(new BorderLayout(10, 10));
+        setLayout(new BorderLayout(10, 20));
         setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-
-        JLabel title = new JLabel("반품 및 폐기 관리");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 22f));
-        add(title, BorderLayout.NORTH);
+        setBackground(UiUtil.COLOR_BODY_BG);
 
         loadCategories();
 
         JPanel filterRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+        filterRow.setOpaque(false);
         filterRow.add(new JLabel("구분"));
         typeFilterBox.addActionListener(e -> { pager.page = 1; refreshHistory(); });
         filterRow.add(typeFilterBox);
@@ -87,24 +85,36 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
         searchBtn.addActionListener(e -> { pager.page = 1; refreshHistory(); });
         filterRow.add(searchBtn);
 
-        JButton registerBtn = new JButton("반품/폐기 등록하기");
-        registerBtn.setFont(registerBtn.getFont().deriveFont(Font.BOLD, 14f));
+        RoundedButton registerBtn = new RoundedButton("반품/폐기 등록하기", UiUtil.COLOR_BTN_RETURN, Color.WHITE);
         registerBtn.addActionListener(e -> openRegisterDialog());
+        UiUtil.sizeAsRegisterButton(registerBtn);
 
-        JPanel top = new JPanel(new BorderLayout());
+        Card top = new Card(new BorderLayout(0, 10));
         top.add(filterRow, BorderLayout.CENTER);
-        top.add(registerBtn, BorderLayout.SOUTH);
-        add(top, BorderLayout.NORTH);
+        top.add(UiUtil.compactLeft(registerBtn), BorderLayout.SOUTH);
 
-        JPanel center = new JPanel(new BorderLayout(6, 6));
-        center.setBorder(BorderFactory.createTitledBorder("반품/폐기 내역"));
+        JPanel north = new JPanel(new BorderLayout(0, 15));
+        north.setOpaque(false);
+        north.add(top, BorderLayout.CENTER);
+        add(north, BorderLayout.NORTH);
+
+        Card center = new Card(new BorderLayout(6, 6));
+        JLabel tableTitle = new JLabel("반품/폐기 내역");
+        tableTitle.setFont(tableTitle.getFont().deriveFont(Font.BOLD, 15f));
+        center.add(tableTitle, BorderLayout.NORTH);
         UiUtil.applyStandardRowHeight(historyTable);
+        UiUtil.applyStandardHeaderStyle(historyTable);
+        // return.html colgroup 비율 그대로(NO5/구분8/처리유형14/품목명16/품목코드11/로트번호11/구역11/수량8/처리일16%)
+        UiUtil.setColumnWidths(historyTable, 5, 8, 14, 16, 11, 11, 11, 8, 16);
         center.add(new JScrollPane(historyTable), BorderLayout.CENTER);
         center.add(pager.build(this::refreshHistory), BorderLayout.SOUTH);
         add(center, BorderLayout.CENTER);
 
         refreshHistory();
         AppEventBus.subscribe("disposal", this::refreshHistory);
+        // return.html의 connectRealtimeRefresh(refreshIfIdle,["disposal"]) + setInterval(...,5000) -
+        // 다른 컴퓨터/다른 실행에서 생긴 변화도 놓치지 않도록 5초 폴링을 안전망으로 같이 둔다.
+        new Timer(5000, e -> { if (isShowing()) { refreshHistory(); } }).start();
     }
 
     private void loadCategories() {
@@ -138,7 +148,7 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
             LocalDate to = parseDateOrNull(toField.getText());
 
             int total = returnDisposalDao.count(conn, null, type, category, keyword, from, to);
-            pager.total = total;
+            pager.clampToTotal(total);
             int offset = (pager.page - 1) * PAGE_SIZE;
             List<ReturnDisposal> list = returnDisposalDao.findPage(conn, null, type, category, keyword, from, to, offset, PAGE_SIZE);
 
@@ -182,9 +192,11 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
     }
 
     private Map<Long, String> buildZoneLabels(Connection conn) throws Exception {
+        // warehouse.html의 whNames[i]+"("+whLocations[i]+")"와 같은 표기 - "대형"/"중형"/"소형"
+        // 처럼 같은 이름의 창고가 여럿이라, 실제 위치 값을 괄호로 붙여 구별한다.
         Map<Long, String> warehouseNames = new HashMap<>();
         for (Warehouse wh : warehouseDao.findAll(conn)) {
-            warehouseNames.put(wh.getWarehouseId(), wh.getName());
+            warehouseNames.put(wh.getWarehouseId(), wh.getName() + "(" + wh.getLocation() + ")");
         }
         Map<Long, String> zoneLabels = new HashMap<>();
         for (Zone zone : zoneDao.findAll(conn)) {
@@ -196,9 +208,9 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
     // return.html의 #registerModal - 구분(반품/폐기)에 따라 처리 유형 목록이 바뀌고, 품목을 고르면
     // 로트 표가 뜬다. 체크박스로 로트를 여러 개 고르고, 로트별 처리 수량을 입력해 한 번에 등록한다.
     private void openRegisterDialog() {
-        JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(this), "반품/폐기 등록",
-                Dialog.ModalityType.APPLICATION_MODAL);
-        dialog.setLayout(new BorderLayout(8, 8));
+        // return.html #registerModal(width:1100) - 구분/처리유형/품목명/품목번호/처리일이
+        // 한 줄(5칸 그리드)로 나란히 오고, 그 아래 로트 선택 표가 이어진다.
+        JDialog dialog = UiUtil.createHtmlDialog(this, "반품/폐기 등록");
 
         JComboBox<String> typeBox = new JComboBox<>(new String[]{"반품", "폐기"});
         JComboBox<String> reasonBox = new JComboBox<>();
@@ -217,16 +229,19 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
         }
         JLabel itemCodeLabel = new JLabel(" ");
 
-        JTextField dateField = new JTextField(LocalDate.now().toString(), 10);
+        JTextField dateField = new DatePickerField(LocalDate.now().toString(), 10);
 
-        JPanel form = new JPanel(new GridLayout(5, 2, 8, 8));
-        form.setBorder(BorderFactory.createEmptyBorder(10, 10, 0, 10));
-        form.add(new JLabel("구분")); form.add(typeBox);
-        form.add(new JLabel("처리 유형")); form.add(reasonBox);
-        form.add(new JLabel("품목명")); form.add(itemBox);
-        form.add(new JLabel("품목 번호")); form.add(itemCodeLabel);
-        form.add(new JLabel("처리일")); form.add(dateField);
-        dialog.add(form, BorderLayout.NORTH);
+        JPanel form = UiUtil.formGrid(5,
+                UiUtil.formGroup("구분", typeBox),
+                UiUtil.formGroup("처리 유형", reasonBox),
+                UiUtil.formGroup("품목명", itemBox),
+                UiUtil.formGroup("품목 번호", itemCodeLabel),
+                UiUtil.formGroup("처리일", dateField));
+        form.setBorder(BorderFactory.createEmptyBorder(20, 20, 4, 20));
+
+        JPanel body = new JPanel(new BorderLayout(8, 8));
+        body.add(form, BorderLayout.NORTH);
+        dialog.add(body, BorderLayout.CENTER);
 
         DefaultTableModel lotModel = new DefaultTableModel(
                 new Object[]{"선택", "로트 ID", "창고/구역", "남은 수량", "입고일", "유통기한", "처리 수량"}, 0) {
@@ -243,6 +258,9 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
         };
         JTable lotTable = new JTable(lotModel);
         UiUtil.applyStandardRowHeight(lotTable);
+        UiUtil.applyStandardHeaderStyle(lotTable);
+        // return.html #registerModal 로트 표 colgroup 비율 그대로(선택8/로트번호16/창고구역20/남은수량14/입고일14/유통기한14/처리수량14%)
+        UiUtil.setColumnWidths(lotTable, 8, 16, 20, 14, 14, 14, 14);
         JLabel pickedLabel = new JLabel(" ");
 
         lotModel.addTableModelListener(ev -> {
@@ -285,24 +303,24 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
             itemBox.setSelectedIndex(0);
         }
 
+        // return.html .form-group.full-width - 다른 라벨과 같은 굵은 16px 라벨, 표는 그 아래.
+        JLabel lotAreaLabel = new JLabel("로트 선택 (여러 개 가능)");
+        lotAreaLabel.setFont(lotAreaLabel.getFont().deriveFont(Font.BOLD, 16f));
+        lotAreaLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
+
         JPanel lotArea = new JPanel(new BorderLayout(4, 4));
-        lotArea.setBorder(BorderFactory.createTitledBorder("로트 선택 (여러 개 가능)"));
+        lotArea.setBorder(BorderFactory.createEmptyBorder(16, 20, 0, 20));
+        lotArea.add(lotAreaLabel, BorderLayout.NORTH);
         lotArea.add(new JScrollPane(lotTable), BorderLayout.CENTER);
         lotArea.add(pickedLabel, BorderLayout.SOUTH);
-        dialog.add(lotArea, BorderLayout.CENTER);
+        body.add(lotArea, BorderLayout.CENTER);
 
-        JButton cancelBtn = new JButton("취소");
-        cancelBtn.addActionListener(e -> dialog.dispose());
-        JButton registerBtn = new JButton("등록");
-        registerBtn.addActionListener(e -> doRegister(dialog, typeBox, reasonBox, lotModel, dateField));
-        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
-        bottom.add(cancelBtn);
-        bottom.add(registerBtn);
-        dialog.add(bottom, BorderLayout.SOUTH);
+        dialog.add(UiUtil.buildModalFooter(dialog, "등록", UiUtil.COLOR_BTN_RETURN,
+                () -> doRegister(dialog, typeBox, reasonBox, lotModel, dateField)), BorderLayout.SOUTH);
 
-        dialog.setSize(760, 560);
+        dialog.setSize(1100, 700);
         dialog.setLocationRelativeTo(SwingUtilities.getWindowAncestor(this));
-        dialog.setVisible(true);
+        UiUtil.showHtmlDialog(dialog);
     }
 
     private void updateReasonOptions(JComboBox<String> typeBox, JComboBox<String> reasonBox) {

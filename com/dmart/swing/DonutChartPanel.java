@@ -51,7 +51,7 @@ public class DonutChartPanel extends JPanel {
         }
         int size = Math.min(getWidth(), getHeight()) - 20;
         double radius = size / 2.0;
-        double innerRadius = radius * 0.55;
+        double innerRadius = radius * 0.25;
         double cx = getWidth() / 2.0, cy = getHeight() / 2.0;
         double dx = mx - cx, dy = my - cy;
         double dist = Math.sqrt(dx * dx + dy * dy);

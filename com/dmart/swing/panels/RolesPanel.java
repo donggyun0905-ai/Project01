@@ -44,7 +44,7 @@ public class RolesPanel extends BasePanel implements Refreshable {
     public RolesPanel() {
         super("권한 관리");
 
-        String[] columns = { "기능", "관리자", "담당자", "설명" };
+        String[] columns = { "기능", "관리자", "일반 담당자", "설명" };
         DefaultTableModel model = new DefaultTableModel(columns, 0) {
             @Override public boolean isCellEditable(int row, int column) { return false; }
         };
@@ -55,6 +55,8 @@ public class RolesPanel extends BasePanel implements Refreshable {
 
         JTable table = new JTable(model);
         UiUtil.applyStandardRowHeight(table);
+        // [버그 수정] 원본 표엔 없는, 마우스로 컬럼 순서를 바꾸는 조작을 막습니다.
+        table.getTableHeader().setReorderingAllowed(false);
         table.setShowGrid(false);
         table.setIntercellSpacing(new Dimension(0, 0));
         table.setFont(table.getFont().deriveFont(13f));

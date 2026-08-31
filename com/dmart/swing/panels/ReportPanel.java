@@ -5,8 +5,11 @@ import com.dmart.report.ExportService;
 import com.dmart.report.FileExportService;
 import com.dmart.report.StatisticsService;
 import com.dmart.report.dto.*;
+import com.dmart.swing.DatePickerField;
+import com.dmart.swing.MonthPickerField;
 import com.dmart.swing.Refreshable;
 import com.dmart.swing.Session;
+import static com.dmart.swing.panels.SwingStyle.*;
 
 import javax.swing.*;
 import java.awt.*;
@@ -37,7 +40,7 @@ public class ReportPanel extends BasePanel implements Refreshable {
     private final FileExportService fileExportService = new FileExportService();
 
     private final JLabel titleDateLabel = new JLabel("-");
-    private final JTextField reportDateField = new JTextField(10);
+    private final JTextField reportDateField = new DatePickerField(10);
     private final JLabel inCountLabel = new JLabel("-");
     private final JLabel outCountLabel = new JLabel("-");
     private final JPanel inDiffArea = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
@@ -46,14 +49,14 @@ public class ReportPanel extends BasePanel implements Refreshable {
     private final JPanel lowArea = new JPanel();
 
     private final JComboBox<String> dataTypeCombo = new JComboBox<>(new String[] { "입출고 로그", "알림 이력", "통계 리포트" });
-    private final JTextField fromField = new JTextField(LocalDate.now().minusDays(6).toString(), 10);
-    private final JTextField toField = new JTextField(LocalDate.now().toString(), 10);
+    private final JTextField fromField = new DatePickerField(LocalDate.now().minusDays(6).toString(), 10);
+    private final JTextField toField = new DatePickerField(LocalDate.now().toString(), 10);
     private final JComboBox<String> statUnitCombo = new JComboBox<>(new String[] { "일", "주", "월" });
-    private final JTextField trendStartField = new JTextField(YearMonth.now().minusMonths(5).toString(), 8);
-    private final JTextField trendEndField = new JTextField(YearMonth.now().toString(), 8);
+    private final JTextField trendStartField = new MonthPickerField(YearMonth.now().minusMonths(5).toString(), 8);
+    private final JTextField trendEndField = new MonthPickerField(YearMonth.now().toString(), 8);
     private final JPanel statOptionArea = new JPanel();
-    private final JButton fmtCsvButton = new JButton("CSV");
-    private final JButton fmtExcelButton = new JButton("Excel");
+    private final JButton fmtCsvButton = toggleButton("CSV");
+    private final JButton fmtExcelButton = toggleButton("Excel");
     private String pickedFormat = "CSV";
 
     private static final Color GREEN = new Color(0x2a, 0x9a, 0x63);
@@ -89,14 +92,23 @@ public class ReportPanel extends BasePanel implements Refreshable {
 
     private JPanel buildDailyReportSection() {
 
+        // 흰 카드 안에 들어갈 하위 패널들은 전부 투명하게 - 안 그러면 Swing 기본
+        // 회색 배경이 카드 안에서 그대로 비쳐 보입니다.
+        inDiffArea.setOpaque(false);
+        outDiffArea.setOpaque(false);
+        topArea.setOpaque(false);
+        lowArea.setOpaque(false);
+
         JPanel doc = new JPanel();
         doc.setLayout(new BoxLayout(doc, BoxLayout.Y_AXIS));
-        doc.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(230, 230, 230)),
-                BorderFactory.createEmptyBorder(20, 20, 20, 20)));
+        doc.setOpaque(false);
+        doc.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
         JPanel titleBlock = new JPanel();
+        titleBlock.setOpaque(false);
+        titleBlock.setOpaque(false);
         titleBlock.setLayout(new BoxLayout(titleBlock, BoxLayout.Y_AXIS));
         JLabel eyebrow = new JLabel("일일 보고서");
         eyebrow.setForeground(Color.GRAY);
@@ -105,13 +117,14 @@ public class ReportPanel extends BasePanel implements Refreshable {
         titleBlock.add(eyebrow);
         titleBlock.add(titleDateLabel);
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        actions.setOpaque(false);
         reportDateField.setText(LocalDate.now().toString());
-        JButton loadButton = new JButton("조회");
+        JButton loadButton = primaryButton("조회");
         loadButton.addActionListener(e -> loadDailyReport());
-        JButton pdfButton = new JButton("PDF로 다운로드");
+        JButton pdfButton = secondaryButton("PDF로 다운로드");
         pdfButton.addActionListener(e -> exportDailyPdf());
-        actions.add(reportDateField);
+        actions.add(fieldWrap(reportDateField));
         actions.add(loadButton);
         actions.add(pdfButton);
 
@@ -125,22 +138,27 @@ public class ReportPanel extends BasePanel implements Refreshable {
 
         JPanel compareSection = docSection("전일 대비");
         JPanel compareRow = new JPanel(new GridLayout(1, 2, 30, 0));
+        compareRow.setOpaque(false);
         compareRow.add(statBlock("입고량", inCountLabel, inDiffArea));
         compareRow.add(statBlock("출고량", outCountLabel, outDiffArea));
         compareRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        compareRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 70));
+        compareRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 170));
         compareSection.add(compareRow);
 
         topArea.setLayout(new BoxLayout(topArea, BoxLayout.Y_AXIS));
         lowArea.setLayout(new BoxLayout(lowArea, BoxLayout.Y_AXIS));
 
         JPanel bottomRow = new JPanel(new GridLayout(1, 2, 20, 0));
+        bottomRow.setOpaque(false);
         JPanel topCol = new JPanel(new BorderLayout());
+        topCol.setOpaque(false);
         topCol.add(sectionTitle("TOP 출고 품목"), BorderLayout.NORTH);
         topCol.add(topArea, BorderLayout.CENTER);
         JPanel lowCol = new JPanel(new BorderLayout());
+        lowCol.setOpaque(false);
         lowCol.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, new Color(238, 238, 238)));
         JPanel lowInner = new JPanel(new BorderLayout());
+        lowInner.setOpaque(false);
         lowInner.setBorder(BorderFactory.createEmptyBorder(0, 15, 0, 0));
         lowInner.add(sectionTitle("부족 품목"), BorderLayout.NORTH);
         lowInner.add(lowArea, BorderLayout.CENTER);
@@ -158,14 +176,19 @@ public class ReportPanel extends BasePanel implements Refreshable {
 
         JScrollPane scroll = new JScrollPane(doc);
         scroll.setBorder(null);
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
         scroll.getVerticalScrollBar().setUnitIncrement(16);
-        JPanel wrapPanel = new JPanel(new BorderLayout());
-        wrapPanel.add(scroll, BorderLayout.CENTER);
-        return wrapPanel;
+
+        RoundedPanel card = new RoundedPanel(CARD_ARC, Color.WHITE);
+        card.setLayout(new BorderLayout());
+        card.add(scroll, BorderLayout.CENTER);
+        return card;
     }
 
     private JPanel docSection(String title) {
         JPanel section = new JPanel();
+        section.setOpaque(false);
         section.setLayout(new BoxLayout(section, BoxLayout.Y_AXIS));
         section.setAlignmentX(Component.LEFT_ALIGNMENT);
         section.add(sectionTitle(title));
@@ -183,16 +206,21 @@ public class ReportPanel extends BasePanel implements Refreshable {
 
     private JPanel statBlock(String name, JLabel countLabel, JPanel diffArea) {
         JPanel p = new JPanel();
+        p.setOpaque(false);
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
         JLabel nameLabel = new JLabel(name);
         nameLabel.setForeground(Color.GRAY);
+        nameLabel.setFont(nameLabel.getFont().deriveFont(15f));
         nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        countLabel.setFont(new Font("맑은 고딕", Font.BOLD, 22));
+        nameLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 6, 0));
+        countLabel.setFont(new Font("맑은 고딕", Font.BOLD, 32));
         countLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         diffArea.setAlignmentX(Component.LEFT_ALIGNMENT);
+        diffArea.setBorder(BorderFactory.createEmptyBorder(24, 0, 0, 0)); // 숫자랑 배지 사이 간격 - 확 내림
         p.add(nameLabel);
         p.add(countLabel);
         p.add(diffArea);
+        p.setPreferredSize(new Dimension(200, 160)); // 늘린 간격이 다 들어갈 만큼 넉넉하게
         return p;
     }
 
@@ -206,8 +234,8 @@ public class ReportPanel extends BasePanel implements Refreshable {
             badge.setOpaque(true);
             badge.setForeground(diff > 0 ? GREEN : RED);
             badge.setBackground(diff > 0 ? new Color(0xe5, 0xf7, 0xee) : new Color(0xff, 0xe5, 0xe3));
-            badge.setBorder(BorderFactory.createEmptyBorder(2, 8, 2, 8));
-            badge.setFont(badge.getFont().deriveFont(Font.BOLD, 11f));
+            badge.setBorder(BorderFactory.createEmptyBorder(4, 10, 4, 10));
+            badge.setFont(badge.getFont().deriveFont(Font.BOLD, 13f));
             area.add(badge);
         }
         area.revalidate();
@@ -220,7 +248,7 @@ public class ReportPanel extends BasePanel implements Refreshable {
         try {
             date = LocalDate.parse(reportDateField.getText().trim());
         } catch (DateTimeParseException ex) {
-            JOptionPane.showMessageDialog(this, "기준일은 yyyy-MM-dd 형식으로 입력해 주세요.");
+            DmartDialog.showMessageDialog(this, "기준일은 yyyy-MM-dd 형식으로 입력해 주세요.");
             return;
         }
 
@@ -245,7 +273,7 @@ public class ReportPanel extends BasePanel implements Refreshable {
             drawLowStock(report.getLowStockItem());
 
         } catch (RuntimeException ex) {
-            JOptionPane.showMessageDialog(this, "조회 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
+            DmartDialog.showMessageDialog(this, "조회 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
             ex.printStackTrace();
         }
     }
@@ -267,6 +295,7 @@ public class ReportPanel extends BasePanel implements Refreshable {
             int percent = maxQty > 0 ? (int) Math.round(t.getTotalOutboundQty() * 100.0 / maxQty) : 0;
 
             JPanel row = new JPanel(new BorderLayout(8, 0));
+            row.setOpaque(false);
             row.setAlignmentX(Component.LEFT_ALIGNMENT);
             row.setBorder(BorderFactory.createEmptyBorder(6, 0, 6, 0));
             row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
@@ -275,8 +304,10 @@ public class ReportPanel extends BasePanel implements Refreshable {
             row.add(badge, BorderLayout.WEST);
 
             JPanel body = new JPanel();
+            body.setOpaque(false);
             body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
             JPanel top = new JPanel(new BorderLayout());
+            top.setOpaque(false);
             top.setAlignmentX(Component.LEFT_ALIGNMENT);
             top.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
             JLabel nameLabel = new JLabel(t.getItemName());
@@ -284,14 +315,11 @@ public class ReportPanel extends BasePanel implements Refreshable {
             JLabel qtyLabel = new JLabel(t.getTotalOutboundQty() + " EA");
             top.add(nameLabel, BorderLayout.WEST);
             top.add(qtyLabel, BorderLayout.EAST);
-            JProgressBar bar = new JProgressBar(0, 100);
-            bar.setValue(percent);
-            bar.setForeground(DARK);
-            bar.setAlignmentX(Component.LEFT_ALIGNMENT);
-            bar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 5));
-            bar.setPreferredSize(new Dimension(10, 5)); // 최소 힌트만 - 실제 너비는 줄 폭에 맞춰 늘어남
             body.add(top);
             body.add(Box.createVerticalStrut(3));
+            BarTrack bar = new BarTrack(percent, DARK);
+            bar.setAlignmentX(Component.LEFT_ALIGNMENT);
+            bar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 10));
             body.add(bar);
 
             row.add(body, BorderLayout.CENTER);
@@ -316,12 +344,14 @@ public class ReportPanel extends BasePanel implements Refreshable {
             int percent = item.getMinQty() > 0 ? Math.min(100, (int) Math.round(item.getCurrentQty() * 100.0 / item.getMinQty())) : 0;
 
             JPanel row = new JPanel();
+            row.setOpaque(false);
             row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
             row.setAlignmentX(Component.LEFT_ALIGNMENT);
             row.setBorder(BorderFactory.createEmptyBorder(6, 0, 6, 0));
             row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
 
             JPanel top = new JPanel(new BorderLayout());
+            top.setOpaque(false);
             top.setAlignmentX(Component.LEFT_ALIGNMENT);
             top.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
             JLabel nameLabel = new JLabel(item.getItemName());
@@ -332,15 +362,11 @@ public class ReportPanel extends BasePanel implements Refreshable {
             top.add(nameLabel, BorderLayout.WEST);
             top.add(qtyLabel, BorderLayout.EAST);
 
-            JProgressBar bar = new JProgressBar(0, 100);
-            bar.setValue(percent);
-            bar.setForeground(RED);
-            bar.setAlignmentX(Component.LEFT_ALIGNMENT);
-            bar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 5));
-            bar.setPreferredSize(new Dimension(10, 5));
-
             row.add(top);
             row.add(Box.createVerticalStrut(3));
+            BarTrack bar = new BarTrack(percent, RED);
+            bar.setAlignmentX(Component.LEFT_ALIGNMENT);
+            bar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 10));
             row.add(bar);
             lowArea.add(row);
         }
@@ -379,7 +405,7 @@ public class ReportPanel extends BasePanel implements Refreshable {
         try {
             date = LocalDate.parse(reportDateField.getText().trim());
         } catch (DateTimeParseException ex) {
-            JOptionPane.showMessageDialog(this, "기준일은 yyyy-MM-dd 형식으로 입력해 주세요.");
+            DmartDialog.showMessageDialog(this, "기준일은 yyyy-MM-dd 형식으로 입력해 주세요.");
             return;
         }
 
@@ -389,27 +415,29 @@ public class ReportPanel extends BasePanel implements Refreshable {
         try {
             DailyReport report = dailyReportService.getDailyReport(date);
             fileExportService.exportDailyReportPdf(report, Session.getUser().getName(), file.getAbsolutePath());
-            JOptionPane.showMessageDialog(this, "저장했습니다: " + file.getAbsolutePath());
+            DmartDialog.showMessageDialog(this, "저장했습니다: " + file.getAbsolutePath());
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "저장 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
+            DmartDialog.showMessageDialog(this, "저장 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
             ex.printStackTrace();
         }
     }
 
     private JPanel buildExportSection() {
 
-        JPanel panel = new JPanel();
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(230, 230, 230)),
-                BorderFactory.createEmptyBorder(20, 20, 20, 20)));
+        RoundedPanel card = new RoundedPanel(CARD_ARC, Color.WHITE);
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         JLabel title = new JLabel("데이터 내보내기");
         title.setFont(new Font("맑은 고딕", Font.BOLD, 20));
         title.setAlignmentX(Component.LEFT_ALIGNMENT);
         title.setBorder(BorderFactory.createEmptyBorder(0, 0, 20, 0));
 
+        styleCombo(dataTypeCombo);
+        styleCombo(statUnitCombo);
+
         JPanel form = new JPanel(new GridLayout(0, 2, 10, 15));
+        form.setOpaque(false);
         form.setAlignmentX(Component.LEFT_ALIGNMENT);
         form.setMaximumSize(new Dimension(Integer.MAX_VALUE, 400));
 
@@ -418,11 +446,12 @@ public class ReportPanel extends BasePanel implements Refreshable {
         dataTypeCombo.addActionListener(e -> changeDataType());
 
         form.add(new JLabel("기간(시작)"));
-        form.add(fromField);
+        form.add(fieldWrap(fromField));
         form.add(new JLabel("기간(종료)"));
-        form.add(toField);
+        form.add(fieldWrap(toField));
 
-        JPanel formatToggle = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 0));
+        JPanel formatToggle = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        formatToggle.setOpaque(false);
         formatToggle.add(fmtCsvButton);
         formatToggle.add(fmtExcelButton);
         fmtCsvButton.addActionListener(e -> pickFormat("CSV"));
@@ -432,9 +461,11 @@ public class ReportPanel extends BasePanel implements Refreshable {
         form.add(formatToggle);
 
         statOptionArea.setLayout(new GridLayout(0, 2, 10, 15));
+        statOptionArea.setOpaque(false);
         statOptionArea.add(new JLabel("집계 단위"));
         statOptionArea.add(statUnitCombo);
-        JPanel trendRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel trendRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        trendRow.setOpaque(false);
         trendRow.add(trendStartField);
         trendRow.add(new JLabel("~"));
         trendRow.add(trendEndField);
@@ -444,25 +475,26 @@ public class ReportPanel extends BasePanel implements Refreshable {
         statOptionArea.setVisible(false);
         statOptionArea.setMaximumSize(new Dimension(Integer.MAX_VALUE, 80));
 
-        JButton itemsExcelButton = new JButton("품목 데이터 엑셀화");
+        JButton itemsExcelButton = secondaryButton("품목 데이터 엑셀화");
         itemsExcelButton.addActionListener(e -> exportItemsExcel());
-        JButton exportButton = new JButton("내보내기");
+        JButton exportButton = primaryButton("내보내기");
         exportButton.addActionListener(e -> doExport());
 
-        JPanel actionRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel actionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        actionRow.setOpaque(false);
         actionRow.add(itemsExcelButton);
         actionRow.add(exportButton);
         actionRow.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        panel.add(title);
-        panel.add(form);
-        panel.add(Box.createVerticalStrut(10));
-        panel.add(statOptionArea);
-        panel.add(Box.createVerticalStrut(15));
-        panel.add(actionRow);
-        panel.add(Box.createVerticalGlue());
+        card.add(title);
+        card.add(form);
+        card.add(Box.createVerticalStrut(10));
+        card.add(statOptionArea);
+        card.add(Box.createVerticalStrut(15));
+        card.add(actionRow);
+        card.add(Box.createVerticalGlue());
 
-        return panel;
+        return card;
     }
 
     private void changeDataType() {
@@ -472,18 +504,37 @@ public class ReportPanel extends BasePanel implements Refreshable {
 
     private void pickFormat(String format) {
         pickedFormat = format;
-        fmtCsvButton.setBackground("CSV".equals(format) ? new Color(230, 236, 255) : null);
-        fmtExcelButton.setBackground("Excel".equals(format) ? new Color(230, 236, 255) : null);
+        fmtCsvButton.getModel().setSelected("CSV".equals(format));
+        fmtExcelButton.getModel().setSelected("Excel".equals(format));
+        fmtCsvButton.repaint();
+        fmtExcelButton.repaint();
     }
 
     private void exportItemsExcel() {
+
+        // [버그 수정] 원본(exportItemsExcel)은 기간 칸이 비어 있으면 에러로 막는 대신
+        // 최근 7일(오늘 포함, 6일 전 ~ 오늘)로 자동으로 채우고 그냥 진행합니다. 화면을
+        // 막 열어서 기간을 아직 안 고른 상태에서 눌러도 바로 되게 하려는 의도입니다.
+        // 채운 값은 입력칸에도 그대로 보여줘서 무슨 기간으로 나갔는지 알 수 있게 합니다.
+        if (fromField.getText().trim().isEmpty() || toField.getText().trim().isEmpty()) {
+            LocalDate today = LocalDate.now();
+            LocalDate weekAgo = today.minusDays(6);
+            fromField.setText(weekAgo.toString());
+            toField.setText(today.toString());
+        }
 
         LocalDate from, to;
         try {
             from = LocalDate.parse(fromField.getText().trim());
             to = LocalDate.parse(toField.getText().trim());
         } catch (DateTimeParseException ex) {
-            JOptionPane.showMessageDialog(this, "기간은 yyyy-MM-dd 형식으로 입력해 주세요.");
+            DmartDialog.showMessageDialog(this, "기간은 yyyy-MM-dd 형식으로 입력해 주세요.");
+            return;
+        }
+
+        // [버그 수정] doExport()엔 있는데 여기엔 빠져 있던 검사 - 원본과 동일하게 추가
+        if (from.isAfter(to)) {
+            DmartDialog.showMessageDialog(this, "시작일이 종료일보다 늦을 수 없습니다.");
             return;
         }
 
@@ -493,9 +544,9 @@ public class ReportPanel extends BasePanel implements Refreshable {
         try {
             List<ItemExportRow> data = exportService.getItemExportRows(from, to);
             fileExportService.exportItemsExcel(data, from, to, file.getAbsolutePath());
-            JOptionPane.showMessageDialog(this, "저장했습니다: " + file.getAbsolutePath());
+            DmartDialog.showMessageDialog(this, "저장했습니다: " + file.getAbsolutePath());
         } catch (IOException | RuntimeException ex) {
-            JOptionPane.showMessageDialog(this, "내보내기 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
+            DmartDialog.showMessageDialog(this, "내보내기 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
             ex.printStackTrace();
         }
     }
@@ -507,12 +558,12 @@ public class ReportPanel extends BasePanel implements Refreshable {
             from = LocalDate.parse(fromField.getText().trim());
             to = LocalDate.parse(toField.getText().trim());
         } catch (DateTimeParseException ex) {
-            JOptionPane.showMessageDialog(this, "기간은 yyyy-MM-dd 형식으로 입력해 주세요.");
+            DmartDialog.showMessageDialog(this, "기간은 yyyy-MM-dd 형식으로 입력해 주세요.");
             return;
         }
 
         if (from.isAfter(to)) {
-            JOptionPane.showMessageDialog(this, "시작일이 종료일보다 늦을 수 없습니다.");
+            DmartDialog.showMessageDialog(this, "시작일이 종료일보다 늦을 수 없습니다.");
             return;
         }
 
@@ -552,10 +603,10 @@ public class ReportPanel extends BasePanel implements Refreshable {
                 else fileExportService.exportStatisticsCsv(report, file.getAbsolutePath());
             }
 
-            JOptionPane.showMessageDialog(this, "저장했습니다: " + file.getAbsolutePath());
+            DmartDialog.showMessageDialog(this, "저장했습니다: " + file.getAbsolutePath());
 
         } catch (IOException | RuntimeException ex) {
-            JOptionPane.showMessageDialog(this, "내보내기 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
+            DmartDialog.showMessageDialog(this, "내보내기 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
             ex.printStackTrace();
         }
     }

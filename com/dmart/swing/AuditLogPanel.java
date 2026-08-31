@@ -29,7 +29,7 @@ import java.util.Map;
 // 이미 복원됐으면 "되돌림", 그 외에는 "-"). html에 없는 "로트 직접수정/삭제" 창구는 뺐다.
 public class AuditLogPanel extends JPanel implements Refreshable {
 
-    private static final int PAGE_SIZE = 20;
+    private static final int PAGE_SIZE = 10; // common.js의 pageSize와 동일
     private static final int COL_RESTORE = 10;
 
     private static final Map<String, String> TYPE_CODE = Map.of("수정", "UPDATE", "삭제", "DELETE", "복구", "RESTORE");
@@ -52,20 +52,25 @@ public class AuditLogPanel extends JPanel implements Refreshable {
     private final JTextField lotIdField = new JTextField(6);
     private final JTextField itemKeywordField = new JTextField(10);
     private final JTextField userKeywordField = new JTextField(8);
-    private final JTextField fromField = new JTextField(10);
-    private final JTextField toField = new JTextField(10);
+    private final JTextField fromField = new DatePickerField(10);
+    private final JTextField toField = new DatePickerField(10);
     private final Pager pager = new Pager(PAGE_SIZE);
 
     public AuditLogPanel() {
-        setLayout(new BorderLayout(10, 10));
+        setLayout(new BorderLayout(10, 20));
         setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        setBackground(UiUtil.COLOR_BODY_BG);
 
-        JLabel title = new JLabel("감사로그");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 22f));
-        add(title, BorderLayout.NORTH);
+        JPanel north = new JPanel(new BorderLayout(0, 15));
+        north.setOpaque(false);
+        // css .search-box - 검색 줄을 흰 카드로.
+        Card searchCard = new Card(new BorderLayout());
+        searchCard.add(buildSearchRow(), BorderLayout.CENTER);
+        north.add(searchCard, BorderLayout.CENTER);
+        add(north, BorderLayout.NORTH);
 
-        JPanel center = new JPanel(new BorderLayout(6, 6));
-        center.add(buildSearchRow(), BorderLayout.NORTH);
+        // css .table-box - 표를 흰 카드로.
+        Card center = new Card(new BorderLayout(6, 6));
         center.add(new JScrollPane(logTable), BorderLayout.CENTER);
         center.add(pager.build(this::refresh), BorderLayout.SOUTH);
         add(center, BorderLayout.CENTER);
@@ -73,13 +78,21 @@ public class AuditLogPanel extends JPanel implements Refreshable {
         logTable.getColumnModel().getColumn(COL_RESTORE).setCellRenderer(new RestoreCellRenderer());
         logTable.getColumnModel().getColumn(COL_RESTORE).setCellEditor(new RestoreCellEditor());
         UiUtil.applyStandardRowHeight(logTable);
+        UiUtil.applyStandardHeaderStyle(logTable);
+        // audit.html colgroup 비율 그대로(NO4/변경일시10/담당자8/변경유형8/품목명11/품목번호8/로트번호8/변경전13/변경후13/사유8/되돌리기9%)
+        UiUtil.setColumnWidths(logTable, 4, 10, 8, 8, 11, 8, 8, 13, 13, 8, 9);
 
         refresh();
         AppEventBus.subscribe("auditLog", this::refresh);
+        // audit.html의 connectRealtimeRefresh(loadData,["auditLog"]) + setInterval(loadData,5000) -
+        // 이벤트버스는 이 실행 인스턴스 안에서만 즉시 반영되니, 다른 컴퓨터/다른 실행에서 생긴
+        // 변화도 놓치지 않도록 5초 폴링을 안전망으로 같이 둔다.
+        new Timer(5000, e -> { if (isShowing()) { refresh(); } }).start();
     }
 
     private JComponent buildSearchRow() {
         JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+        row.setOpaque(false);
         row.add(new JLabel("변경 유형"));
         typeBox.addActionListener(e -> { pager.page = 1; refresh(); });
         row.add(typeBox);
@@ -122,7 +135,7 @@ public class AuditLogPanel extends JPanel implements Refreshable {
             LocalDate to = parseDateOrNull(toField.getText());
 
             int total = logDao.count(conn, lotId, type, from, to, itemKeyword, userKeyword);
-            pager.total = total;
+            pager.clampToTotal(total);
             int offset = (pager.page - 1) * PAGE_SIZE;
             List<StockChangeLog> logs = logDao.findPage(conn, lotId, type, from, to, itemKeyword, userKeyword, offset, PAGE_SIZE);
             currentLogs = logs;
@@ -260,14 +273,17 @@ public class AuditLogPanel extends JPanel implements Refreshable {
     }
 
     // 되돌릴 수 있는 행만 실제 버튼을 보여준다 - 아니면 표의 값("되돌림"/"-")을 그냥 그린다.
+    // 버튼은 rowButtonsPanel로 감싸서 셀 전체를 꽉 채우지 않고 원래 크기로 행 정중앙에 온다.
     private class RestoreCellRenderer extends DefaultTableCellRenderer {
         private final JButton button = new JButton("되돌리기");
+        private final JPanel panel = UiUtil.rowButtonsPanel(button);
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
                                                          boolean hasFocus, int row, int column) {
             int modelRow = table.convertRowIndexToModel(row);
             if (isRestorable(modelRow)) {
-                return button;
+                panel.setBackground(isSelected ? table.getSelectionBackground() : table.getBackground());
+                return panel;
             }
             Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
             setHorizontalAlignment(CENTER);
@@ -279,6 +295,7 @@ public class AuditLogPanel extends JPanel implements Refreshable {
     // 되돌리기를 실행하면 된다.
     private class RestoreCellEditor extends AbstractCellEditor implements TableCellEditor {
         private final JButton button = new JButton("되돌리기");
+        private final JPanel panel = UiUtil.rowButtonsPanel(button);
         private int row;
 
         RestoreCellEditor() {
@@ -292,7 +309,7 @@ public class AuditLogPanel extends JPanel implements Refreshable {
         @Override
         public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
             this.row = table.convertRowIndexToModel(row);
-            return button;
+            return panel;
         }
 
         @Override
