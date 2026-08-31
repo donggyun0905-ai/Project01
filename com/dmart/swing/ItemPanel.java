@@ -114,6 +114,7 @@ public class ItemPanel extends JPanel implements Refreshable {
     private JComponent buildTop() {
         JPanel outer = new JPanel(new BorderLayout(0, 15));
         outer.setOpaque(false);
+        outer.add(UiUtil.pageTitle("품목 관리"), BorderLayout.NORTH);
 
         // css .search-box - 검색/등록 줄을 흰 카드로 감싼다.
         Card wrap = new Card(new BorderLayout());

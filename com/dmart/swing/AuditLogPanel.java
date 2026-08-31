@@ -63,6 +63,7 @@ public class AuditLogPanel extends JPanel implements Refreshable {
 
         JPanel north = new JPanel(new BorderLayout(0, 15));
         north.setOpaque(false);
+        north.add(UiUtil.pageTitle("감사로그"), BorderLayout.NORTH);
         // css .search-box - 검색 줄을 흰 카드로.
         Card searchCard = new Card(new BorderLayout());
         searchCard.add(buildSearchRow(), BorderLayout.CENTER);

@@ -95,6 +95,7 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
 
         JPanel north = new JPanel(new BorderLayout(0, 15));
         north.setOpaque(false);
+        north.add(UiUtil.pageTitle("반품 및 폐기 관리"), BorderLayout.NORTH);
         north.add(top, BorderLayout.CENTER);
         add(north, BorderLayout.NORTH);
 

@@ -90,6 +90,7 @@ public class InOutPanel extends JPanel implements Refreshable {
         setLayout(new BorderLayout(10, 10));
         setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
+        add(UiUtil.pageTitle("입출고 등록"), BorderLayout.NORTH);
         add(UiUtil.buildTabSwitcher(new String[]{"입고", "출고"},
                 new JComponent[]{buildInboundTab(), buildOutboundTab()}), BorderLayout.CENTER);
 

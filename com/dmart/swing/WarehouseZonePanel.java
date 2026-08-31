@@ -63,6 +63,8 @@ public class WarehouseZonePanel extends JPanel implements Refreshable {
         setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
         setBackground(UiUtil.COLOR_BODY_BG);
 
+        add(UiUtil.pageTitle("창고 및 구역 관리"), BorderLayout.NORTH);
+
         // html에서는 창고/구역이 탭으로 나뉘어 있었지만, Swing에서는 좌우로 동시에 볼 수 있어
         // 굳이 탭으로 감출 이유가 없다 - 좌측 창고 / 우측 구역, 두 컨테이너를 나란히 둔다.
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, buildWarehouseTab(), buildZoneTab());

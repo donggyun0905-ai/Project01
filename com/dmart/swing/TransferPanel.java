@@ -95,7 +95,11 @@ public class TransferPanel extends JPanel implements Refreshable {
         top.add(form, BorderLayout.CENTER);
         top.add(UiUtil.compactLeft(recommendBtn), BorderLayout.SOUTH);
 
-        add(top, BorderLayout.NORTH);
+        JPanel north = new JPanel(new BorderLayout(0, 15));
+        north.setOpaque(false);
+        north.add(UiUtil.pageTitle("재고 이동"), BorderLayout.NORTH);
+        north.add(top, BorderLayout.CENTER);
+        add(north, BorderLayout.NORTH);
         add(buildHistoryArea(), BorderLayout.CENTER);
 
         // 처음 열렸을 때 첫 창고/품목으로 기본값을 채워 둔다 (html은 사용자가 직접 입력하지만,

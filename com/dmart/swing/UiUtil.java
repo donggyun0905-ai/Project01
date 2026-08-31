@@ -241,6 +241,17 @@ public class UiUtil {
         table.setRowHeight(TABLE_ROW_HEIGHT);
     }
 
+    // html의 <h4 class="page-title">(margin 25px 0, font-size 26px, bold) - 팀원이 만든
+    // BasePanel(알림/승인/통계/설정 등)은 이 제목을 화면마다 자동으로 얹어 주는데, 내가
+    // 직접 짠 화면들(메인/입출고 관리 각 탭/반품폐기)은 BasePanel을 안 써서 빠져 있었다.
+    // 그 화면들 맨 위에 이걸 붙이면 팀원 화면과 같은 자리에 같은 모양으로 제목이 뜬다.
+    public static JLabel pageTitle(String title) {
+        JLabel label = new JLabel(title);
+        label.setFont(new Font("맑은 고딕", Font.BOLD, 26));
+        label.setBorder(BorderFactory.createEmptyBorder(0, 0, 25, 0));
+        return label;
+    }
+
     // BorderLayout.NORTH/SOUTH/CENTER는 자식을 부모 폭(때로는 풀스크린)에 맞춰 억지로
     // 늘린다. html은 폼/버튼이 그 안의 내용만큼만 차지하고 나머지는 빈 공간으로 남는데,
     // 그 모양을 그대로 내려면 FlowLayout.LEFT로 한 번 감싸서 "내용만큼만 차지하고

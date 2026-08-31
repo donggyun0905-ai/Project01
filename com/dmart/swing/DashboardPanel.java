@@ -117,6 +117,8 @@ public class DashboardPanel extends JPanel implements Refreshable {
 
         // dashboard.html의 .form-box(흰 카드, grid-template-columns: repeat(4,1fr)) - 창고/기준일을
         // 그냥 늘어놓지 않고 카드로 감싸고, 각 필드를 라벨-위-필드 모양으로 넓게 놓는다.
+        wrap.add(UiUtil.pageTitle("메인 화면"), BorderLayout.NORTH);
+
         Card filterCard = new Card(new FlowLayout(FlowLayout.LEFT, 24, 0));
         filterCard.add(buildFilterField("창고", warehouseGroupBox));
         filterCard.add(buildFilterField("기준일", dateField));
