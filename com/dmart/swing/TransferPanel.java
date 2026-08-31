@@ -110,9 +110,13 @@ public class TransferPanel extends JPanel implements Refreshable {
 
         refreshHistory();
         AppEventBus.subscribe("transfer", this::refreshHistory);
+        // [버그 수정] 품목 관리에서 품목을 추가/수정/비활성해도 이 화면의 품목명 후보는
+        // 한 번도 다시 안 불러와서 앱을 껐다 켜야 반영됐다 (InOutPanel엔 이미 있던
+        // reloadItemPickers()와 같은 이유의 같은 수정).
+        AppEventBus.subscribe("item", itemPicker::reload);
         // movement.html의 connectRealtimeRefresh(refreshIfIdle,["transfer"]) + setInterval(...,5000) -
         // 다른 컴퓨터/다른 실행에서 생긴 변화도 놓치지 않도록 5초 폴링을 안전망으로 같이 둔다.
-        new Timer(5000, e -> { if (isShowing()) { refreshHistory(); } }).start();
+        new Timer(5000, e -> { if (isShowing()) { itemPicker.reload(); refreshHistory(); } }).start();
     }
 
 
