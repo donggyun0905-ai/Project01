@@ -287,6 +287,9 @@ public class ItemPanel extends JPanel implements Refreshable {
                 }
             }
             refresh();
+            // 입출고 등록 화면의 품목명 후보 목록도 바로 갱신되게 알린다
+            // (이게 없으면 새로 추가한 품목이 앱을 껐다 켜야 보였다)
+            AppEventBus.publish("item");
 
         } catch (Exception e) {
             UiUtil.showError(this, e);
@@ -351,6 +354,8 @@ public class ItemPanel extends JPanel implements Refreshable {
                 itemDao.update(conn, selected);
             }
             refresh();
+            // 사용중/비활성 전환도 입출고 등록에서 고를 수 있는 품목이 달라지므로 같이 알린다
+            AppEventBus.publish("item");
 
         } catch (Exception e) {
             UiUtil.showError(this, e);
