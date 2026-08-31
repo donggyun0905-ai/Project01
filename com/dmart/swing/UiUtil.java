@@ -1,9 +1,19 @@
 package com.dmart.swing;
 
 import javax.swing.*;
+import javax.swing.event.CellEditorListener;
+import javax.swing.event.ChangeEvent;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.JTableHeader;
+import javax.swing.table.TableCellEditor;
+import javax.swing.table.TableCellRenderer;
 import java.awt.*;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
+import java.util.ArrayList;
+import java.util.EventObject;
+import java.util.List;
+import java.util.function.IntUnaryOperator;
 
 // 화면마다 반복되는 자잘한 것들(오류창, 확인창, 입력폼 만들기)을 모아둔 공용 도우미.
 public class UiUtil {
@@ -388,6 +398,96 @@ public class UiUtil {
             panel.add(buttons[i], gbc);
         }
         return panel;
+    }
+
+    // 자동 추천(이동/출고/반품폐기) 로트별 수량 칸 - html의
+    // <input type='number' value='X' max='최대'/> / 최대 형태를 그대로 재현한다.
+    // 기본 JTable 셀은 더블클릭해야만 편집기(민무늬 텍스트필드)가 나타나서 평소엔 이
+    // 칸이 그냥 숫자 표시 칸처럼 보였다 - 그래서 "여기 직접 입력할 수 있는 칸"이라는 걸
+    // 사용자가 못 알아챘다. 이 칸은 평소에도(렌더러) 테두리 있는 입력칸 모양 그대로
+    // 보이고, 클릭하면(에디터) 같은 모양 그대로 실제로 타이핑할 수 있게 바뀐다.
+    //
+    // maxForRow: 그 행(모델 기준 row)에 실제로 넣을 수 있는 최댓값 - 표에 이미 있는
+    // "사용가능"/"남은 수량" 칸 값을 그대로 읽어오면 된다.
+    public static void installQtyInputColumn(JTable table, int column, IntUnaryOperator maxForRow) {
+        QtyInputCell cell = new QtyInputCell(maxForRow);
+        table.getColumnModel().getColumn(column).setCellRenderer(cell);
+        table.getColumnModel().getColumn(column).setCellEditor(cell);
+    }
+
+    private static class QtyInputCell extends JPanel implements TableCellRenderer, TableCellEditor {
+        private final IntUnaryOperator maxForRow;
+        private final JTextField field = new JTextField();
+        private final JLabel maxLabel = new JLabel();
+        private final List<CellEditorListener> listeners = new ArrayList<>();
+
+        QtyInputCell(IntUnaryOperator maxForRow) {
+            this.maxForRow = maxForRow;
+            setOpaque(false);
+            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
+            field.setColumns(5);
+            field.setHorizontalAlignment(JTextField.RIGHT);
+            field.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(new Color(0xcc, 0xcc, 0xcc)),
+                    BorderFactory.createEmptyBorder(3, 6, 3, 6)));
+            maxLabel.setForeground(new Color(0x77, 0x77, 0x77));
+            add(field);
+            add(maxLabel);
+
+            // html의 onchange와 같은 시점(엔터 또는 다른 곳 클릭)에 값을 확정한다.
+            field.addActionListener(e -> stopCellEditing());
+            field.addFocusListener(new FocusAdapter() {
+                @Override public void focusLost(FocusEvent e) { stopCellEditing(); }
+            });
+        }
+
+        private void fill(Object value, int row) {
+            field.setText(String.valueOf(value));
+            maxLabel.setText("/ " + String.format("%,d", maxForRow.applyAsInt(row)));
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+            fill(value, row);
+            field.setEditable(false);
+            return this;
+        }
+
+        @Override
+        public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
+            fill(value, row);
+            field.setEditable(true);
+            SwingUtilities.invokeLater(() -> { field.requestFocusInWindow(); field.selectAll(); });
+            return this;
+        }
+
+        @Override
+        public Object getCellEditorValue() {
+            try {
+                return Integer.parseInt(field.getText().trim());
+            } catch (NumberFormatException e) {
+                return 0;
+            }
+        }
+
+        @Override public boolean isCellEditable(EventObject e) { return true; }
+        @Override public boolean shouldSelectCell(EventObject e) { return true; }
+
+        @Override
+        public boolean stopCellEditing() {
+            ChangeEvent ev = new ChangeEvent(this);
+            for (CellEditorListener l : new ArrayList<>(listeners)) l.editingStopped(ev);
+            return true;
+        }
+
+        @Override
+        public void cancelCellEditing() {
+            ChangeEvent ev = new ChangeEvent(this);
+            for (CellEditorListener l : new ArrayList<>(listeners)) l.editingCanceled(ev);
+        }
+
+        @Override public void addCellEditorListener(CellEditorListener l) { listeners.add(l); }
+        @Override public void removeCellEditorListener(CellEditorListener l) { listeners.remove(l); }
     }
 
     // 입고/출고/이동 등록 성공·실패 안내처럼, 폼(등록/수정) 모달과는 다른 "그냥 알림"용 -

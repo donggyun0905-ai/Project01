@@ -253,8 +253,14 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
         JTable lotTable = new JTable(lotModel);
         UiUtil.applyStandardRowHeight(lotTable);
         UiUtil.applyStandardHeaderStyle(lotTable);
-        // return.html #registerModal 로트 표 colgroup 비율 그대로(선택8/로트번호16/창고구역20/남은수량14/입고일14/유통기한14/처리수량14%)
-        UiUtil.setColumnWidths(lotTable, 8, 16, 20, 14, 14, 14, 14);
+        // [버그 수정] 처리 수량 칸이 평소엔 그냥 숫자로만 보여서 여기가 입력 가능한 칸인지
+        // 알아보기 어려웠다 - html처럼 항상 테두리 있는 입력칸 + "/ 남은 수량" 형태로 보여준다.
+        UiUtil.installQtyInputColumn(lotTable, LOT_COL_QTY, row -> ((Number) lotModel.getValueAt(row, LOT_COL_AVAIL)).intValue());
+        // "/ 남은 수량"이 처리 수량 칸 안에 같이 보이므로, 따로 있던 "남은 수량" 칸은 감춘다
+        // (모델에는 그대로 남아 있어서 위 조회/기존 로직은 안 바뀐다).
+        lotTable.removeColumn(lotTable.getColumnModel().getColumn(LOT_COL_AVAIL));
+        // return.html #registerModal 로트 표 colgroup 비율(선택8/로트번호16/창고구역20/입고일14/유통기한14/처리수량14%)
+        UiUtil.setColumnWidths(lotTable, 8, 16, 20, 14, 14, 28);
         JLabel pickedLabel = new JLabel(" ");
 
         lotModel.addTableModelListener(ev -> {

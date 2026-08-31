@@ -354,9 +354,14 @@ public class TransferPanel extends JPanel implements Refreshable {
         JTable lotTable = new JTable(lotModel);
         UiUtil.applyStandardRowHeight(lotTable);
         UiUtil.applyStandardHeaderStyle(lotTable);
-        // movement.html #moveLotModal 표 colgroup 비율(순서8/로트번호18/입고일18/유통기한26/이동수량30%)에
-        // 우리 표에만 있는 사용가능 칸을 더한 비율.
-        UiUtil.setColumnWidths(lotTable, 8, 16, 16, 22, 12, 26);
+        // [버그 수정] 이동 수량 칸이 평소엔 그냥 숫자로만 보여서 여기가 입력 가능한 칸인지
+        // 알아보기 어려웠다 - html처럼 항상 테두리 있는 입력칸 + "/ 사용가능" 형태로 보여준다.
+        UiUtil.installQtyInputColumn(lotTable, 5, row -> ((Number) lotModel.getValueAt(row, 4)).intValue());
+        // "/ 사용가능"이 이동 수량 칸 안에 같이 보이므로, 따로 있던 "사용가능" 칸은 감춘다
+        // (모델에는 그대로 남아 있어서 위 조회/기존 로직은 안 바뀐다).
+        lotTable.removeColumn(lotTable.getColumnModel().getColumn(4));
+        // movement.html #moveLotModal 표 colgroup 비율(순서8/로트번호18/입고일18/유통기한26/이동수량30%)
+        UiUtil.setColumnWidths(lotTable, 8, 16, 16, 22, 38);
 
         lotModel.addTableModelListener(ev -> {
             if (ev.getColumn() != 5) {

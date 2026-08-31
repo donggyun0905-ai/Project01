@@ -556,9 +556,14 @@ public class InOutPanel extends JPanel implements Refreshable {
         JTable lotTable = new JTable(lotModel);
         UiUtil.applyStandardRowHeight(lotTable);
         UiUtil.applyStandardHeaderStyle(lotTable);
-        // outbound.html #lotModal 표 colgroup 비율(순서6/로트번호14/창고구역20/입고일14/유통기한22/출고수량24)에
-        // 우리 표에만 있는 사용가능 칸을 더한 비율.
-        UiUtil.setColumnWidths(lotTable, 6, 13, 18, 12, 18, 10, 20);
+        // [버그 수정] 출고 수량 칸이 평소엔 그냥 숫자로만 보여서 여기가 입력 가능한 칸인지
+        // 알아보기 어려웠다 - html처럼 항상 테두리 있는 입력칸 + "/ 사용가능" 형태로 보여준다.
+        UiUtil.installQtyInputColumn(lotTable, 6, row -> ((Number) lotModel.getValueAt(row, 5)).intValue());
+        // "/ 사용가능"이 출고 수량 칸 안에 같이 보이므로, 따로 있던 "사용가능" 칸은 감춘다
+        // (모델에는 그대로 남아 있어서 위 조회/기존 로직은 안 바뀐다).
+        lotTable.removeColumn(lotTable.getColumnModel().getColumn(5));
+        // outbound.html #lotModal 표 colgroup 비율(순서6/로트번호14/창고구역20/입고일14/유통기한22/출고수량24)
+        UiUtil.setColumnWidths(lotTable, 6, 13, 18, 12, 18, 30);
 
         // 로트별 수량을 고치면 그 로트의 사용가능 수량을 넘지 않게 막고, 총 출고 수량 표시를 다시 계산한다.
         lotModel.addTableModelListener(ev -> {
