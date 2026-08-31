@@ -51,10 +51,17 @@ public class InOutPanel extends JPanel implements Refreshable {
     private final OutboundService outboundService = new OutboundService();
     private final StockLotAdjustmentService adjustmentService = new StockLotAdjustmentService();
 
+    // 입고/출고 탭의 품목명 입력칸 - 품목 관리에서 품목이 추가되면 여기도 새로 채워야 해서
+    // 지역변수가 아니라 필드로 들고 있는다 (refreshAll에서 reloadItemPickers()로 갱신).
+    private ItemPickerField inboundItemPicker;
+    private ItemPickerField outboundItemPicker;
+
     // 입고 이력
-    private static final int INBOUND_COL_DELETE = 8;
+    // "입고 수량"은 로트 생성 시점의 최초 수량(initial_quantity)이라 이동/출고 후에도 안 변하고,
+    // "현재 재고"는 지금 그 로트에 남아있는 수량(quantity)이다 - 둘은 다른 값이라 칸을 나눠 둔다.
+    private static final int INBOUND_COL_DELETE = 9;
     private final DefaultTableModel inboundHistModel = new DefaultTableModel(
-            new Object[]{"로트 ID", "입고일자", "품목명", "수량", "단위", "유통기한", "공급처", "구역", "삭제"}, 0) {
+            new Object[]{"로트 ID", "입고일자", "품목명", "입고 수량", "현재 재고", "단위", "유통기한", "공급처", "구역", "삭제"}, 0) {
         public boolean isCellEditable(int r, int c) { return c == INBOUND_COL_DELETE; }
     };
     private final JTable inboundHistTable = new JTable(inboundHistModel);
@@ -95,12 +102,15 @@ public class InOutPanel extends JPanel implements Refreshable {
         AppEventBus.subscribe("outbound", this::refreshOutboundHistory);
         AppEventBus.subscribe("outbound", this::refreshApprovalRequests);
         AppEventBus.subscribe("approval", this::refreshApprovalRequests);
+        // 품목 관리에서 품목을 추가/수정/비활성하면 입출고 등록의 품목 후보도 바로 갱신한다
+        AppEventBus.subscribe("item", this::reloadItemPickers);
 
         // inbound.html(connectRealtimeRefresh(loadData,["inbound","approval"])) / outbound.html
         // (["outbound","approval"])의 setInterval(...,5000) 안전망을 그대로 옮긴다 - 이벤트버스는
         // 이 실행 인스턴스 안에서만 즉시 반영되니, 다른 컴퓨터/다른 실행에서 생긴 변화는 이 폴링으로 잡는다.
         new Timer(5000, e -> {
             if (isShowing()) {
+                reloadItemPickers(); // 다른 컴퓨터에서 추가한 품목도 잡히도록
                 refreshInboundHistory();
                 refreshOutboundHistory();
                 refreshApprovalRequests();
@@ -109,6 +119,10 @@ public class InOutPanel extends JPanel implements Refreshable {
     }
 
     public void refreshAll() {
+        // [버그 수정] 예전엔 이력만 새로고침해서, 품목 관리에서 새로 추가한 품목이 입출고
+        // 등록 화면 목록에 안 나타났습니다(앱을 껐다 켜야 보였음). 품목 목록도 같이 다시
+        // 불러옵니다.
+        reloadItemPickers();
         refreshInboundHistory();
         refreshOutboundHistory();
         refreshApprovalRequests();
@@ -120,7 +134,8 @@ public class InOutPanel extends JPanel implements Refreshable {
     private JComponent buildInboundTab() {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
 
-        JComboBox<ItemOption> itemBox = new JComboBox<>();
+        ItemPickerField itemPicker = new ItemPickerField();
+        this.inboundItemPicker = itemPicker;
         JTextField categoryField = new JTextField();
         categoryField.setEditable(false);
         JTextField itemCodeField = new JTextField();
@@ -134,7 +149,7 @@ public class InOutPanel extends JPanel implements Refreshable {
         roomLabel.setFont(roomLabel.getFont().deriveFont(Font.BOLD, 12f));
         roomLabel.setForeground(UiUtil.COLOR_PRIMARY);
 
-        loadItems(itemBox);
+        itemPicker.reload();
         loadPartners(supplierBox, "SUPPLIER");
         loadWarehousesInto(warehouseBox);
 
@@ -143,16 +158,16 @@ public class InOutPanel extends JPanel implements Refreshable {
         Runnable updateRoom = () -> updateInboundZoneRoom(
                 (WarehouseOption) warehouseBox.getSelectedItem(), (String) unitBox.getSelectedItem(), roomLabel);
 
-        itemBox.addActionListener(e -> {
-            ItemOption selected = (ItemOption) itemBox.getSelectedItem();
-            if (selected == null) {
+        itemPicker.setOnChange(() -> {
+            Item selected = itemPicker.getSelectedItem();
+            if (selected == null) { // 아직 다 안 쳤거나 목록에 없는 이름
                 categoryField.setText("");
                 itemCodeField.setText("");
                 return;
             }
-            categoryField.setText(selected.item.getCategory() == null ? "" : selected.item.getCategory());
-            itemCodeField.setText("ITEM-" + selected.item.getItemId());
-            unitBox.setSelectedItem(selected.item.getUnit());
+            categoryField.setText(selected.getCategory() == null ? "" : selected.getCategory());
+            itemCodeField.setText("ITEM-" + selected.getItemId());
+            unitBox.setSelectedItem(selected.getUnit());
             updateRoom.run();
         });
         warehouseBox.addActionListener(e -> updateRoom.run());
@@ -162,7 +177,7 @@ public class InOutPanel extends JPanel implements Refreshable {
         JPanel form = UiUtil.formGrid(4,
                 UiUtil.formGroup("입고일", dateField),
                 UiUtil.formGroup("카테고리", categoryField),
-                UiUtil.formGroup("품목명", itemBox),
+                UiUtil.formGroup("품목명", itemPicker),
                 UiUtil.formGroup("품목 코드", itemCodeField),
                 UiUtil.formGroup("수량", qtyField),
                 UiUtil.formGroup("단위", unitBox),
@@ -172,12 +187,17 @@ public class InOutPanel extends JPanel implements Refreshable {
         RoundedButton submitBtn = new RoundedButton("입고 등록", UiUtil.COLOR_BTN_INBOUND, Color.WHITE);
         submitBtn.addActionListener(e -> {
             try {
-                ItemOption item = (ItemOption) itemBox.getSelectedItem();
+                Item item = itemPicker.getSelectedItem();
                 WarehouseOption wh = (WarehouseOption) warehouseBox.getSelectedItem();
                 PartnerOption supplier = (PartnerOption) supplierBox.getSelectedItem();
                 String unit = (String) unitBox.getSelectedItem();
-                if (item == null || wh == null || supplier == null) {
-                    UiUtil.showError(this, "품목/창고/공급처를 모두 선택해 주세요.");
+                if (item == null) {
+                    // 이름을 직접 칠 수 있게 되면서, 목록에 없는 이름을 친 경우를 따로 알려준다
+                    UiUtil.showError(this, itemPicker.notFoundMessage());
+                    return;
+                }
+                if (wh == null || supplier == null) {
+                    UiUtil.showError(this, "창고/공급처를 모두 선택해 주세요.");
                     return;
                 }
                 Long zoneId = resolveZoneId(wh, unit);
@@ -211,7 +231,7 @@ public class InOutPanel extends JPanel implements Refreshable {
                 }
 
                 InboundService.InboundResult result = inboundService.inbound(
-                        item.item.getItemId(), zoneId, supplier.partner.getPartnerId(),
+                        item.getItemId(), zoneId, supplier.partner.getPartnerId(),
                         qty, date, Session.getUserId());
 
                 UiUtil.showInfo(this, "입고 완료 - 로트 ID " + result.lotId
@@ -314,7 +334,7 @@ public class InOutPanel extends JPanel implements Refreshable {
         UiUtil.applyStandardRowHeight(inboundHistTable);
         UiUtil.applyStandardHeaderStyle(inboundHistTable);
         // inbound.html colgroup 비율(로트번호10/입고일자10/품목명15/수량7/단위6/유통기한10/공급처11/구역9/삭제7)
-        UiUtil.setColumnWidths(inboundHistTable, 8, 10, 15, 8, 6, 10, 12, 9, 8);
+        UiUtil.setColumnWidths(inboundHistTable, 8, 10, 15, 8, 8, 6, 10, 12, 9, 8);
 
         wrap.add(new JScrollPane(inboundHistTable), BorderLayout.CENTER);
         wrap.add(inboundPager.build(this::refreshInboundHistory), BorderLayout.SOUTH);
@@ -348,10 +368,19 @@ public class InOutPanel extends JPanel implements Refreshable {
             for (StockLot lot : lots) {
                 Item item = itemMap.get(lot.getItemId());
                 Partner partner = partnerMap.get(lot.getPartnerId());
+                // [버그 수정] 예전엔 여기서 lot.getQuantity()(= 지금 남은 수량)를 "수량"으로
+                // 보여줬습니다. 그래서 입고한 뒤에 재고 이동이나 출고를 하면 로트의 남은 수량이
+                // 줄어들면서, "과거에 몇 개를 입고했는지"를 보여줘야 할 입고 이력이 0으로
+                // 바뀌어 버렸습니다(특히 전량을 옮기면 0). 입고 이력에는 로트가 만들어질 때의
+                // 최초 수량(initial_quantity - 이동/출고/폐기로도 변하지 않는 값)을 쓰고,
+                // 지금 남은 양은 "현재 재고" 칸으로 따로 보여줍니다.
+                Integer inboundQty = lot.getInitialQuantity() != null
+                        ? lot.getInitialQuantity()
+                        : lot.getQuantity(); // 예전 데이터라 값이 없으면 남은 수량으로 대체
                 inboundHistModel.addRow(new Object[]{
                         lot.getLotId(), lot.getInboundDate(),
                         item != null ? item.getItemName() : ("품목 " + lot.getItemId()),
-                        lot.getQuantity(), item != null ? item.getUnit() : "",
+                        inboundQty, lot.getQuantity(), item != null ? item.getUnit() : "",
                         lot.getExpiryDate() == null ? "-" : lot.getExpiryDate(),
                         partner != null ? partner.getName() : "-",
                         zoneLabels.getOrDefault(lot.getZoneId(), "구역 " + lot.getZoneId()),
@@ -390,7 +419,8 @@ public class InOutPanel extends JPanel implements Refreshable {
     private JComponent buildOutboundTab() {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
 
-        JComboBox<ItemOption> itemBox = new JComboBox<>();
+        ItemPickerField itemPicker = new ItemPickerField();
+        this.outboundItemPicker = itemPicker;
         JTextField categoryField = new JTextField();
         categoryField.setEditable(false);
         JTextField itemCodeField = new JTextField();
@@ -402,22 +432,22 @@ public class InOutPanel extends JPanel implements Refreshable {
         totalStockLabel.setFont(totalStockLabel.getFont().deriveFont(Font.BOLD, 12f));
         totalStockLabel.setForeground(UiUtil.COLOR_PRIMARY);
 
-        loadItems(itemBox);
+        itemPicker.reload();
         loadPartners(customerBox, "CUSTOMER");
 
-        itemBox.addActionListener(e -> {
-            ItemOption item = (ItemOption) itemBox.getSelectedItem();
-            if (item == null) {
+        itemPicker.setOnChange(() -> {
+            Item item = itemPicker.getSelectedItem();
+            if (item == null) { // 아직 다 안 쳤거나 목록에 없는 이름
                 categoryField.setText("");
                 itemCodeField.setText("");
                 totalStockLabel.setText(" ");
                 return;
             }
-            categoryField.setText(item.item.getCategory() == null ? "" : item.item.getCategory());
-            itemCodeField.setText("ITEM-" + item.item.getItemId());
-            unitBox.setSelectedItem(item.item.getUnit());
+            categoryField.setText(item.getCategory() == null ? "" : item.getCategory());
+            itemCodeField.setText("ITEM-" + item.getItemId());
+            unitBox.setSelectedItem(item.getUnit());
             try (Connection conn = DBConnection.getConnection()) {
-                int total = stockLotDao.sumQuantityByItemId(conn, item.item.getItemId());
+                int total = stockLotDao.sumQuantityByItemId(conn, item.getItemId());
                 totalStockLabel.setText("전체 재고: " + String.format("%,d", total) + "개");
             } catch (Exception ex) {
                 totalStockLabel.setText(" ");
@@ -428,16 +458,16 @@ public class InOutPanel extends JPanel implements Refreshable {
         JPanel form = UiUtil.formGrid(4,
                 UiUtil.formGroup("출고일", dateField),
                 UiUtil.formGroup("카테고리", categoryField),
-                UiUtil.formGroup("품목명", itemBox),
+                UiUtil.formGroup("품목명", itemPicker),
                 UiUtil.formGroup("품목 코드", itemCodeField),
                 UiUtil.formGroup("단위", unitBox, totalStockLabel),
                 UiUtil.formGroup("목적지", customerBox));
 
         RoundedButton recommendBtn = new RoundedButton("자동 추천 및 확인", UiUtil.COLOR_BTN_OUTBOUND, Color.WHITE);
         recommendBtn.addActionListener(e -> {
-            ItemOption item = (ItemOption) itemBox.getSelectedItem();
+            Item item = itemPicker.getSelectedItem();
             if (item == null) {
-                UiUtil.showError(this, "품목을 선택해 주세요.");
+                UiUtil.showError(this, itemPicker.notFoundMessage());
                 return;
             }
             LocalDate date;
@@ -447,7 +477,7 @@ public class InOutPanel extends JPanel implements Refreshable {
                 UiUtil.showError(this, "출고일 형식이 올바르지 않습니다. (yyyy-MM-dd)");
                 return;
             }
-            openOutboundRecommendDialog(item, customerBox, date, itemBox, totalStockLabel);
+            openOutboundRecommendDialog(item, customerBox, date, itemPicker, totalStockLabel);
         });
 
         UiUtil.sizeAsRegisterButton(recommendBtn);
@@ -469,16 +499,16 @@ public class InOutPanel extends JPanel implements Refreshable {
     // outbound.html의 #lotModal - [자동 추천 및 확인]을 누르면 뜨는 별도 창.
     // 유통기한 관리 품목(shelfLifeDays 있음)이면 FEFO, 없으면 FIFO 순으로 이 품목의
     // 정상 로트를 전부 보여주고, 로트별 출고 수량을 여기서 직접 입력한다.
-    private void openOutboundRecommendDialog(ItemOption item, JComboBox<PartnerOption> customerBox,
-                                              LocalDate date, JComboBox<ItemOption> itemBox, JLabel totalStockLabel) {
-        boolean fefo = item.item.getShelfLifeDays() != null;
+    private void openOutboundRecommendDialog(Item item, JComboBox<PartnerOption> customerBox,
+                                              LocalDate date, ItemPickerField itemPicker, JLabel totalStockLabel) {
+        boolean fefo = item.getShelfLifeDays() != null;
         String way = fefo ? "FEFO" : "FIFO";
 
         List<StockLot> lots;
         Map<Long, String> zoneLabels;
         try (Connection conn = DBConnection.getConnection()) {
-            lots = fefo ? stockLotDao.findByItemIdOrderByExpiryDate(conn, item.item.getItemId())
-                    : stockLotDao.findByItemIdOrderByInboundDate(conn, item.item.getItemId());
+            lots = fefo ? stockLotDao.findByItemIdOrderByExpiryDate(conn, item.getItemId())
+                    : stockLotDao.findByItemIdOrderByInboundDate(conn, item.getItemId());
             zoneLabels = buildZoneLabels(conn);
         } catch (Exception ex) {
             UiUtil.showError(this, ex);
@@ -489,7 +519,7 @@ public class InOutPanel extends JPanel implements Refreshable {
         // outbound.html #lotModal(.lot-modal, width:1420 height:820)
         JDialog dialog = UiUtil.createHtmlDialog(this, "출고 방식 자동 추천 및 LOT 선택 결과");
 
-        JLabel infoLabel = new JLabel("<html>" + item.item.getItemName() + " - "
+        JLabel infoLabel = new JLabel("<html>" + item.getItemName() + " - "
                 + (fefo ? "유통기한 관리 대상입니다. <b>FEFO(유통기한 기준)</b> 순으로 로트를 보여줍니다."
                         : "유통기한 관리 대상이 아닙니다. <b>FIFO(입고일 기준)</b> 순으로 로트를 보여줍니다.")
                 + "</html>");
@@ -497,7 +527,7 @@ public class InOutPanel extends JPanel implements Refreshable {
         JPanel totalRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
         totalRow.add(new JLabel("총 출고 수량"));
         totalRow.add(totalQtyField);
-        totalRow.add(new JLabel(item.item.getUnit()));
+        totalRow.add(new JLabel(item.getUnit()));
         JButton distributeBtn = new JButton("이 수량만큼 순서대로 배분");
         totalRow.add(distributeBtn);
 
@@ -639,10 +669,10 @@ public class InOutPanel extends JPanel implements Refreshable {
             msg.append(failures);
             UiUtil.showInfo(this, msg.toString());
 
-            itemBox.setSelectedItem(item);
+            itemPicker.setSelectedItem(item);
             try (Connection conn = DBConnection.getConnection()) {
-                int totalStock = stockLotDao.sumQuantityByItemId(conn, item.item.getItemId());
-                totalStockLabel.setText("현재 전체 재고: " + String.format("%,d", totalStock) + " " + item.item.getUnit());
+                int totalStock = stockLotDao.sumQuantityByItemId(conn, item.getItemId());
+                totalStockLabel.setText("현재 전체 재고: " + String.format("%,d", totalStock) + " " + item.getUnit());
             } catch (Exception ex) {
                 // 표시용 라벨이라 실패해도 무시한다.
             }
@@ -786,16 +816,10 @@ public class InOutPanel extends JPanel implements Refreshable {
         return map;
     }
 
-    private void loadItems(JComboBox<ItemOption> box) {
-        try (Connection conn = DBConnection.getConnection()) {
-            for (Item item : itemDao.findAll(conn)) {
-                if (Boolean.TRUE.equals(item.getIsActive())) {
-                    box.addItem(new ItemOption(item));
-                }
-            }
-        } catch (Exception e) {
-            UiUtil.showError(this, e);
-        }
+    /** 품목 관리에서 추가/수정한 내용이 입고·출고 양쪽 입력칸에 바로 반영되게 다시 불러옵니다 */
+    private void reloadItemPickers() {
+        if (inboundItemPicker != null) inboundItemPicker.reload();
+        if (outboundItemPicker != null) outboundItemPicker.reload();
     }
 
     private void loadPartners(JComboBox<PartnerOption> box, String type) {
@@ -849,12 +873,6 @@ public class InOutPanel extends JPanel implements Refreshable {
         public Object getCellEditorValue() {
             return "";
         }
-    }
-
-    private static class ItemOption {
-        final Item item;
-        ItemOption(Item item) { this.item = item; }
-        public String toString() { return item.getItemName() + " (" + item.getUnit() + ")"; }
     }
 
     // 창고 이름이 "대형"/"중형"/"소형"처럼 같은 이름을 쓰는 창고가 여럿이라, 이름만으론

@@ -38,7 +38,8 @@ public class TransferPanel extends JPanel implements Refreshable {
     private final StockTransferDao stockTransferDao = new StockTransferDao();
     private final TransferService transferService = new TransferService();
 
-    private final JComboBox<ItemOption> itemBox = new JComboBox<>();
+    // 품목이 250개가 넘어 드롭다운 스크롤이 불편해서, 타이핑하면 후보가 뜨는 입력칸으로 바꿨다
+    private final ItemPickerField itemPicker = new ItemPickerField();
     private final JLabel itemCodeLabel = new JLabel(" ");
     private final JComboBox<WarehouseOption> fromWarehouseBox = new JComboBox<>();
     private final JComboBox<ZoneOption> fromZoneBox = new JComboBox<>();
@@ -63,11 +64,11 @@ public class TransferPanel extends JPanel implements Refreshable {
         setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
         setBackground(UiUtil.COLOR_BODY_BG);
 
-        loadItems();
+        itemPicker.reload();
         loadWarehouses(fromWarehouseBox);
         loadWarehouses(toWarehouseBox);
 
-        itemBox.addActionListener(e -> onItemChanged());
+        itemPicker.setOnChange(this::onItemChanged);
         fromWarehouseBox.addActionListener(e -> onFromWarehouseChanged());
         fromZoneBox.addActionListener(e -> updateFromAvailLabel());
         toWarehouseBox.addActionListener(e -> onToWarehouseChanged());
@@ -79,7 +80,7 @@ public class TransferPanel extends JPanel implements Refreshable {
         // 입력칸 위에 오고, 4칸씩 나란히 정렬된다(다른 화면과 같은 UiUtil.formGroup/formGrid 사용).
         JPanel form = UiUtil.formGrid(4,
                 UiUtil.formGroup("이동일", dateLabel),
-                UiUtil.formGroup("품목명", itemBox),
+                UiUtil.formGroup("품목명", itemPicker),
                 UiUtil.formGroup("품목 코드", itemCodeLabel),
                 UiUtil.formGroup("출발 창고", fromWarehouseBox),
                 UiUtil.formGroup("출발 구역", fromZoneBox, fromAvailLabel),
@@ -101,9 +102,7 @@ public class TransferPanel extends JPanel implements Refreshable {
         // 콤보박스라 첫 항목이 이미 골라져 있는 게 자연스럽다).
         onFromWarehouseChanged();
         onToWarehouseChanged();
-        if (itemBox.getItemCount() > 0) {
-            itemBox.setSelectedIndex(0);
-        }
+        itemPicker.selectFirstIfEmpty();
 
         refreshHistory();
         AppEventBus.subscribe("transfer", this::refreshHistory);
@@ -112,17 +111,6 @@ public class TransferPanel extends JPanel implements Refreshable {
         new Timer(5000, e -> { if (isShowing()) { refreshHistory(); } }).start();
     }
 
-    private void loadItems() {
-        try (Connection conn = DBConnection.getConnection()) {
-            for (Item item : itemDao.findAll(conn)) {
-                if (Boolean.TRUE.equals(item.getIsActive())) {
-                    itemBox.addItem(new ItemOption(item));
-                }
-            }
-        } catch (Exception e) {
-            UiUtil.showError(this, e);
-        }
-    }
 
     private void loadWarehouses(JComboBox<WarehouseOption> box) {
         try (Connection conn = DBConnection.getConnection()) {
@@ -139,15 +127,15 @@ public class TransferPanel extends JPanel implements Refreshable {
     // 이 품목이 실제로 있는 창고만(수량과 함께) 보여주도록 다시 채운다 - 재고가 없는 창고를
     // 골라서 옮길 게 없다는 걸 뒤늦게 알게 되는 걸 막는다.
     private void onItemChanged() {
-        ItemOption item = (ItemOption) itemBox.getSelectedItem();
+        Item item = itemPicker.getSelectedItem();
         if (item == null) {
             itemCodeLabel.setText(" ");
             return;
         }
-        itemCodeLabel.setText("ITEM-" + item.item.getItemId());
-        loadWarehousesWithStock(item.item.getItemId());
-        pickZoneMatchingUnit(fromZoneBox, item.item.getUnit());
-        pickZoneMatchingUnit(toZoneBox, item.item.getUnit());
+        itemCodeLabel.setText("ITEM-" + item.getItemId());
+        loadWarehousesWithStock(item.getItemId());
+        pickZoneMatchingUnit(fromZoneBox, item.getUnit());
+        pickZoneMatchingUnit(toZoneBox, item.getUnit());
         updateFromAvailLabel();
         updateToRoomLabel();
     }
@@ -187,18 +175,18 @@ public class TransferPanel extends JPanel implements Refreshable {
 
     private void onFromWarehouseChanged() {
         fillZonesForWarehouse(fromWarehouseBox, fromZoneBox);
-        ItemOption item = (ItemOption) itemBox.getSelectedItem();
+        Item item = itemPicker.getSelectedItem();
         if (item != null) {
-            pickZoneMatchingUnit(fromZoneBox, item.item.getUnit());
+            pickZoneMatchingUnit(fromZoneBox, item.getUnit());
         }
         updateFromAvailLabel();
     }
 
     private void onToWarehouseChanged() {
         fillZonesForWarehouse(toWarehouseBox, toZoneBox);
-        ItemOption item = (ItemOption) itemBox.getSelectedItem();
+        Item item = itemPicker.getSelectedItem();
         if (item != null) {
-            pickZoneMatchingUnit(toZoneBox, item.item.getUnit());
+            pickZoneMatchingUnit(toZoneBox, item.getUnit());
         }
         updateToRoomLabel();
     }
@@ -230,14 +218,14 @@ public class TransferPanel extends JPanel implements Refreshable {
     // 출발 구역에 지금 고른 품목이 얼마나 있는지 참고용으로 보여준다 (입력 상한은 아님 -
     // 실제로 얼마나 옮길지는 자동 추천 모달에서 로트별로 직접 정한다).
     private void updateFromAvailLabel() {
-        ItemOption item = (ItemOption) itemBox.getSelectedItem();
+        Item item = itemPicker.getSelectedItem();
         ZoneOption zone = (ZoneOption) fromZoneBox.getSelectedItem();
         if (item == null || zone == null) {
             fromAvailLabel.setText(" ");
             return;
         }
         try (Connection conn = DBConnection.getConnection()) {
-            List<StockLot> lots = stockLotDao.findPage(conn, item.item.getItemId(), zone.zone.getZoneId(), null,
+            List<StockLot> lots = stockLotDao.findPage(conn, item.getItemId(), zone.zone.getZoneId(), null,
                     "NORMAL", null, null, null, false, 0, 100000);
             int total = 0;
             for (StockLot lot : lots) {
@@ -272,9 +260,10 @@ public class TransferPanel extends JPanel implements Refreshable {
     // movement.html openMoveRecommend() - 서버(TransferService)가 검사하는 규칙을 화면에서도
     // 미리 막는다: 1) 출발=도착 금지 2) 품목 단위와 도착 구역 이름이 같아야 함.
     private void onRecommendClicked() {
-        ItemOption item = (ItemOption) itemBox.getSelectedItem();
+        Item item = itemPicker.getSelectedItem();
         if (item == null) {
-            UiUtil.showError(this, "품목명을 채워 주세요.");
+            // 이름을 직접 칠 수 있게 되면서, 목록에 없는 이름을 친 경우도 구분해서 알려준다
+            UiUtil.showError(this, itemPicker.notFoundMessage());
             return;
         }
         ZoneOption fromZone = (ZoneOption) fromZoneBox.getSelectedItem();
@@ -287,8 +276,8 @@ public class TransferPanel extends JPanel implements Refreshable {
             UiUtil.showError(this, "출발 구역과 도착 구역이 같습니다.");
             return;
         }
-        if (!item.item.getUnit().equals(toZone.zone.getZoneName())) {
-            UiUtil.showError(this, "이 품목의 단위(" + item.item.getUnit() + ")와 도착 구역(" + toZone.zone.getZoneName()
+        if (!item.getUnit().equals(toZone.zone.getZoneName())) {
+            UiUtil.showError(this, "이 품목의 단위(" + item.getUnit() + ")와 도착 구역(" + toZone.zone.getZoneName()
                     + ")이 다릅니다.\n같은 이름의 구역으로만 옮길 수 있습니다.");
             return;
         }
@@ -297,13 +286,13 @@ public class TransferPanel extends JPanel implements Refreshable {
 
     // movement.html의 #moveLotModal - 출발 구역 안의 로트를 FIFO/FEFO 순으로 보여주고,
     // 로트별 이동 수량을 직접 입력받는다(출고 등록의 모달과 같은 구조).
-    private void openTransferRecommendDialog(ItemOption item, Zone fromZone, Zone toZone) {
-        boolean fefo = item.item.getShelfLifeDays() != null;
+    private void openTransferRecommendDialog(Item item, Zone fromZone, Zone toZone) {
+        boolean fefo = item.getShelfLifeDays() != null;
         String way = fefo ? "FEFO" : "FIFO";
 
         List<StockLot> lots;
         try (Connection conn = DBConnection.getConnection()) {
-            lots = stockLotDao.findPage(conn, item.item.getItemId(), fromZone.getZoneId(), null, "NORMAL",
+            lots = stockLotDao.findPage(conn, item.getItemId(), fromZone.getZoneId(), null, "NORMAL",
                     null, null, null, false, 0, 100000);
         } catch (Exception ex) {
             UiUtil.showError(this, ex);
@@ -323,7 +312,7 @@ public class TransferPanel extends JPanel implements Refreshable {
         // movement.html #moveLotModal(.move-modal, width:1420 height:820)
         JDialog dialog = UiUtil.createHtmlDialog(this, "이동 로트 자동 추천 및 선택");
 
-        JLabel infoLabel = new JLabel("<html>" + item.item.getItemName() + " - "
+        JLabel infoLabel = new JLabel("<html>" + item.getItemName() + " - "
                 + (fefo ? "유통기한 관리 대상입니다. <b>FEFO(유통기한 기준)</b> 순으로 로트를 보여줍니다."
                         : "유통기한 관리 대상이 아닙니다. <b>FIFO(입고일 기준)</b> 순으로 로트를 보여줍니다.")
                 + "</html>");
@@ -331,7 +320,7 @@ public class TransferPanel extends JPanel implements Refreshable {
         JPanel totalRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
         totalRow.add(new JLabel("총 이동 수량"));
         totalRow.add(totalQtyField);
-        totalRow.add(new JLabel(item.item.getUnit()));
+        totalRow.add(new JLabel(item.getUnit()));
         JButton distributeBtn = new JButton("이 수량만큼 순서대로 배분");
         totalRow.add(distributeBtn);
 
@@ -565,11 +554,6 @@ public class TransferPanel extends JPanel implements Refreshable {
         return zoneLabels;
     }
 
-    private static class ItemOption {
-        final Item item;
-        ItemOption(Item item) { this.item = item; }
-        public String toString() { return item.getItemName() + " (" + item.getUnit() + ")"; }
-    }
 
     // warehouse.html의 창고 드롭다운(whNames[i]+"("+whLocations[i]+")")과 같은 표기 - "대형"/
     // "중형"/"소형"처럼 같은 이름의 창고가 여럿이라, 실제 위치 값을 괄호로 붙여 구별한다.

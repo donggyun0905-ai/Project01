@@ -217,16 +217,9 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
         typeBox.addActionListener(e -> updateReasonOptions(typeBox, reasonBox));
         updateReasonOptions(typeBox, reasonBox);
 
-        JComboBox<ItemOption> itemBox = new JComboBox<>();
-        try (Connection conn = DBConnection.getConnection()) {
-            for (Item item : itemDao.findAll(conn)) {
-                if (Boolean.TRUE.equals(item.getIsActive())) {
-                    itemBox.addItem(new ItemOption(item));
-                }
-            }
-        } catch (Exception e) {
-            UiUtil.showError(dialog, e);
-        }
+        // 품목이 250개가 넘어 드롭다운 스크롤이 불편해서, 타이핑하면 후보가 뜨는 입력칸으로 바꿨다
+        ItemPickerField itemPicker = new ItemPickerField();
+        itemPicker.reload();
         JLabel itemCodeLabel = new JLabel(" ");
 
         JTextField dateField = new DatePickerField(LocalDate.now().toString(), 10);
@@ -234,7 +227,7 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
         JPanel form = UiUtil.formGrid(5,
                 UiUtil.formGroup("구분", typeBox),
                 UiUtil.formGroup("처리 유형", reasonBox),
-                UiUtil.formGroup("품목명", itemBox),
+                UiUtil.formGroup("품목명", itemPicker),
                 UiUtil.formGroup("품목 번호", itemCodeLabel),
                 UiUtil.formGroup("처리일", dateField));
         form.setBorder(BorderFactory.createEmptyBorder(20, 20, 4, 20));
@@ -293,15 +286,13 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
             }
         });
 
-        itemBox.addActionListener(e -> {
-            ItemOption selected = (ItemOption) itemBox.getSelectedItem();
-            itemCodeLabel.setText(selected == null ? " " : "ITEM-" + selected.item.getItemId());
+        itemPicker.setOnChange(() -> {
+            Item selected = itemPicker.getSelectedItem();
+            itemCodeLabel.setText(selected == null ? " " : "ITEM-" + selected.getItemId());
             loadLotsIntoModel(selected, lotModel);
             updatePickedLabel(lotModel, pickedLabel);
         });
-        if (itemBox.getItemCount() > 0) {
-            itemBox.setSelectedIndex(0);
-        }
+        itemPicker.selectFirstIfEmpty();
 
         // return.html .form-group.full-width - 다른 라벨과 같은 굵은 16px 라벨, 표는 그 아래.
         JLabel lotAreaLabel = new JLabel("로트 선택 (여러 개 가능)");
@@ -335,13 +326,13 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
         }
     }
 
-    private void loadLotsIntoModel(ItemOption item, DefaultTableModel lotModel) {
+    private void loadLotsIntoModel(Item item, DefaultTableModel lotModel) {
         lotModel.setRowCount(0);
         if (item == null) {
             return;
         }
         try (Connection conn = DBConnection.getConnection()) {
-            List<StockLot> lots = stockLotDao.findPage(conn, item.item.getItemId(), null, null, "NORMAL",
+            List<StockLot> lots = stockLotDao.findPage(conn, item.getItemId(), null, null, "NORMAL",
                     null, null, null, false, 0, 100000);
             Map<Long, String> zoneLabels = buildZoneLabels(conn);
             for (StockLot lot : lots) {
@@ -438,9 +429,4 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
         }
     }
 
-    private static class ItemOption {
-        final Item item;
-        ItemOption(Item item) { this.item = item; }
-        public String toString() { return item.getItemName() + " (" + item.getUnit() + ")"; }
-    }
 }

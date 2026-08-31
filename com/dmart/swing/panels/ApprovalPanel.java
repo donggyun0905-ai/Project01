@@ -874,21 +874,28 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         List<StockLot> lots = stockLotDao.findPage(conn, itemId, move.fromZoneId, null, "NORMAL", null, null, null, false, 0, 200);
         ConsolExecResult result = new ConsolExecResult();
 
+        // [버그 수정] 예전엔 move.quantity(추천 수량)를 아예 쓰지 않고, 출발 구역에 있는 로트를
+        // 전부 통째로 옮겼습니다. 그래서 "5개를 옮기세요"라고 추천해 놓고 실제로는 그 구역에
+        // 있던 10개가 전부 이동해 버렸습니다. 추천한 수량만큼만 옮기고, 마지막 로트는 필요한
+        // 만큼만 잘라서(TransferService가 부분 이동 시 로트를 분할해 줍니다) 옮깁니다.
+        int remaining = move.quantity;
+
         for (StockLot lot : lots) {
+            if (remaining <= 0) break; // 추천 수량을 다 채웠으면 더 옮기지 않습니다
             if (lot.getQuantity() == null || lot.getQuantity() <= 0) continue;
+
+            int take = Math.min(remaining, lot.getQuantity());
             try {
                 transferService.transfer(lot.getLotId(), move.fromZoneId, move.toZoneId,
-                        lot.getQuantity(), Session.getUserId());
-                result.movedQty += lot.getQuantity();
+                        take, Session.getUserId());
+                result.movedQty += take;
+                remaining -= take;
             } catch (SQLException | RuntimeException ex) {
-                // [버그 수정] 예전엔 여기서 printStackTrace만 하고 넘어가서, 로트가 전부
-                // 실패해도 movedQty=0으로 "0개를 옮겼습니다"라고만 뜨고 알림은 그대로
-                // 해결 처리돼 버렸습니다 - 실제로는 아무것도 안 옮겼는데 성공한 것처럼
-                // 보이는 셈입니다. 원본 approval.html의 failOneMove("일부는 옮기지
-                // 못했습니다: " + message)와 같이, 실패 사유를 모아뒀다가 사용자에게
-                // 그대로 보여줍니다.
+                // 실패를 조용히 삼키지 않고 사유를 모아뒀다가 사용자에게 그대로 보여줍니다
+                // (예전엔 printStackTrace만 하고 넘어가서, 전부 실패해도 "0개를 옮겼습니다"로
+                //  뜨면서 알림은 해결 처리돼 버렸습니다).
                 String reason = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
-                result.failures.add("로트 " + lot.getLotId() + " (" + lot.getQuantity() + "개): " + reason);
+                result.failures.add("로트 " + lot.getLotId() + " (" + take + "개): " + reason);
                 ex.printStackTrace();
             }
         }
@@ -901,8 +908,11 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         Long itemId = consolItemIds.get(i);
         String itemName = itemNames.getOrDefault(itemId, "품목 " + itemId);
 
+        // [버그 수정] 단위를 무조건 "개"로 붙여서, PALLET 품목인데 "3개를 옮길까요?"라고
+        // 물어봤습니다. 표에는 제대로 나오는데 확인창만 달라 헷갈렸습니다.
+        String unit = itemUnits.getOrDefault(itemId, "");
         String ask = zoneLabel(move.fromZoneId) + " \u2192 " + zoneLabel(move.toZoneId) + "로 "
-                + addComma(move.quantity) + "개를 지금 옮길까요?";
+                + addComma(move.quantity) + unit + "을(를) 지금 옮길까요?";
         int confirm = DmartDialog.showConfirmDialog(this, ask, "확인", JOptionPane.YES_NO_OPTION);
         if (confirm != JOptionPane.YES_OPTION) return;
 
@@ -930,10 +940,10 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
             if (!result.failures.isEmpty()) {
                 // 일부만 실패한 경우 - 원본처럼 성공/실패를 같이 알려줍니다
                 DmartDialog.showMessageDialog(this,
-                        itemName + " " + result.movedQty + "개를 옮겼습니다.\n\n"
+                        itemName + " " + addComma(result.movedQty) + unit + "을(를) 옮겼습니다.\n\n"
                         + "다만 일부는 옮기지 못했습니다:\n" + String.join("\n", result.failures));
             } else {
-                DmartDialog.showMessageDialog(this, itemName + " " + result.movedQty + "개를 옮겼습니다.");
+                DmartDialog.showMessageDialog(this, itemName + " " + addComma(result.movedQty) + unit + "을(를) 옮겼습니다.");
             }
 
         } catch (SQLException ex) {
