@@ -424,12 +424,17 @@ public class UiUtil {
         QtyInputCell(IntUnaryOperator maxForRow) {
             this.maxForRow = maxForRow;
             setOpaque(false);
-            setLayout(new FlowLayout(FlowLayout.LEFT, 4, 2));
-            field.setColumns(5);
-            field.setHorizontalAlignment(JTextField.RIGHT);
+            // FlowLayout은 가운데 정렬(CENTER)을 주면 칸 안에서 좌우로도 가운데 오고,
+            // 담긴 내용 높이가 행 높이보다 작으면 위아래로도 자동으로 가운데 놓는다.
+            setLayout(new FlowLayout(FlowLayout.CENTER, 6, 2));
+            field.setColumns(6);
+            field.setHorizontalAlignment(JTextField.CENTER);
+            Font bigger = field.getFont().deriveFont(Font.PLAIN, 15f);
+            field.setFont(bigger);
             field.setBorder(BorderFactory.createCompoundBorder(
                     BorderFactory.createLineBorder(new Color(0xcc, 0xcc, 0xcc)),
-                    BorderFactory.createEmptyBorder(3, 6, 3, 6)));
+                    BorderFactory.createEmptyBorder(6, 10, 6, 10)));
+            maxLabel.setFont(bigger);
             maxLabel.setForeground(new Color(0x77, 0x77, 0x77));
             add(field);
             add(maxLabel);
