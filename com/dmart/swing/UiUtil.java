@@ -424,20 +424,29 @@ public class UiUtil {
         QtyInputCell(IntUnaryOperator maxForRow) {
             this.maxForRow = maxForRow;
             setOpaque(false);
-            // FlowLayout은 가운데 정렬(CENTER)을 주면 칸 안에서 좌우로도 가운데 오고,
-            // 담긴 내용 높이가 행 높이보다 작으면 위아래로도 자동으로 가운데 놓는다.
-            setLayout(new FlowLayout(FlowLayout.CENTER, 6, 2));
-            field.setColumns(6);
-            field.setHorizontalAlignment(JTextField.CENTER);
-            Font bigger = field.getFont().deriveFont(Font.PLAIN, 15f);
+            // FlowLayout은 위쪽부터 채우고 남는 아래쪽 공간은 그냥 비워둔다(세로 가운데
+            // 정렬이 안 됨) - rowButtonsPanel과 같은 이유로 GridBagLayout을 쓴다.
+            // weightx/weighty가 기본값(0)일 때는 내용 크기 그대로, 컨테이너 정중앙에 놓인다.
+            setLayout(new GridBagLayout());
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridy = 0;
+
+            Font bigger = field.getFont().deriveFont(Font.PLAIN, 18f);
             field.setFont(bigger);
+            field.setHorizontalAlignment(JTextField.CENTER);
+            field.setPreferredSize(new Dimension(90, 36));
             field.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(new Color(0xcc, 0xcc, 0xcc)),
-                    BorderFactory.createEmptyBorder(6, 10, 6, 10)));
+                    BorderFactory.createLineBorder(new Color(0xaa, 0xaa, 0xaa)),
+                    BorderFactory.createEmptyBorder(4, 8, 4, 8)));
             maxLabel.setFont(bigger);
             maxLabel.setForeground(new Color(0x77, 0x77, 0x77));
-            add(field);
-            add(maxLabel);
+
+            gbc.gridx = 0;
+            gbc.insets = new Insets(0, 0, 0, 8);
+            add(field, gbc);
+            gbc.gridx = 1;
+            gbc.insets = new Insets(0, 0, 0, 0);
+            add(maxLabel, gbc);
 
             // html의 onchange와 같은 시점(엔터 또는 다른 곳 클릭)에 값을 확정한다.
             field.addActionListener(e -> stopCellEditing());
