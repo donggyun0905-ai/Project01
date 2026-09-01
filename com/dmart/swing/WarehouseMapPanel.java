@@ -1,17 +1,25 @@
 package com.dmart.swing;
 
+import com.dmart.dao.ItemDao;
 import com.dmart.dao.StockLotDao;
 import com.dmart.dao.WarehouseDao;
 import com.dmart.dao.ZoneDao;
 import com.dmart.db.DBConnection;
+import com.dmart.dto.Item;
+import com.dmart.dto.StockLot;
 import com.dmart.dto.Warehouse;
 import com.dmart.dto.Zone;
+import com.dmart.service.TransferService;
 
 import javax.swing.*;
 import javax.swing.Timer;
+import javax.swing.border.Border;
 import java.awt.*;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionAdapter;
 import java.sql.Connection;
 import java.util.List;
 import java.util.*;
@@ -28,14 +36,23 @@ public class WarehouseMapPanel extends JPanel implements Refreshable {
     private final WarehouseDao warehouseDao = new WarehouseDao();
     private final ZoneDao zoneDao = new ZoneDao();
     private final StockLotDao stockLotDao = new StockLotDao();
+    private final ItemDao itemDao = new ItemDao();
+    private final TransferService transferService = new TransferService();
 
     private static final Color[] GROUP_COLORS = {
             new Color(0xEBDCC3), new Color(0xD7E8DC), new Color(0xDCE5F2)
     }; // 대형/중형/소형 - 대시보드 도넛차트와 같은 계열 색
     private static final Color CHIP_FG = UiUtil.COLOR_TEXT;
     private static final Color CHIP_BORDER = new Color(0, 0, 0, 60);
+    private static final Color HIGHLIGHT_COLOR = new Color(0xE53935); // 검색으로 찾은 품목 강조용
     private static final Font CHIP_FONT = new Font("맑은 고딕", Font.PLAIN, 11);
     private static final int CHIP_W = 96, CHIP_H = 18, CHIP_GAP = 3; // 이름 뒤에 수량이 붙어서 좀 더 넓힘
+    private static final int CHIP_TEXT_MAX_W = CHIP_W - 16; // 테두리+안쪽여백을 뺀, 글자가 실제로 들어갈 폭
+
+    private static final Border CHIP_BORDER_NORMAL = BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(CHIP_BORDER), BorderFactory.createEmptyBorder(1, 6, 1, 6));
+    private static final Border CHIP_BORDER_HIGHLIGHT = BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(HIGHLIGHT_COLOR, 2), BorderFactory.createEmptyBorder(0, 5, 0, 5));
 
     // 품목별 고정 색상 - 같은 품목은 itemId가 안 바뀌니 앱을 껐다 켜도, 어느 구역에 있든
     // 항상 같은 색으로 보인다. 그래서 "저 색 상자가 어디로 옮겨갔지"를 눈으로 바로 쫓아갈 수 있다.
@@ -51,8 +68,20 @@ public class WarehouseMapPanel extends JPanel implements Refreshable {
         return ITEM_PALETTE[idx];
     }
 
-    private static String chipText(String name, int qty) {
-        return name + " (" + qty + ")";
+    // 이름이 길면 수량이 잘려서 안 보이는 문제가 있었다 - 수량("(개수)")이 들어갈 자리는
+    // 항상 남겨두고, 이름 쪽만 모자란 만큼 줄여서 말줄임표를 붙인다("개수"는 절대 안 잘림).
+    private String chipText(String name, int qty) {
+        String suffix = " (" + qty + ")";
+        FontMetrics fm = getFontMetrics(CHIP_FONT);
+        int maxNameWidth = CHIP_TEXT_MAX_W - fm.stringWidth(suffix);
+        String displayName = name;
+        if (fm.stringWidth(displayName) > maxNameWidth) {
+            while (displayName.length() > 1 && fm.stringWidth(displayName + "…") > maxNameWidth) {
+                displayName = displayName.substring(0, displayName.length() - 1);
+            }
+            displayName = displayName + "…";
+        }
+        return displayName + suffix;
     }
 
     private List<WarehouseBox> warehouseBoxes = new ArrayList<>();
@@ -67,6 +96,29 @@ public class WarehouseMapPanel extends JPanel implements Refreshable {
     private final Map<String, ChipState> chipsByKey = new HashMap<>();
     private Map<Long, Set<Long>> lastPlacement = new HashMap<>();
     private final Map<Long, JLabel> overflowLabelByZone = new HashMap<>();
+    // 구역에 다 못 보여주고 "+N"으로 넘어간 나머지 품목 - "+N"에 마우스를 올렸을 때 보여준다.
+    private final Map<Long, List<StockLotDao.ItemZonePresence>> overflowItemsByZone = new HashMap<>();
+
+    // 새로고침 때마다 최신으로 갱신해두고, 드래그 이동/검색 등 다른 동작에서 다시 조회하지 않고 쓴다.
+    private Map<Long, String> itemNames = new HashMap<>();
+    private Map<Long, List<StockLotDao.ItemZonePresence>> presenceByItem = new HashMap<>();
+    private Map<Long, String> zoneLabelById = new HashMap<>();
+
+    // 드래그로 칩을 옮기는 중인 상태 - 한 번에 하나만 가능하다.
+    private ChipState draggingChip;
+    private Point dragPressPoint; // 칩 자신의 좌표계 기준 - 잡은 지점
+    private Rectangle dragOriginalBounds;
+    private boolean dragMoved;
+
+    // "+N" 미리보기 팝업 - 라벨/팝업 어느 쪽에 있어도 안 닫히다가, 둘 다 벗어나면 잠깐 뒤에 닫는다.
+    private JWindow overflowPopup;
+    private Timer overflowHideTimer;
+
+    // 검색으로 찾은 품목(없으면 null) - 이 품목의 칩만 빨간 테두리로 강조한다.
+    private Long highlightedItemId;
+    private final ItemPickerField searchField = new ItemPickerField();
+    private final JLabel searchLabel = new JLabel("품목 검색");
+    private final JLabel searchResultLabel = new JLabel(" ");
 
     private static class WarehouseBox {
         final Warehouse warehouse;
@@ -106,9 +158,9 @@ public class WarehouseMapPanel extends JPanel implements Refreshable {
         // 창고 상자(빈 배경)를 클릭하면 그 창고만 화면 가득 확대해서 보여준다 - 이미 확대된
         // 상태라면 어디를 눌러도 다시 전체 목록으로 돌아간다. 이름표(칩) 위를 클릭한 경우는
         // 그 칩이 이벤트를 먼저 받아가서 여기까지 안 넘어오므로 신경 쓸 필요가 없다.
-        addMouseListener(new java.awt.event.MouseAdapter() {
+        addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(java.awt.event.MouseEvent e) {
+            public void mouseClicked(MouseEvent e) {
                 if (zoomedWarehouseId != null) {
                     zoomedWarehouseId = null;
                     refreshAll();
@@ -124,9 +176,9 @@ public class WarehouseMapPanel extends JPanel implements Refreshable {
             }
         });
         // 확대할 수 있는 곳(창고 배경)에 마우스를 올리면 손가락 커서로 - 클릭 가능하다는 걸 알려준다.
-        addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
+        addMouseMotionListener(new MouseMotionAdapter() {
             @Override
-            public void mouseMoved(java.awt.event.MouseEvent e) {
+            public void mouseMoved(MouseEvent e) {
                 boolean overWarehouse = zoomedWarehouseId == null
                         && warehouseBoxes.stream().anyMatch(wb -> wb.bounds.contains(e.getPoint()));
                 setCursor(Cursor.getPredefinedCursor(
@@ -143,6 +195,19 @@ public class WarehouseMapPanel extends JPanel implements Refreshable {
             }
         });
 
+        // 품목명을 치면 후보가 뜨고, 정확히 고르면 그 품목의 칩을 빨간 테두리로 강조하고
+        // 지금 어느 구역에 얼마나 있는지 옆에 안내한다("+N"에 가려 안 보이는 것까지 다 알려준다).
+        searchLabel.setFont(new Font("맑은 고딕", Font.BOLD, 12));
+        searchLabel.setForeground(new Color(0x777777));
+        searchResultLabel.setFont(new Font("맑은 고딕", Font.PLAIN, 12));
+        searchResultLabel.setForeground(new Color(0x666666));
+        searchField.setToolTipText("품목명을 입력하면 후보가 뜹니다");
+        searchField.reload();
+        searchField.setOnChange(this::onSearchChanged);
+        add(searchLabel);
+        add(searchField);
+        add(searchResultLabel);
+
         refreshAll();
 
         // 다른 화면과 같은 이중 안전망 - 재고에 영향 주는 동작은 즉시 반영, 5초 폴링으로
@@ -150,11 +215,16 @@ public class WarehouseMapPanel extends JPanel implements Refreshable {
         for (String topic : new String[]{"inbound", "outbound", "transfer", "disposal", "item"}) {
             AppEventBus.subscribe(topic, this::refreshAll);
         }
+        AppEventBus.subscribe("item", searchField::reload);
         new Timer(5000, e -> { if (isShowing()) { refreshAll(); } }).start();
     }
 
     @Override
     public void refreshAll() {
+        if (draggingChip != null) {
+            // 드래그하는 도중에 배경에서 새로고침이 끼어들면 좌표가 흐트러진다 - 손을 뗄 때까지 미룬다.
+            return;
+        }
         try (Connection conn = DBConnection.getConnection()) {
             List<Warehouse> allWarehouses = warehouseDao.findAll(conn);
             List<Zone> allZones = zoneDao.findAll(conn);
@@ -164,6 +234,16 @@ public class WarehouseMapPanel extends JPanel implements Refreshable {
             }
             for (List<Zone> list : zonesByWarehouse.values()) {
                 list.sort(Comparator.comparing(Zone::getZoneName));
+            }
+
+            Map<Long, String> whNames = new HashMap<>();
+            for (Warehouse wh : allWarehouses) {
+                whNames.put(wh.getWarehouseId(), wh.getName() + "(" + wh.getLocation() + ")");
+            }
+            zoneLabelById = new HashMap<>();
+            for (Zone z : allZones) {
+                zoneLabelById.put(z.getZoneId(),
+                        whNames.getOrDefault(z.getWarehouseId(), "") + " " + z.getZoneName());
             }
 
             List<StockLotDao.ItemZonePresence> presence = stockLotDao.findItemZonePresence(conn);
@@ -181,13 +261,15 @@ public class WarehouseMapPanel extends JPanel implements Refreshable {
 
             Map<Long, List<StockLotDao.ItemZonePresence>> byZone = new HashMap<>();
             Map<Long, Set<Long>> newPlacement = new HashMap<>();
-            Map<Long, String> itemNames = new HashMap<>();
             Map<String, Integer> qtyByKey = new HashMap<>();
+            itemNames = new HashMap<>();
+            presenceByItem = new HashMap<>();
             for (StockLotDao.ItemZonePresence p : presence) {
                 byZone.computeIfAbsent(p.zoneId, k -> new ArrayList<>()).add(p);
                 newPlacement.computeIfAbsent(p.itemId, k -> new TreeSet<>()).add(p.zoneId);
                 itemNames.put(p.itemId, p.itemName);
                 qtyByKey.put(p.itemId + ":" + p.zoneId, p.quantity);
+                presenceByItem.computeIfAbsent(p.itemId, k -> new ArrayList<>()).add(p);
             }
             for (List<StockLotDao.ItemZonePresence> list : byZone.values()) {
                 list.sort(Comparator.comparingLong(p -> p.itemId));
@@ -210,6 +292,7 @@ public class WarehouseMapPanel extends JPanel implements Refreshable {
 
             applyDiffAndAnimate(targets, newPlacement, itemNames, qtyByKey);
             lastPlacement = newPlacement;
+            applyHighlight();
 
             revalidate();
             repaint();
@@ -222,8 +305,18 @@ public class WarehouseMapPanel extends JPanel implements Refreshable {
     private void buildGeometry(List<Warehouse> allWarehouses) {
         warehouseBoxes = new ArrayList<>();
 
-        int titleH = 45; // pageTitle() 자리 - paintComponent에서 여기에 제목을 그린다.
+        int titleH = 80; // 제목/힌트 줄(45) + 품목 검색 줄(35) - paintComponent가 제목/힌트를 그린다.
         int w = getWidth() - getInsets().left - getInsets().right;
+
+        // 품목 검색줄 - 창고 목록이 비어 있어도(극단적 예외 상황) 항상 자리를 잡아 둔다.
+        if (w > 0) {
+            int searchY = getInsets().top + 48;
+            int lx = getInsets().left;
+            searchLabel.setBounds(lx, searchY + 4, 60, 20);
+            searchField.setBounds(lx + 62, searchY, 220, 26);
+            searchResultLabel.setBounds(lx + 292, searchY + 2, Math.max(w - 292, 0), 24);
+        }
+
         int h = getHeight() - getInsets().top - getInsets().bottom - titleH;
         if (w <= 0 || h <= 0 || allWarehouses.isEmpty()) {
             return;
@@ -350,19 +443,108 @@ public class WarehouseMapPanel extends JPanel implements Refreshable {
         JLabel overflow = overflowLabelByZone.get(zoneId);
         int remaining = items.size() - shown;
         if (remaining > 0) {
+            overflowItemsByZone.put(zoneId, new ArrayList<>(items.subList(shown, items.size())));
             if (overflow == null) {
                 overflow = new JLabel();
                 overflow.setFont(CHIP_FONT.deriveFont(Font.ITALIC));
                 overflow.setForeground(new Color(0x888888));
+                overflow.setToolTipText("마우스를 올리면 나머지 품목을 볼 수 있습니다");
                 add(overflow);
                 setComponentZOrder(overflow, 0);
                 overflowLabelByZone.put(zoneId, overflow);
+
+                JLabel finalOverflow = overflow;
+                overflow.addMouseListener(new MouseAdapter() {
+                    @Override
+                    public void mouseEntered(MouseEvent e) {
+                        cancelHideOverflowPopup();
+                        showOverflowPopup(finalOverflow, zoneId);
+                    }
+                    @Override
+                    public void mouseExited(MouseEvent e) {
+                        scheduleHideOverflowPopup();
+                    }
+                });
             }
             overflow.setText("+" + remaining);
             overflow.setBounds(maxX - 30, maxY - 14, 30, 14);
             overflow.setVisible(true);
-        } else if (overflow != null) {
-            overflow.setVisible(false);
+        } else {
+            overflowItemsByZone.remove(zoneId);
+            if (overflow != null) {
+                overflow.setVisible(false);
+            }
+        }
+    }
+
+    // "+N"에 마우스를 올렸을 때, 다 못 보여준 나머지 품목을 스크롤 가능한 작은 창으로 보여준다.
+    private void showOverflowPopup(JLabel overflowLabel, Long zoneId) {
+        if (overflowPopup != null) {
+            overflowPopup.dispose();
+            overflowPopup = null;
+        }
+        List<StockLotDao.ItemZonePresence> rest = overflowItemsByZone.getOrDefault(zoneId, List.of());
+        if (rest.isEmpty() || !overflowLabel.isShowing()) {
+            return;
+        }
+
+        JPanel list = new JPanel();
+        list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
+        list.setBackground(Color.WHITE);
+        list.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+        for (StockLotDao.ItemZonePresence p : rest) {
+            JLabel row = new JLabel(p.itemName + " (" + p.quantity + ")");
+            row.setOpaque(true);
+            row.setBackground(colorForItem(p.itemId));
+            row.setForeground(CHIP_FG);
+            row.setFont(CHIP_FONT);
+            row.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
+            row.setAlignmentX(Component.LEFT_ALIGNMENT);
+            row.setMaximumSize(new Dimension(220, 22));
+            list.add(row);
+            list.add(Box.createVerticalStrut(3));
+        }
+
+        JScrollPane scroll = new JScrollPane(list,
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.setBorder(BorderFactory.createLineBorder(new Color(0xcccccc)));
+        scroll.getVerticalScrollBar().setUnitIncrement(18);
+        int h = Math.min(220, rest.size() * 25 + 10);
+        scroll.setPreferredSize(new Dimension(226, h));
+
+        MouseAdapter keepOpen = new MouseAdapter() {
+            @Override public void mouseEntered(MouseEvent e) { cancelHideOverflowPopup(); }
+            @Override public void mouseExited(MouseEvent e) { scheduleHideOverflowPopup(); }
+        };
+        scroll.addMouseListener(keepOpen);
+        list.addMouseListener(keepOpen);
+
+        Window owner = SwingUtilities.getWindowAncestor(this);
+        overflowPopup = new JWindow(owner);
+        overflowPopup.getContentPane().add(scroll);
+        overflowPopup.pack();
+        Point loc = overflowLabel.getLocationOnScreen();
+        overflowPopup.setLocation(loc.x, loc.y + overflowLabel.getHeight());
+        overflowPopup.setVisible(true);
+    }
+
+    private void scheduleHideOverflowPopup() {
+        if (overflowHideTimer != null) {
+            overflowHideTimer.stop();
+        }
+        overflowHideTimer = new Timer(150, e -> {
+            if (overflowPopup != null) {
+                overflowPopup.dispose();
+                overflowPopup = null;
+            }
+        });
+        overflowHideTimer.setRepeats(false);
+        overflowHideTimer.start();
+    }
+
+    private void cancelHideOverflowPopup() {
+        if (overflowHideTimer != null) {
+            overflowHideTimer.stop();
         }
     }
 
@@ -451,9 +633,9 @@ public class WarehouseMapPanel extends JPanel implements Refreshable {
     private void createChipAtRest(Long itemId, Long zoneId, String name, int qty, Rectangle target) {
         Badge label = new Badge(chipText(name, qty), colorForItem(itemId), CHIP_FG);
         label.setFont(CHIP_FONT);
-        label.setToolTipText(name + " - " + qty + "개");
-        label.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(CHIP_BORDER), BorderFactory.createEmptyBorder(1, 6, 1, 6)));
+        label.setToolTipText(name + " - " + qty + "개 (드래그해서 다른 구역으로 옮길 수 있습니다)");
+        label.setBorder(CHIP_BORDER_NORMAL);
+        label.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
         label.setBounds(target);
         add(label);
         ChipState cs = new ChipState();
@@ -461,6 +643,234 @@ public class WarehouseMapPanel extends JPanel implements Refreshable {
         cs.itemId = itemId;
         cs.zoneId = zoneId;
         chipsByKey.put(itemId + ":" + zoneId, cs);
+        attachDragHandlers(label, cs);
+    }
+
+    // 칩을 드래그해서 다른 구역에 놓으면(같은 단위의 구역일 때만) 몇 개를 옮길지 물어보고,
+    // 단위가 다른 구역에 놓으면 옮길 수 없다고 알려준다.
+    private void attachDragHandlers(Badge label, ChipState cs) {
+        MouseAdapter handler = new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                draggingChip = cs;
+                dragPressPoint = e.getPoint();
+                dragOriginalBounds = label.getBounds();
+                dragMoved = false;
+                setComponentZOrder(label, 0);
+            }
+
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                if (draggingChip != cs) {
+                    return;
+                }
+                Point panelPoint = SwingUtilities.convertPoint(label, e.getPoint(), WarehouseMapPanel.this);
+                int nx = panelPoint.x - dragPressPoint.x;
+                int ny = panelPoint.y - dragPressPoint.y;
+                if (!dragMoved && (Math.abs(nx - dragOriginalBounds.x) > 3 || Math.abs(ny - dragOriginalBounds.y) > 3)) {
+                    dragMoved = true;
+                }
+                label.setLocation(nx, ny);
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                if (draggingChip != cs) {
+                    return;
+                }
+                draggingChip = null;
+                if (!dragMoved) {
+                    label.setBounds(dragOriginalBounds); // 그냥 클릭 - 원위치(옮기지 않음)
+                    return;
+                }
+                Point panelPoint = SwingUtilities.convertPoint(label, e.getPoint(), WarehouseMapPanel.this);
+                handleChipDropped(cs, panelPoint);
+            }
+        };
+        label.addMouseListener(handler);
+        label.addMouseMotionListener(handler);
+    }
+
+    private void handleChipDropped(ChipState cs, Point dropPoint) {
+        ZoneBox sourceZone = findZoneBoxById(cs.zoneId);
+        ZoneBox targetZone = findZoneBoxAt(dropPoint);
+
+        if (sourceZone == null || targetZone == null || targetZone.zone.getZoneId().equals(cs.zoneId)) {
+            refreshAll(); // 구역 밖에 놓았거나 제자리로 되돌아옴 - 원래 자리로 스냅백
+            return;
+        }
+        if (!targetZone.zone.getZoneName().equals(sourceZone.zone.getZoneName())) {
+            UiUtil.showError(this, "맞지 않는 행위입니다! 이 품목은 " + sourceZone.zone.getZoneName()
+                    + " 구역 품목이라 " + targetZone.zone.getZoneName() + " 구역으로는 옮길 수 없습니다.");
+            refreshAll();
+            return;
+        }
+        openMoveQuantityDialog(cs.itemId, sourceZone.zone, targetZone.zone);
+    }
+
+    private ZoneBox findZoneBoxById(long zoneId) {
+        for (WarehouseBox wb : warehouseBoxes) {
+            for (ZoneBox zb : wb.zones) {
+                if (zb.zone.getZoneId() == zoneId) {
+                    return zb;
+                }
+            }
+        }
+        return null;
+    }
+
+    private ZoneBox findZoneBoxAt(Point p) {
+        for (WarehouseBox wb : warehouseBoxes) {
+            for (ZoneBox zb : wb.zones) {
+                if (zb.bounds.contains(p)) {
+                    return zb;
+                }
+            }
+        }
+        return null;
+    }
+
+    // "몇 개를 옮길지" 물어보는 작은 창 - 취소/닫기로 끝나도 refreshAll()이 스냅백을 처리한다.
+    private void openMoveQuantityDialog(Long itemId, Zone fromZone, Zone toZone) {
+        String itemName = itemNames.getOrDefault(itemId, "품목");
+        int available;
+        try (Connection conn = DBConnection.getConnection()) {
+            available = sumAvailable(conn, itemId, fromZone.getZoneId());
+        } catch (Exception ex) {
+            UiUtil.showError(this, ex);
+            refreshAll();
+            return;
+        }
+        if (available <= 0) {
+            UiUtil.showError(this, "이 구역에는 옮길 수 있는 재고가 없습니다.");
+            refreshAll();
+            return;
+        }
+
+        JDialog dialog = UiUtil.createHtmlDialog(this, "재고 이동");
+
+        JLabel info = new JLabel("<html>" + itemName + "<br>"
+                + zoneLabelById.getOrDefault(fromZone.getZoneId(), fromZone.getZoneName())
+                + " &rarr; " + zoneLabelById.getOrDefault(toZone.getZoneId(), toZone.getZoneName())
+                + "<br>이 구역 재고: " + available + "개</html>");
+
+        JSpinner qtySpinner = new JSpinner(new SpinnerNumberModel(available, 1, available, 1));
+
+        JPanel body = UiUtil.formGrid(1, UiUtil.formGroup("이동 수량", qtySpinner));
+        JPanel wrap = new JPanel(new BorderLayout(0, 12));
+        wrap.setBorder(BorderFactory.createEmptyBorder(20, 20, 4, 20));
+        wrap.add(info, BorderLayout.NORTH);
+        wrap.add(body, BorderLayout.CENTER);
+        dialog.add(wrap, BorderLayout.CENTER);
+
+        dialog.add(UiUtil.buildModalFooter(dialog, "이동", UiUtil.COLOR_BTN_MOVEMENT, () -> {
+            int qty = (Integer) qtySpinner.getValue();
+            dialog.dispose();
+            doTransfer(itemId, fromZone.getZoneId(), toZone.getZoneId(), qty);
+        }), BorderLayout.SOUTH);
+
+        dialog.pack();
+        dialog.setSize(420, dialog.getPreferredSize().height);
+        dialog.setLocationRelativeTo(SwingUtilities.getWindowAncestor(this));
+        UiUtil.showHtmlDialog(dialog);
+
+        // 이동을 실제로 했으면 doTransfer가 이미 "transfer" 이벤트를 쐈고(그 구독으로 새로고침
+        // 됨), 취소/닫기로 끝났으면 여기서 한 번 더 불러 칩을 원래 자리로 스냅백한다 - 둘 다
+        // 안전하게 겹쳐 불러도 문제없다.
+        refreshAll();
+    }
+
+    private int sumAvailable(Connection conn, Long itemId, Long zoneId) throws Exception {
+        List<StockLot> lots = stockLotDao.findPage(conn, itemId, zoneId, null, "NORMAL",
+                null, null, null, false, 0, 100000);
+        int total = 0;
+        for (StockLot lot : lots) {
+            total += lot.getQuantity() == null ? 0 : lot.getQuantity();
+        }
+        return total;
+    }
+
+    // FIFO(또는 유통기한 관리 대상이면 FEFO) 순서로 로트를 골라 요청 수량만큼 옮긴다 - 재고
+    // 이동 화면(TransferPanel)의 "자동 추천" 로직과 같은 방식이다.
+    private void doTransfer(Long itemId, Long fromZoneId, Long toZoneId, int qty) {
+        try (Connection conn = DBConnection.getConnection()) {
+            List<StockLot> lots = stockLotDao.findPage(conn, itemId, fromZoneId, null, "NORMAL",
+                    null, null, null, false, 0, 100000);
+            lots.removeIf(l -> l.getQuantity() == null || l.getQuantity() <= 0);
+            Item item = itemDao.findById(conn, itemId);
+            if (item != null && item.getShelfLifeDays() != null) {
+                lots.sort(Comparator.comparing(StockLot::getExpiryDate, Comparator.nullsLast(Comparator.naturalOrder())));
+            } else {
+                lots.sort(Comparator.comparing(StockLot::getInboundDate));
+            }
+
+            int rest = qty;
+            int done = 0;
+            StringBuilder failures = new StringBuilder();
+            for (StockLot lot : lots) {
+                if (rest <= 0) {
+                    break;
+                }
+                int take = Math.min(rest, lot.getQuantity());
+                try {
+                    transferService.transfer(lot.getLotId(), fromZoneId, toZoneId, take, Session.getUserId());
+                    done += take;
+                    rest -= take;
+                } catch (Exception ex) {
+                    failures.append("\nLOT-").append(lot.getLotId()).append(" 이동 실패: ").append(ex.getMessage());
+                }
+            }
+
+            if (done > 0) {
+                AppEventBus.publish("transfer");
+            } else {
+                refreshAll();
+            }
+            if (failures.length() > 0) {
+                UiUtil.showError(this, "일부 재고 이동에 실패했습니다." + failures);
+            }
+        } catch (Exception ex) {
+            UiUtil.showError(this, ex);
+            refreshAll();
+        }
+    }
+
+    // 검색창에서 품목을 정확히 골랐을 때 - 그 품목의 칩을 강조하고, 지금 어느 구역에
+    // 얼마나 있는지("+N"에 가려 안 보이는 것까지 포함) 안내 문구로 보여준다.
+    private void onSearchChanged() {
+        Item item = searchField.getSelectedItem();
+        if (item == null) {
+            highlightedItemId = null;
+            searchResultLabel.setText(" ");
+            applyHighlight();
+            return;
+        }
+        highlightedItemId = item.getItemId();
+        applyHighlight();
+
+        List<StockLotDao.ItemZonePresence> list = presenceByItem.getOrDefault(item.getItemId(), List.of());
+        if (list.isEmpty()) {
+            searchResultLabel.setText("<html>" + item.getItemName() + " - 지금 재고가 있는 구역이 없습니다.</html>");
+            return;
+        }
+        StringBuilder sb = new StringBuilder("<html>위치: ");
+        boolean first = true;
+        for (StockLotDao.ItemZonePresence p : list) {
+            if (!first) {
+                sb.append(", ");
+            }
+            first = false;
+            sb.append(zoneLabelById.getOrDefault(p.zoneId, "구역 " + p.zoneId)).append(" ").append(p.quantity).append("개");
+        }
+        sb.append("</html>");
+        searchResultLabel.setText(sb.toString());
+    }
+
+    private void applyHighlight() {
+        for (ChipState cs : chipsByKey.values()) {
+            boolean match = highlightedItemId != null && cs.itemId == highlightedItemId;
+            cs.label.setBorder(match ? CHIP_BORDER_HIGHLIGHT : CHIP_BORDER_NORMAL);
+        }
     }
 
     // "스캔처럼" 실제로 화면 위를 가로질러 이동하는 것처럼 보이게 - 일정 시간(700ms) 동안
@@ -500,7 +910,7 @@ public class WarehouseMapPanel extends JPanel implements Refreshable {
         g2.setColor(new Color(0x999999));
         String hint = zoomedWarehouseId != null
                 ? "아무 곳이나 클릭하면 전체 목록으로 돌아갑니다"
-                : "창고를 클릭하면 확대해서 볼 수 있습니다";
+                : "창고를 클릭하면 확대해서 볼 수 있습니다 · 품목 상자를 드래그하면 다른 구역으로 옮길 수 있습니다";
         g2.drawString(hint, getInsets().left + titleWidth + 16, getInsets().top + 21);
 
         for (WarehouseBox wb : warehouseBoxes) {
