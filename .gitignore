@@ -3,6 +3,9 @@
 /out/
 /bin/
 
+# 시연용 배포 빌드 (jpackage 산출물, db.properties의 실제 비밀번호가 그대로 포함됨 - 커밋 금지)
+/dist/
+
 # Local DB credentials - copy db.properties.example to db.properties and fill in your own
 db.properties
 
