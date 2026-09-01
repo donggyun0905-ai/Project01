@@ -99,13 +99,20 @@ public class DashboardPanel extends JPanel implements Refreshable {
         // 웹 버전의 connectRealtimeRefresh(loadAlerts, ["alert","outbound","inbound","approval","disposal"])
         // 와 동일한 구독 목록 - 이 앱 자신이 방금 처리한 동작이면 5초를 기다릴 것 없이 바로 갱신된다.
         // 다른 컴퓨터/다른 실행 인스턴스에서 생긴 변화는 아래 폴링(안전망)으로만 잡힌다.
-        for (String topic : new String[]{"alert", "outbound", "inbound", "approval", "disposal"}) {
+        for (String topic : new String[]{"alert", "approval"}) {
             AppEventBus.subscribe(topic, this::refreshAlerts);
+        }
+        // [버그 수정] 예전엔 실시간 알림만 구독해서, 요약 카드(총 보유 재고/오늘 입고·출고 등)와
+        // 입출고 막대그래프/창고별 도넛차트는 화면을 처음 열었을 때 스냅샷 그대로 멈춰 있었다 -
+        // 다른 탭에서(또는 다른 컴퓨터/시뮬레이터가) 재고를 바꿔도 이 화면을 계속 보고 있으면
+        // 숫자가 안 바뀌었다. 재고에 실제로 영향을 주는 토픽은 전체를 다시 불러오게 한다.
+        for (String topic : new String[]{"inbound", "outbound", "transfer", "disposal", "item"}) {
+            AppEventBus.subscribe(topic, this::refreshAll);
         }
 
         Timer alertTimer = new Timer(5000, e -> {
             if (isShowing()) {
-                refreshAlerts();
+                refreshAll();
             }
         });
         alertTimer.start();
@@ -242,7 +249,13 @@ public class DashboardPanel extends JPanel implements Refreshable {
         alertListPanel.setLayout(new BoxLayout(alertListPanel, BoxLayout.Y_AXIS));
         // 스크롤 없이 그냥 카드 안에 얹는다 - 최대 5건뿐이라 스크롤이 필요 없고, 긴 메시지는
         // buildAlertRow의 줄바꿈 처리 덕에 카드 폭을 벗어나지 않는다.
-        wrap.add(alertListPanel, BorderLayout.CENTER);
+        //
+        // [버그 수정] BorderLayout.CENTER는 자식을 카드 남는 높이만큼 억지로 늘린다 - 그래서
+        // 알림이 2~3건만 있을 때 각 행이 카드 전체 높이에 맞춰 실제 내용보다 훨씬 크게(세로로
+        // 늘어져) 보였다(5건 있어 카드를 꽉 채울 때만 우연히 정상으로 보임). NORTH는 자식을
+        // 제 높이만큼만 차지하게 하고 남는 공간은 그냥 비워 둬서, 알림 개수와 무관하게 행
+        // 하나하나가 항상 같은(작은) 높이로 고정된다.
+        wrap.add(alertListPanel, BorderLayout.NORTH);
         return wrap;
     }
 

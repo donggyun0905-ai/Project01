@@ -426,13 +426,19 @@ public class ApprovalService {
     }
 
     // 정보 전달용 알림 하나를 남긴다(실패해도 전체 흐름을 막을 이유가 없어 예외를 던지지 않고 로그만 남김).
+    //
+    // [버그 수정] "자동입고"는 이미 끝난 자동 처리 결과를 알려주는 로그성 알림이라 사람이
+    // 따로 "해결"할 대상이 없는데도, 예전엔 다른 알림(재고부족 등 실제로 아직 안 끝난 문제)과
+    // 똑같이 is_resolved=false로 만들어져서 - 1) "해결된 알림 삭제"가 절대 안 지워지고
+    // 2) 상태 칸에 영원히 "미해결"로만 남아 있었다. "자동실행실패"는 실제로 사람이 확인하고
+    // 대응해야 하는 문제라 그대로 미해결로 둔다.
     private void createAlert(Long itemId, String alertType, String message) {
         try (Connection conn = DBConnection.getConnection()) {
             Alert alert = new Alert();
             alert.setItemId(itemId);
             alert.setAlertType(alertType);
             alert.setMessage(message);
-            alert.setIsResolved(false);
+            alert.setIsResolved("자동입고".equals(alertType));
             alertDao.insert(conn, alert);
         } catch (SQLException e) {
             System.err.println("알림(" + alertType + ") 생성 실패: " + e.getMessage());

@@ -2,6 +2,7 @@ package com.dmart.report;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
@@ -526,10 +527,8 @@ public class FileExportService {
 	// 일일보고서 - PDF
 	public void exportDailyReportPdf(DailyReport report, String opName, String filePath) throws IOException, DocumentException {
 		Document document = new Document();
-		
-		BaseFont baseFont = BaseFont.createFont(
-				"fonts/Pretendard-Regular.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED
-		);
+
+		BaseFont baseFont = loadPretendardFont();
 		
 		Font textFont = new Font(baseFont, 10);
 		Font subFont = new Font(baseFont, 13, Font.NORMAL);
@@ -639,10 +638,26 @@ public class FileExportService {
 	
 	private String formatRate(Double rate) {
 		if(rate == null) return "-";
-		
+
 		return String.format("%.2f%%", rate);
 	}
-	
+
+	// [버그 수정] BaseFont.createFont("fonts/Pretendard-Regular.ttf", ...)는 db.properties/
+	// images/logo.png와 같은 이유로 상대경로 File 취급 - 지금 실행 중인 작업 폴더가 프로젝트
+	// 루트일 때만 찾아지고, 배포용 exe처럼 다른 폴더에서 실행하면 "일일 보고서 PDF 저장"만
+	// 에러가 났다. 폰트 파일을 클래스패스 리소스로 직접 읽어 바이트로 넘기면 어디서
+	// 실행하든 항상 같은 위치(jar 안)에서 찾아진다.
+	private BaseFont loadPretendardFont() throws IOException, DocumentException {
+		try (InputStream in = getClass().getClassLoader().getResourceAsStream("fonts/Pretendard-Regular.ttf")) {
+			if (in == null) {
+				throw new IOException("글꼴 파일(fonts/Pretendard-Regular.ttf)을 찾을 수 없습니다.");
+			}
+			byte[] fontBytes = in.readAllBytes();
+			return BaseFont.createFont("Pretendard-Regular.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED,
+					false, fontBytes, null);
+		}
+	}
+
 	private PdfPCell createHeaderCell(String text, Font font) {
 		PdfPCell cell = new PdfPCell(new Phrase(text, font));
 		

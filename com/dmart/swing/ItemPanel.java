@@ -109,6 +109,15 @@ public class ItemPanel extends JPanel implements Refreshable {
         });
 
         refresh();
+
+        // [버그 수정] "총 재고" 칸이 이 화면을 처음 열었을 때 스냅샷 그대로 멈춰 있어서,
+        // 다른 탭(입고/출고/이동/반품폐기)에서 재고를 바꿔도 이 화면을 계속 보고 있으면
+        // 숫자가 안 바뀌었다. 재고를 실제로 바꾸는 토픽을 구독해서 즉시 갱신하고, 다른
+        // 컴퓨터/다른 실행 인스턴스에서 생긴 변화까지 잡도록 5초 폴링을 안전망으로 둔다.
+        for (String topic : new String[]{"inbound", "outbound", "transfer", "disposal"}) {
+            AppEventBus.subscribe(topic, this::refresh);
+        }
+        new Timer(5000, e -> { if (isShowing()) { refresh(); } }).start();
     }
 
     private JComponent buildTop() {

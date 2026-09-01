@@ -97,6 +97,16 @@ public class WarehouseZonePanel extends JPanel implements Refreshable {
 
         refreshWarehouses();
         refreshZones();
+
+        // [버그 수정] 구역 표의 "현재사용량"/포화율이 화면을 처음 열었을 때 스냅샷 그대로
+        // 멈춰 있어서, 다른 탭(입고/출고/이동/반품폐기)에서 재고를 바꿔도 안 바뀌었다 -
+        // 창고정리추천 관련 판단을 이 숫자 보고 하게 되는데 그게 낡은 값이면 곤란하다.
+        // 재고를 실제로 바꾸는 토픽을 구독해서 즉시 갱신하고, 다른 컴퓨터/다른 실행
+        // 인스턴스에서 생긴 변화까지 잡도록 5초 폴링을 안전망으로 둔다.
+        for (String topic : new String[]{"inbound", "outbound", "transfer", "disposal"}) {
+            AppEventBus.subscribe(topic, this::refreshZones);
+        }
+        new Timer(5000, e -> { if (isShowing()) { refreshZones(); } }).start();
     }
 
     // 표 안에 실제 버튼을 넣는다 - 행을 먼저 고르고 위/아래 버튼을 누르는 대신,
