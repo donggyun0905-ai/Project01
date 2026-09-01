@@ -13,7 +13,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.io.File;
+import java.io.InputStream;
 import java.sql.Connection;
 
 // 메인 창 - 왼쪽 사이드바(화면 목록) + 오른쪽 위 사용자 정보 바(관리자 전용 시뮬레이터/자동관리/
@@ -151,13 +151,15 @@ public class MainFrame extends JFrame {
         return logo;
     }
 
+    // [버그 수정] LoginFrame.loadLogo()와 같은 이유 - 상대경로(new File("images/logo.png"))는
+    // 실행 폴더가 프로젝트 루트일 때만 찾아져서, 배포용 exe로 옮기면 로고가 조용히 안 떴다.
+    // 클래스패스 리소스로 읽도록 바꾼다.
     private ImageIcon loadLogoIcon() {
-        try {
-            File f = new File("images/logo.png");
-            if (!f.exists()) {
+        try (InputStream in = getClass().getClassLoader().getResourceAsStream("images/logo.png")) {
+            if (in == null) {
                 return null;
             }
-            Image img = ImageIO.read(f);
+            Image img = ImageIO.read(in);
             if (img == null) {
                 return null;
             }

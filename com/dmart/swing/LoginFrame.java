@@ -11,7 +11,7 @@ import java.awt.*;
 import java.awt.geom.Point2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
-import java.io.File;
+import java.io.InputStream;
 import java.sql.Connection;
 
 // 로그인 화면 - login.html + login.css를 그대로 옮김. 그라디언트 배경 위에 반투명
@@ -100,13 +100,17 @@ public class LoginFrame extends JFrame {
         return row;
     }
 
+    // [버그 수정] "images/martlogo.png" 상대경로(new File(...))는 지금 실행 중인 작업
+    // 폴더가 프로젝트 루트일 때만 찾아진다 - jpackage로 만든 배포용 exe처럼 다른 폴더로
+    // 옮겨서 실행하면 조용히 로고가 안 뜨는(예외 없이 null만 리턴) 문제가 있었다.
+    // db.properties와 같은 이유로, 클래스패스 리소스(항상 jar/폴더 어디서 실행하든 같은
+    // 위치)로 읽도록 바꾼다.
     private ImageIcon loadLogo() {
-        try {
-            File f = new File("images/martlogo.png");
-            if (!f.exists()) {
+        try (InputStream in = getClass().getClassLoader().getResourceAsStream("images/martlogo.png")) {
+            if (in == null) {
                 return null;
             }
-            BufferedImage img = ImageIO.read(f);
+            BufferedImage img = ImageIO.read(in);
             if (img == null) {
                 return null;
             }
