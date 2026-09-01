@@ -37,6 +37,7 @@ public class MainFrame extends JFrame {
         refreshNavHighlight();
     });
     private final InOutManagementPanel inOutManagementPanel = new InOutManagementPanel();
+    private final WarehouseMapPanel warehouseMapPanel = new WarehouseMapPanel();
     private final ReturnDisposalPanel returnDisposalPanel = new ReturnDisposalPanel();
     // 팀원 담당 화면(알림/통계/설정 및 권한 관리) - settingGroupPanel을 먼저 만들어야
     // alertPanel의 "승인 관리로 이동" 콜백이 그 안의 showApprovalTab을 참조할 수 있다.
@@ -69,6 +70,7 @@ public class MainFrame extends JFrame {
         add(rightWrap, BorderLayout.CENTER);
 
         contentPanel.add(dashboardPanel, "dashboard");
+        contentPanel.add(warehouseMapPanel, "warehouse-map");
         contentPanel.add(inOutManagementPanel, "inout-management");
         contentPanel.add(returnDisposalPanel, "return");
         contentPanel.add(alertPanel, "alert");
@@ -89,6 +91,7 @@ public class MainFrame extends JFrame {
         sidebar.add(buildLogo());
 
         sidebar.add(navButton("메인 화면", "dashboard"));
+        sidebar.add(navButton("실시간 창고 맵", "warehouse-map"));
         sidebar.add(navButton("입출고 관리", "inout-management"));
         sidebar.add(navButton("반품 및 폐기 관리", "return"));
         sidebar.add(navButton("알림", "alert"));

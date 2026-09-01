@@ -196,6 +196,39 @@ public class StockLotDao {
         return result;
     }
 
+    // 실시간 창고 맵(WarehouseMapPanel)용 - "이 품목이 지금 어느 구역들에 있는지"를 한 번에.
+    // 로트 단위가 아니라 (품목, 구역) 조합 단위로 묶는다 - 같은 구역에 로트가 여러 개 있어도
+    // 화면에는 그 품목 상자 하나만 보여주면 되기 때문이다.
+    public static class ItemZonePresence {
+        public final Long itemId;
+        public final String itemName;
+        public final Long zoneId;
+        public final Long warehouseId;
+
+        public ItemZonePresence(Long itemId, String itemName, Long zoneId, Long warehouseId) {
+            this.itemId = itemId;
+            this.itemName = itemName;
+            this.zoneId = zoneId;
+            this.warehouseId = warehouseId;
+        }
+    }
+
+    public List<ItemZonePresence> findItemZonePresence(Connection conn) throws SQLException {
+        String sql = "SELECT DISTINCT l.item_id, i.item_name, l.zone_id, z.warehouse_id "
+                + "FROM STOCK_LOT l "
+                + "JOIN ITEM i ON i.item_id = l.item_id "
+                + "JOIN ZONE z ON z.zone_id = l.zone_id "
+                + "WHERE l.status = 'NORMAL' AND l.quantity > 0";
+        List<ItemZonePresence> result = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                result.add(new ItemZonePresence(rs.getLong("item_id"), rs.getString("item_name"),
+                        rs.getLong("zone_id"), rs.getLong("warehouse_id")));
+            }
+        }
+        return result;
+    }
+
     // 승인 자동실행(발주)에서 zoneId/partnerId 기본값을 정할 때 사용 — 12번 참고.
     // "가장 최근 이 품목이 입고됐던 곳과 같은 곳에 다시 입고한다"는 가정.
     public StockLot findMostRecentNormalByItemId(Connection conn, Long itemId) throws SQLException {
