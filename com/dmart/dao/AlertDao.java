@@ -45,6 +45,30 @@ public class AlertDao {
         }
     }
 
+    // 해결된 알림 일괄 삭제용. APPROVAL.alert_id가 이 알림을 참조하고 있으면(승인/발주 이력의
+    // 일부라 감사 목적으로 남겨둬야 함) 건드리지 않고, 승인과 무관하게 그냥 정보성으로 해결된
+    // 알림(예: 재고가 스스로 정상 범위로 돌아와 자동 해결된 재고부족/재고초과, 다시 찾기로
+    // 갱신되며 남은 옛 창고정리추천 등)만 지운다 - FK 제약(fk_approval_alert) 위반도 자연히 피한다.
+    public int deleteResolvedWithoutApproval(Connection conn) throws SQLException {
+        String sql = "DELETE FROM ALERT WHERE is_resolved = TRUE "
+                + "AND NOT EXISTS (SELECT 1 FROM APPROVAL p WHERE p.alert_id = ALERT.alert_id)";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            return ps.executeUpdate();
+        }
+    }
+
+    // 시뮬레이터의 이상출고 쿨다운용 - 지금 사람 검토를 기다리는(미해결) 이 종류 알림이 몇 건인지.
+    public int countUnresolvedByType(Connection conn, String alertType) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM ALERT WHERE alert_type = ? AND is_resolved = FALSE";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, alertType);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
+    }
+
     public Alert findById(Connection conn, Long alertId) throws SQLException {
         String sql = "SELECT * FROM ALERT WHERE alert_id = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {

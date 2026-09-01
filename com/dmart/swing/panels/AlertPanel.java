@@ -355,6 +355,13 @@ public class AlertPanel extends BasePanel {
         checkCountLabel.setForeground(new Color(0x66, 0x66, 0x66));
         bulkBar.add(checkCountLabel);
 
+        // 해결된 알림은 지금까지 지울 방법이 전혀 없어서(html에도 없던 기능) 계속 쌓이기만
+        // 했다 - 승인/발주 이력의 일부로 남아있어야 하는 알림(APPROVAL이 참조 중)은 그대로
+        // 두고, 그 외의 순수 정보성 알림(재고가 스스로 정상화되어 자동 해결된 것 등)만 지운다.
+        JButton deleteResolvedButton = flatButton("해결된 알림 삭제", new Color(0xe5, 0xe5, 0xe5), Color.BLACK);
+        deleteResolvedButton.addActionListener(e -> doDeleteResolved());
+        bulkBar.add(deleteResolvedButton);
+
         // css th{padding:14px; font-size:16px; font-weight:bold} / thead{background:#d9d9d9}
         table.setRowHeight(48); // css td{padding:18px 10px} 느낌의 줄 높이
         // [버그 수정] 원본 표엔 없는, 마우스로 컬럼 순서를 바꾸는 조작을 막습니다.
@@ -981,6 +988,28 @@ public class AlertPanel extends BasePanel {
             for (String f : failed) msg.append("- ").append(f).append("\n");
         }
         DmartDialog.showMessageDialog(this, msg.toString());
+
+        loadData();
+    }
+
+    // 해결된 알림 중, 승인/발주 이력의 일부로 남아있어야 하는 것(APPROVAL이 참조 중)은 그대로
+    // 두고 나머지만 지운다 - AlertDao.deleteResolvedWithoutApproval 참고.
+    private void doDeleteResolved() {
+        int confirm = DmartDialog.showConfirmDialog(this,
+                "해결된 알림을 삭제할까요? 승인/발주 이력에 남아있어야 하는 알림은 자동으로 남겨두고,\n"
+                + "그 외의 해결된 알림만 지웁니다. 되돌릴 수 없습니다.", "확인", JOptionPane.YES_NO_OPTION);
+        if (confirm != JOptionPane.YES_OPTION) return;
+
+        try (Connection conn = DBConnection.getConnection()) {
+            int deleted = alertDao.deleteResolvedWithoutApproval(conn);
+            DmartDialog.showMessageDialog(this, deleted == 0
+                    ? "지울 수 있는 해결된 알림이 없습니다."
+                    : "해결된 알림 " + deleted + "건을 삭제했습니다.");
+        } catch (SQLException ex) {
+            DmartDialog.showMessageDialog(this, "처리 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
+            ex.printStackTrace();
+            return;
+        }
 
         loadData();
     }

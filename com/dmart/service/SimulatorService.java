@@ -1,5 +1,6 @@
 package com.dmart.service;
 
+import com.dmart.dao.AlertDao;
 import com.dmart.dao.AppUserDao;
 import com.dmart.dao.ItemDao;
 import com.dmart.dao.PartnerDao;
@@ -31,12 +32,19 @@ public class SimulatorService {
     private final PartnerDao partnerDao = new PartnerDao();
     private final StockLotDao stockLotDao = new StockLotDao();
     private final AppUserDao appUserDao = new AppUserDao();
+    private final AlertDao alertDao = new AlertDao();
     private final OutboundService outboundService = new OutboundService();
     private final InboundService inboundService = new InboundService();
     private final ApprovalService approvalService = new ApprovalService();
     private final ReturnDisposalService returnDisposalService = new ReturnDisposalService();
 
     private final Random random = new Random();
+
+    // 이상출고는 유일하게 "무조건" 승인 대기 + 알림을 만드는 시나리오라(정상 출고/입고는 알림이
+    // 안 뜬다), 8초마다 15% 확률로 계속 만들다 보면 사람이 검토하기도 전에 계속 쌓여서 실제
+    // 빈도(15%)보다 훨씬 자주 뜨는 것처럼 느껴진다 - 이미 미해결(=아직 승인/반려 안 된) 이상출고가
+    // 이 값 이상이면, 다 검토될 때까지 새로 만들지 않는다.
+    private static final int ABNORMAL_OUTBOUND_UNRESOLVED_LIMIT = 3;
 
     // 실제로 뭔가 처리했으면 그 종류("inbound"/"outbound"/"approval"/"disposal")를, 무작위로
     // 고른 조합이 조건에 안 맞아 건너뛰기만 했으면 빈 Set을 돌려준다. BackgroundTaskListener가
@@ -217,6 +225,9 @@ public class SimulatorService {
             int totalStock;
             Long partnerId;
             try (Connection conn = DBConnection.getConnection()) {
+                if (alertDao.countUnresolvedByType(conn, "이상출고") >= ABNORMAL_OUTBOUND_UNRESOLVED_LIMIT) {
+                    return false; // 이미 검토를 기다리는 이상출고가 충분히 쌓여 있음 - 이번 틱은 건너뜀
+                }
                 totalStock = stockLotDao.sumQuantityByItemId(conn, item.getItemId());
                 partnerId = pickRandomPartner(conn, "CUSTOMER");
             }
