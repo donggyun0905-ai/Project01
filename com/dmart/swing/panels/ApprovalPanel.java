@@ -1035,9 +1035,11 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         BottomBorderCenterRenderer excessCenterRenderer = new BottomBorderCenterRenderer();
         excessTable.getColumnModel().getColumn(0).setCellRenderer(excessCenterRenderer);
         excessTable.getColumnModel().getColumn(1).setCellRenderer(excessCenterRenderer);
-        JTextField excessQtyEditorField = new JTextField();
-        excessQtyEditorField.setHorizontalAlignment(SwingConstants.CENTER);
-        excessTable.getColumnModel().getColumn(2).setCellEditor(new javax.swing.DefaultCellEditor(excessQtyEditorField));
+        // [버그 수정] 예전엔 민무늬 JTextField를 그냥 에디터로만 꽂아서(렌더러는 없음),
+        // 평소엔 왼쪽 정렬 텍스트로 보이다가 클릭한 순간에만 가운데 정렬로 홱 바뀌고,
+        // 표에 이 칸 폭을 따로 안 정해줘서(setColumnWidths 없음) 편집 중인 필드가 칸
+        // 경계를 벗어나 보였다. 이동/출고/반품폐기와 같은 공용 입력칸 컴포넌트로 통일한다.
+        UiUtil.installQtyInputColumn(excessTable, 2);
         javax.swing.table.DefaultTableCellRenderer excessHeaderRenderer =
                 (javax.swing.table.DefaultTableCellRenderer) excessTable.getTableHeader().getDefaultRenderer();
         excessHeaderRenderer.setHorizontalAlignment(SwingConstants.CENTER);
@@ -1052,6 +1054,11 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
             button.addActionListener(e -> doExecuteExcessReturn(row));
             return tableButtonCell(excessTable, true, button);
         }));
+
+        // [버그 수정] 칸 폭을 하나도 안 정해줘서 JTable 기본값(칸마다 75px)에 맞춰 자동으로
+        // 나뉘다 보니, 그 폭보다 넓은 입력칸/버튼이 옆 칸을 침범해 보였다 - 품목명(30)/
+        // 현재재고 · 기준(24)/반품 수량(22)/조치(24) 비율로 고정한다.
+        UiUtil.setColumnWidths(excessTable, 30, 24, 22, 24);
 
         excessTable.setBackground(Color.WHITE);
         JScrollPane excessScroll = new JScrollPane(excessTable);

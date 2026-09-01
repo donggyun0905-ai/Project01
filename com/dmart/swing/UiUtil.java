@@ -415,6 +415,13 @@ public class UiUtil {
         table.getColumnModel().getColumn(column).setCellEditor(cell);
     }
 
+    // maxForRow가 없는(= "최대 몇 개까지"가 정해져 있지 않은, 그냥 수량 하나만 입력받는) 칸용.
+    // 예: 재고초과 반품의 "반품 수량" - 로트별 한도가 아니라 품목 전체에서 몇 개를 뺄지
+    // 자유롭게 입력받는 칸이라 "/ 최대" 표시가 필요 없다.
+    public static void installQtyInputColumn(JTable table, int column) {
+        installQtyInputColumn(table, column, null);
+    }
+
     private static class QtyInputCell extends JPanel implements TableCellRenderer, TableCellEditor {
         private final IntUnaryOperator maxForRow;
         private final JTextField field = new JTextField();
@@ -442,11 +449,13 @@ public class UiUtil {
             maxLabel.setForeground(new Color(0x77, 0x77, 0x77));
 
             gbc.gridx = 0;
-            gbc.insets = new Insets(0, 0, 0, 8);
+            gbc.insets = new Insets(0, 0, 0, maxForRow != null ? 8 : 0);
             add(field, gbc);
-            gbc.gridx = 1;
-            gbc.insets = new Insets(0, 0, 0, 0);
-            add(maxLabel, gbc);
+            if (maxForRow != null) {
+                gbc.gridx = 1;
+                gbc.insets = new Insets(0, 0, 0, 0);
+                add(maxLabel, gbc);
+            }
 
             // html의 onchange와 같은 시점(엔터 또는 다른 곳 클릭)에 값을 확정한다.
             field.addActionListener(e -> stopCellEditing());
@@ -457,7 +466,9 @@ public class UiUtil {
 
         private void fill(Object value, int row) {
             field.setText(String.valueOf(value));
-            maxLabel.setText("/ " + String.format("%,d", maxForRow.applyAsInt(row)));
+            if (maxForRow != null) {
+                maxLabel.setText("/ " + String.format("%,d", maxForRow.applyAsInt(row)));
+            }
         }
 
         @Override
