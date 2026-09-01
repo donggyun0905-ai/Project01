@@ -204,26 +204,29 @@ public class StockLotDao {
         public final String itemName;
         public final Long zoneId;
         public final Long warehouseId;
+        public final int quantity; // 그 구역에 있는 이 품목의 로트 수량 합계 - 이름표에 개수로 보여준다.
 
-        public ItemZonePresence(Long itemId, String itemName, Long zoneId, Long warehouseId) {
+        public ItemZonePresence(Long itemId, String itemName, Long zoneId, Long warehouseId, int quantity) {
             this.itemId = itemId;
             this.itemName = itemName;
             this.zoneId = zoneId;
             this.warehouseId = warehouseId;
+            this.quantity = quantity;
         }
     }
 
     public List<ItemZonePresence> findItemZonePresence(Connection conn) throws SQLException {
-        String sql = "SELECT DISTINCT l.item_id, i.item_name, l.zone_id, z.warehouse_id "
+        String sql = "SELECT l.item_id, i.item_name, l.zone_id, z.warehouse_id, SUM(l.quantity) qty "
                 + "FROM STOCK_LOT l "
                 + "JOIN ITEM i ON i.item_id = l.item_id "
                 + "JOIN ZONE z ON z.zone_id = l.zone_id "
-                + "WHERE l.status = 'NORMAL' AND l.quantity > 0";
+                + "WHERE l.status = 'NORMAL' AND l.quantity > 0 "
+                + "GROUP BY l.item_id, i.item_name, l.zone_id, z.warehouse_id";
         List<ItemZonePresence> result = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 result.add(new ItemZonePresence(rs.getLong("item_id"), rs.getString("item_name"),
-                        rs.getLong("zone_id"), rs.getLong("warehouse_id")));
+                        rs.getLong("zone_id"), rs.getLong("warehouse_id"), rs.getInt("qty")));
             }
         }
         return result;
