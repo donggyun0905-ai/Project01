@@ -14,6 +14,10 @@ public class MainApp {
         // 버튼/드롭다운/스크롤바/표를 html에 가깝게 통일한다 - common.css의 파란 강조색(#1d4ed8)에
         // 맞춰 포커스/강조색만 덮어쓴다.
         FlatLightLaf.setup();
+        // [기능] 전체적으로 글자가 작아 보인다는 피드백 - 입고 입력창(UiUtil.FONT_FIELD, 15px)
+        // 정도가 보기 좋다고 해서, 따로 크기를 지정하지 않은 컴포넌트가 이 기준을 따르게
+        // 기본 폰트 자체를 15px로 올린다. 이미 자기 크기를 명시한 곳(라벨/버튼 등)은 그대로.
+        UIManager.put("defaultFont", new Font("맑은 고딕", Font.PLAIN, 15));
         UIManager.put("Component.arc", 8);
         UIManager.put("Button.arc", 8);
         UIManager.put("TextComponent.arc", 8);

@@ -80,7 +80,8 @@ public class UiUtil {
     public static final Font FONT_TITLE = new Font(FONT_FAMILY, Font.BOLD, 26);
     public static final Font FONT_LABEL = new Font(FONT_FAMILY, Font.PLAIN, 16);
     public static final Font FONT_TABLE_HEADER = new Font(FONT_FAMILY, Font.BOLD, 16);
-    public static final Font FONT_TABLE_CELL = new Font(FONT_FAMILY, Font.PLAIN, 14);
+    // [기능] 표 글자가 작아 보인다는 피드백 - 입고 입력창(FONT_FIELD, 15px)과 맞춘다.
+    public static final Font FONT_TABLE_CELL = new Font(FONT_FAMILY, Font.PLAIN, 15);
     // 버튼 글자가 html보다 작다는 지적 - 14 -> 16으로 키운다(등록/자동추천/수정 등 모든 RoundedButton이 이 폰트를 씀).
     public static final Font FONT_BUTTON = new Font(FONT_FAMILY, Font.BOLD, 16);
     public static final Font FONT_BADGE = new Font(FONT_FAMILY, Font.BOLD, 12);
