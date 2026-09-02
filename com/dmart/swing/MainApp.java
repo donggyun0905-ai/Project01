@@ -14,10 +14,13 @@ public class MainApp {
         // 버튼/드롭다운/스크롤바/표를 html에 가깝게 통일한다 - common.css의 파란 강조색(#1d4ed8)에
         // 맞춰 포커스/강조색만 덮어쓴다.
         FlatLightLaf.setup();
-        // [기능] 전체적으로 글자가 작아 보인다는 피드백 - 입고 입력창(UiUtil.FONT_FIELD, 15px)
-        // 정도가 보기 좋다고 해서, 따로 크기를 지정하지 않은 컴포넌트가 이 기준을 따르게
-        // 기본 폰트 자체를 15px로 올린다. 이미 자기 크기를 명시한 곳(라벨/버튼 등)은 그대로.
-        UIManager.put("defaultFont", new Font("맑은 고딕", Font.PLAIN, 15));
+        // [버그 수정] 전체적으로 글자가 작아 보인다는 피드백으로 기본 폰트를 15px로 올리면서
+        // 글꼴 이름까지 "맑은 고딕"으로 못박았더니, FlatLaf 원래 기본 글꼴(보통 Segoe UI)에는
+        // 있던 화살표/기호(예: ↻, 창고 정리 추천의 "다시 찾기" 새로고침 아이콘)가 "맑은 고딕"엔
+        // 없어서 빈 네모(tofu)로 깨졌다. 글꼴 이름은 FlatLaf가 원래 쓰던 것 그대로 두고
+        // 크기만 15px로 키운다.
+        Font defaultFont = UIManager.getFont("defaultFont");
+        UIManager.put("defaultFont", defaultFont.deriveFont(15f));
         UIManager.put("Component.arc", 8);
         UIManager.put("Button.arc", 8);
         UIManager.put("TextComponent.arc", 8);
