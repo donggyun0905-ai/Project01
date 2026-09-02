@@ -26,12 +26,12 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.sql.Connection;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.IntConsumer;
 
@@ -88,6 +88,9 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
     // 분류별 블럭 색. 이름 해시로 팔레트를 고르면 서로 다른 분류가 같은 색으로 겹치는 일이
     // 잦아서(실제로 대부분 파란색으로 나왔습니다), 분류 이름을 정렬해 순서대로 배정합니다.
     private final Map<String, Color> categoryColors = new HashMap<>();
+    // [개선] 분류 목록은 5초 폴링/재고 이벤트마다 거의 항상 그대로인데, refreshAll()이 매번
+    // categoryColors를 통째로 지우고 다시 채우고 있었다 - 지난번과 같으면 건너뛴다.
+    private Set<String> lastCategorySet;
 
     private final MapCanvas canvas = new MapCanvas();
     private final JLabel hintLabel = new JLabel();
@@ -198,21 +201,18 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
     }
 
     // 품목 관리에서 카테고리가 추가/변경될 수 있어 - 처음 열 때뿐 아니라 "item" 이벤트로도 다시 채운다.
+    // [개선] 실제 DB에 있는 카테고리 값을 스캔해서 목록을 만들면, 품목 관리 화면이 막고 있는
+    // 오타 분열("냉동식품"/"냉동 식품")이 이 필터에서는 그대로 되살아난다 - 품목 관리와 같은
+    // 고정 목록(ItemPanel.CATEGORY_OPTIONS)을 그대로 쓴다. "기타"는 분류를 안 고르고 등록된
+    // 품목을 위한 것으로, normalizeCategory()가 쓰는 것과 같은 이름의 자리를 하나 더 둔다.
     private void reloadCategoryFilterOptions() {
         String keep = (String) categoryFilterBox.getSelectedItem();
         categoryFilterBox.removeAllItems();
         categoryFilterBox.addItem("전체");
-        try (Connection conn = DBConnection.getConnection()) {
-            TreeSet<String> categories = new TreeSet<>();
-            for (Item item : itemDao.findAll(conn)) {
-                categories.add(normalizeCategory(item.getCategory()));
-            }
-            for (String category : categories) {
-                categoryFilterBox.addItem(category);
-            }
-        } catch (Exception e) {
-            UiUtil.showError(this, e);
+        for (String category : ItemPanel.CATEGORY_OPTIONS) {
+            categoryFilterBox.addItem(category);
         }
+        categoryFilterBox.addItem("기타");
         if (keep != null) {
             categoryFilterBox.setSelectedItem(keep); // 목록에 없으면(방금 지워진 카테고리) 자동으로 "전체"로 남는다
         }
@@ -286,16 +286,19 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
         try (Connection conn = DBConnection.getConnection()) {
 
             Map<Long, Item> itemMap = new HashMap<>();
-            java.util.TreeSet<String> categories = new java.util.TreeSet<>();
+            TreeSet<String> categories = new TreeSet<>();
             for (Item item : itemDao.findAll(conn)) {
                 itemMap.put(item.getItemId(), item);
                 categories.add(normalizeCategory(item.getCategory()));
             }
-            categoryColors.clear();
-            int ci = 0;
-            for (String cat : categories) {
-                categoryColors.put(cat, BLOCK_PALETTE[ci % BLOCK_PALETTE.length]);
-                ci++;
+            if (!categories.equals(lastCategorySet)) {
+                categoryColors.clear();
+                int ci = 0;
+                for (String cat : categories) {
+                    categoryColors.put(cat, BLOCK_PALETTE[ci % BLOCK_PALETTE.length]);
+                    ci++;
+                }
+                lastCategorySet = categories;
             }
 
             // NORMAL 로트만 - 반품/폐기된 로트는 배치도에 뜨면 안 됩니다.
@@ -311,10 +314,19 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
                 lotsByZone.computeIfAbsent(lot.getZoneId(), k -> new ArrayList<>()).add(lot);
             }
 
+            // [개선] 창고마다 zoneDao.findByWarehouseId()를 따로 부르면 창고 수만큼(현재 10번)
+            // 왕복이 생긴다 - 5초마다, 그리고 입고/출고/이동/폐기 때마다 반복되는 조회라 전부
+            // 한 번에 가져와(findAll, zone_id 순 정렬은 findByWarehouseId와 동일) 메모리에서
+            // 창고별로 묶는다.
+            Map<Long, List<Zone>> zonesByWarehouse = new HashMap<>();
+            for (Zone zone : zoneDao.findAll(conn)) {
+                zonesByWarehouse.computeIfAbsent(zone.getWarehouseId(), k -> new ArrayList<>()).add(zone);
+            }
+
             for (Warehouse wh : warehouseDao.findAll(conn)) {
                 WarehouseBox box = new WarehouseBox();
                 box.warehouse = wh;
-                for (Zone zone : zoneDao.findByWarehouseId(conn, wh.getWarehouseId())) {
+                for (Zone zone : zonesByWarehouse.getOrDefault(wh.getWarehouseId(), List.of())) {
                     ZoneBox zb = new ZoneBox();
                     zb.zone = zone;
                     zb.parent = box;
@@ -468,6 +480,9 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
         // [개선] 이름 검색과 별개로 카테고리로도 거를 수 있다 - null이면 필터 없음("전체").
         private String categoryFilter;
         private final Timer animTimer;
+        // [개선] blockWidth()가 매 블럭마다(휠 스크롤 한 번에도 구역 안 블럭 수만큼) Font를 새로
+        // derive하고 FontMetrics를 다시 구하고 있었다 - 글꼴이 안 바뀌니 한 번만 구해서 재사용한다.
+        private FontMetrics blockFontMetrics;
 
         List<WarehouseBox> getBoxes() { return boxes; }
 
@@ -812,6 +827,10 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
 
         private float ease(float t) { return 1f - (float) Math.pow(1 - t, 3); }
 
+        // 강조 테두리가 은은하게 뛰는 정도(0.2~1.0 사이를 오간다) - 검색 강조/드롭 대상 표시/
+        // 찾은 블럭 테두리 세 곳에서 같은 식을 쓰던 걸 하나로 모은다.
+        private float pulseAmp(float phase) { return (float) (0.6 + 0.4 * Math.sin(phase)); }
+
         void flashZone(Long zoneId) { zoneFlash.put(zoneId, 1f); }
 
         /* ---------- 배치 ---------- */
@@ -829,6 +848,7 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
         // "빈 자리"가 아예 없을 수 있다 - 그래서 오른쪽에 이 폭만큼은 항상 블럭을 안 놓고
         // 비워 두고, 그 자리(스크롤바)를 누르면 끌어서 스크롤하게 한다.
         private static final int SCROLLBAR_W = 12;
+        private static final int SCROLL_BAR_W = 4; // 실제로 그리는 막대 굵기(위 SCROLLBAR_W는 예약해 두는 폭)
 
         private void relayout() {
             int w = getWidth(), h = getHeight();
@@ -891,8 +911,10 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
         }
 
         private int blockWidth(ItemGroup g) {
-            FontMetrics fm = getFontMetrics(getFont().deriveFont(Font.BOLD, 12f));
-            return Math.max(70, fm.stringWidth(blockLabel(g)) + 20);
+            if (blockFontMetrics == null) {
+                blockFontMetrics = getFontMetrics(getFont().deriveFont(Font.BOLD, 12f));
+            }
+            return Math.max(70, blockFontMetrics.stringWidth(blockLabel(g)) + 20);
         }
 
         private String blockLabel(ItemGroup g) {
@@ -1009,8 +1031,7 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
 
                 float w = isDropTarget ? 2f : (isSel ? 1.6f : 1f);
                 if (isFound) {
-                    float amp = (float) (0.6 + 0.4 * Math.sin(searchPulse));
-                    w = 1.6f + 1.4f * amp;
+                    w = 1.6f + 1.4f * pulseAmp(searchPulse);
                 }
                 g2.setStroke(new BasicStroke(w));
                 g2.setColor(border);
@@ -1065,16 +1086,21 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
             // [개선] 목록이 다 안 들어가면(창고가 많거나 창이 작으면) 휠로 스크롤할 수 있다는
             // 걸 알려주는 얇은 표시 - 구역 스크롤바와 같은 모양이다.
             if (railMaxScroll > 0) {
-                int viewH = getHeight();
-                int barW = 4;
-                int trackX = RAIL_W + (GAP - barW) / 2; // 창고 목록과 본문 사이 여백 한가운데 - 카드 위를 덮지 않는다
-                g2.setColor(new Color(0, 0, 0, 18));
-                g2.fillRoundRect(trackX, 0, barW, viewH, barW, barW);
-                int thumbH = Math.max(18, viewH * viewH / (viewH + railMaxScroll));
-                int thumbY = (int) ((viewH - thumbH) * (railScrollY / (double) railMaxScroll));
-                g2.setColor(new Color(0, 0, 0, 70));
-                g2.fillRoundRect(trackX, thumbY, barW, thumbH, barW, barW);
+                int trackX = RAIL_W + (GAP - SCROLL_BAR_W) / 2; // 창고 목록과 본문 사이 여백 한가운데 - 카드 위를 덮지 않는다
+                drawScrollThumb(g2, trackX, 0, getHeight(), railScrollY, railMaxScroll, new Color(0, 0, 0, 70));
             }
+        }
+
+        // [개선] 창고 목록/구역 스크롤바 둘 다 트랙+손잡이 계산이 완전히 같아서(막대 폭/최소
+        // 손잡이 높이/비례 위치) 하나로 모은다 - 손잡이 크기나 모양을 나중에 바꿀 때 한 곳만
+        // 고치면 되게.
+        private void drawScrollThumb(Graphics2D g2, int trackX, int viewTop, int viewH, int scrollY, int maxScroll, Color thumbColor) {
+            g2.setColor(new Color(0, 0, 0, 18));
+            g2.fillRoundRect(trackX, viewTop, SCROLL_BAR_W, viewH, SCROLL_BAR_W, SCROLL_BAR_W);
+            int thumbH = Math.max(18, viewH * viewH / (viewH + maxScroll));
+            int thumbY = viewTop + (int) ((viewH - thumbH) * (scrollY / (double) maxScroll));
+            g2.setColor(thumbColor);
+            g2.fillRoundRect(trackX, thumbY, SCROLL_BAR_W, thumbH, SCROLL_BAR_W, SCROLL_BAR_W);
         }
 
         private void drawMainWarehouse(Graphics2D g2, WarehouseBox box) {
@@ -1126,8 +1152,7 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
             g2.fillRoundRect(r.x, r.y, r.width, r.height, 12, 12);
 
             if (isTarget) {
-                float amp = (float) (0.6 + 0.4 * Math.sin(pulse));
-                g2.setStroke(new BasicStroke(1.5f + 1.5f * amp));
+                g2.setStroke(new BasicStroke(1.5f + 1.5f * pulseAmp(pulse)));
             } else if (isSource) {
                 g2.setStroke(new BasicStroke(1.4f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER,
                         10f, new float[]{5f, 5f}, 0f));
@@ -1190,14 +1215,9 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
                 // 자리와 실제로 눌러서 끌 수 있는 자리(mousePressed의 findZoneAt 빈 자리 판정)가
                 // 정확히 같은 곳이어야 한다.
                 int viewH = contentBottom - contentTop;
-                int barW = 4;
-                int trackX = r.x + r.width - ZONE_PAD - SCROLLBAR_W + (SCROLLBAR_W - barW) / 2;
-                g2.setColor(new Color(0, 0, 0, 18));
-                g2.fillRoundRect(trackX, contentTop, barW, viewH, barW, barW);
-                int thumbH = Math.max(18, viewH * viewH / (viewH + zb.maxScroll));
-                int thumbY = contentTop + (int) ((viewH - thumbH) * (zb.scrollY / (double) zb.maxScroll));
-                g2.setColor(zb == scrollingZone ? ACCENT : new Color(0, 0, 0, 70));
-                g2.fillRoundRect(trackX, thumbY, barW, thumbH, barW, barW);
+                int trackX = r.x + r.width - ZONE_PAD - SCROLLBAR_W + (SCROLLBAR_W - SCROLL_BAR_W) / 2;
+                drawScrollThumb(g2, trackX, contentTop, viewH, zb.scrollY, zb.maxScroll,
+                        zb == scrollingZone ? ACCENT : new Color(0, 0, 0, 70));
             }
         }
 
@@ -1224,9 +1244,8 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
 
             if (hit) {
                 // 찾은 블럭은 노란 테두리가 은은하게 뛰게 해서 눈에 확 들어오게
-                float amp = (float) (0.6 + 0.4 * Math.sin(searchPulse));
                 g2.setColor(SEARCH_BORDER);
-                g2.setStroke(new BasicStroke(2f + 1.5f * amp));
+                g2.setStroke(new BasicStroke(2f + 1.5f * pulseAmp(searchPulse)));
                 g2.drawRoundRect(x - 2, y - 2, g.bounds.width + 3, g.bounds.height + 3, 11, 11);
                 g2.setStroke(new BasicStroke(1f));
             }
@@ -1289,7 +1308,7 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
             model.addRow(new Object[]{
                     lot.getLotId(),
                     lot.getInboundDate() == null ? "-" : lot.getInboundDate(),
-                    formatExpiry(lot.getExpiryDate()),
+                    UiUtil.formatExpiryWithWarning(lot.getExpiryDate()),
                     String.format("%,d", lot.getQuantity()) + group.unit(),
                     ""
             });
@@ -1346,16 +1365,6 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
                     actionListener.openReturnDisposal(group.item, lotId);
                 }));
         DmartDialog.show(dialog, this);
-    }
-
-    /** item.html 재고 상세(ItemPanel)와 같은 규칙 - 7일 이내(또는 이미 지남)면 "⚠ ... (D-n)". */
-    private String formatExpiry(LocalDate expiry) {
-        if (expiry == null) return "-";
-        long daysLeft = ChronoUnit.DAYS.between(LocalDate.now(), expiry);
-        if (daysLeft <= 7) {
-            return "⚠ " + expiry + " (" + (daysLeft < 0 ? "기한 지남" : "D-" + daysLeft) + ")";
-        }
-        return expiry.toString();
     }
 
     private static class NearExpiryRenderer extends DefaultTableCellRenderer {

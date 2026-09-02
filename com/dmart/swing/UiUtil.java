@@ -10,6 +10,8 @@ import javax.swing.table.TableCellRenderer;
 import java.awt.*;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.EventObject;
 import java.util.List;
@@ -37,6 +39,20 @@ public class UiUtil {
     public static final Color COLOR_PRIMARY_HOVER = new Color(0x1e40af);
     public static final Color COLOR_NEAR_EXPIRY_BG = new Color(0xfff2e0);
     public static final Color COLOR_NEAR_EXPIRY_FG = new Color(0xcc8400);
+
+    // [개선] 유통기한 임박 표시("⚠ ... (D-n)") 규칙이 ItemPanel과 WarehouseMapPanel 두 곳에
+    // 똑같이 따로 적혀 있었다 - 임박 기준(7일)이나 표시 형식이 바뀔 때 한쪽만 고치면 두
+    // 화면이 서로 다르게 보이는 문제가 있어 한 곳으로 모은다.
+    public static String formatExpiryWithWarning(LocalDate expiry) {
+        if (expiry == null) {
+            return "-";
+        }
+        long daysLeft = ChronoUnit.DAYS.between(LocalDate.now(), expiry);
+        if (daysLeft <= 7) {
+            return "⚠ " + expiry + " (" + (daysLeft < 0 ? "기한 지남" : "D-" + daysLeft) + ")";
+        }
+        return expiry.toString();
+    }
     public static final Color COLOR_ZONE_FULL = new Color(0xd9453b);
     public static final Color COLOR_ZONE_WARN = new Color(0xcc8400);
     public static final Color COLOR_ZONE_OVER = new Color(0x2570c4);

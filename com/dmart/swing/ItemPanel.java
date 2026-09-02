@@ -18,7 +18,6 @@ import javax.swing.table.TableCellRenderer;
 import java.awt.*;
 import java.sql.Connection;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -237,7 +236,10 @@ public class ItemPanel extends JPanel implements Refreshable {
     // 정해진 13개 중 고르는 드롭다운이다(오타로 "냉동식품"/"냉동 식품"처럼 갈라지는 걸 막기
     // 위함). 다만 이 목록에 없는 옛 데이터를 수정할 때 그 값이 사라지면 안 되므로, 편집
     // 가능한 콤보로 만들어 목록에 없는 기존 값은 그대로 입력칸에 보이게 한다.
-    private static final String[] CATEGORY_OPTIONS = {
+    // WarehouseMapPanel의 카테고리 필터도 이 목록을 그대로 쓴다(package-private) - 실제 데이터를
+    // 스캔해서 만들면 옛 오타 데이터("냉동 식품" 등)가 별도 항목으로 다시 나타나 이 목록을
+    // 만든 이유(카테고리 분열 방지)가 무색해진다.
+    static final String[] CATEGORY_OPTIONS = {
             "냉장식품", "냉동식품", "신선식품", "유제품", "베이커리",
             "음료", "생활용품", "청소용품", "주방잡화", "문구용품",
             "완구", "의류잡화", "전자소모품"
@@ -422,16 +424,7 @@ public class ItemPanel extends JPanel implements Refreshable {
                     zoneLabel = warehouseNames.getOrDefault(whId, "") + " " + zoneNames.getOrDefault(lot.getZoneId(), "");
                 }
 
-                String expiryText = "-";
-                if (lot.getExpiryDate() != null) {
-                    LocalDate expiry = lot.getExpiryDate();
-                    long daysLeft = ChronoUnit.DAYS.between(LocalDate.now(), expiry);
-                    if (daysLeft <= 7) {
-                        expiryText = "⚠ " + expiry + " (" + (daysLeft < 0 ? "기한 지남" : "D-" + daysLeft) + ")";
-                    } else {
-                        expiryText = expiry.toString();
-                    }
-                }
+                String expiryText = UiUtil.formatExpiryWithWarning(lot.getExpiryDate());
 
                 lotModel.addRow(new Object[]{lot.getLotId(), zoneLabel, lot.getQuantity() + " " + item.getUnit(),
                         lot.getInboundDate(), expiryText});
