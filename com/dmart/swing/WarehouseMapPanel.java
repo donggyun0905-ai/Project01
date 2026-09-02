@@ -98,7 +98,7 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
 
     private static final String DEFAULT_HINT =
             "블럭을 클릭하면 로트별 수량을 볼 수 있고, 끌어서 다른 구역/창고에 놓으면 이동합니다. "
-                    + "구역 안 빈 자리를 끌면 그 구역만 위아래로 더 볼 수 있습니다.";
+                    + "마우스 휠로 창고 목록이나 구역 안을 스크롤할 수 있습니다.";
 
     // ---- 색 (다른 화면과 같은 톤) ----
     private static final Color CARD_BORDER = new Color(0xec, 0xec, 0xec);
@@ -453,6 +453,12 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
         private int scrollDragStartY;
         private int scrollDragStartValue;
 
+        // [개선] 왼쪽 창고 목록(대형0~소형9)도 창이 작아지면 다 못 보여줄 수 있다 - 마우스
+        // 휠로 스크롤한다. 칸 높이(itemH)는 최소 44px를 지키고, 그래도 안 들어가면 목록
+        // 전체를 스크롤해서 보여준다("+N개 더"처럼 잘라 숨기지 않는다).
+        private int railScrollY;
+        private int railMaxScroll;
+
         private FlyAnim fly;
         private float enterT = 1f;
         private final Map<Long, Float> zoneFlash = new HashMap<>();
@@ -671,6 +677,30 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
                                    : Cursor.getDefaultCursor());
                 }
             });
+
+            // [개선] 드래그 말고 마우스 휠로도 스크롤할 수 있게 - 왼쪽 창고 목록 위에서 돌리면
+            // 그 목록을, 오른쪽 구역 위에서 돌리면(빈 자리든 블럭 위든 상관없이) 그 구역을 스크롤한다.
+            addMouseWheelListener(e -> {
+                int unit = 40 * e.getWheelRotation();
+                if (e.getPoint().x <= RAIL_W) {
+                    if (railMaxScroll <= 0) return;
+                    int newScroll = Math.max(0, Math.min(railMaxScroll, railScrollY + unit));
+                    if (newScroll != railScrollY) {
+                        railScrollY = newScroll;
+                        relayout();
+                        repaint();
+                    }
+                    return;
+                }
+                ZoneBox zb = findZoneAt(e.getPoint());
+                if (zb == null || zb.maxScroll <= 0) return;
+                int newScroll = Math.max(0, Math.min(zb.maxScroll, zb.scrollY + unit));
+                if (newScroll != zb.scrollY) {
+                    zb.scrollY = newScroll;
+                    layoutBlocks(zb);
+                    repaint();
+                }
+            });
         }
 
         private ZoneBox resolveTarget() {
@@ -807,7 +837,10 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
             int n = boxes.size();
             int railGap = 6;
             int itemH = Math.max(44, Math.min(64, (h - railGap * (n - 1)) / Math.max(1, n)));
-            int ry = 0;
+            int railContentHeight = n * itemH + (n - 1) * railGap;
+            railMaxScroll = Math.max(0, railContentHeight - h);
+            railScrollY = Math.max(0, Math.min(railScrollY, railMaxScroll));
+            int ry = -railScrollY;
             for (WarehouseBox b : boxes) {
                 b.railBounds.setBounds(0, ry, RAIL_W, itemH);
                 ry += itemH + railGap;
@@ -1027,6 +1060,20 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
                 }
 
                 g2.setComposite(old);
+            }
+
+            // [개선] 목록이 다 안 들어가면(창고가 많거나 창이 작으면) 휠로 스크롤할 수 있다는
+            // 걸 알려주는 얇은 표시 - 구역 스크롤바와 같은 모양이다.
+            if (railMaxScroll > 0) {
+                int viewH = getHeight();
+                int barW = 4;
+                int trackX = RAIL_W + (GAP - barW) / 2; // 창고 목록과 본문 사이 여백 한가운데 - 카드 위를 덮지 않는다
+                g2.setColor(new Color(0, 0, 0, 18));
+                g2.fillRoundRect(trackX, 0, barW, viewH, barW, barW);
+                int thumbH = Math.max(18, viewH * viewH / (viewH + railMaxScroll));
+                int thumbY = (int) ((viewH - thumbH) * (railScrollY / (double) railMaxScroll));
+                g2.setColor(new Color(0, 0, 0, 70));
+                g2.fillRoundRect(trackX, thumbY, barW, thumbH, barW, barW);
             }
         }
 
