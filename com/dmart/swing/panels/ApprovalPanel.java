@@ -22,6 +22,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -798,32 +799,54 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         return panel;
     }
 
+    // [버그 수정] 5초 자동 새로고침마다 무조건 표를 통째로 다시 그려서, 체크박스 칸을
+    // 항상 false로 새로 만드는 drawConsolList() 때문에 사용자가 골라 둔 체크가 그대로
+    // 풀려 버렸다("체크하고 버튼 누르려는데 자꾸 풀린다"). 목록을 새로 조회한 뒤 지난번과
+    // 실제로 달라진 게 없으면(추천이 새로 생기거나 처리되어 없어지지 않았으면) 아예 표를
+    // 다시 그리지 않아 화면이 깜빡이지도, 체크가 풀리지도 않는다. 그 사이에 목록 자체가
+    // 바뀌어 어쩔 수 없이 다시 그려야 할 때도, 그대로 남아있는 추천 항목의 체크 상태는
+    // alertId 기준으로 옮겨 붙인다.
     private void loadConsolData() {
-
-        consolAlertIds.clear();
-        consolItemIds.clear();
-        consolMoves.clear();
+        List<Long> newAlertIds = new java.util.ArrayList<>();
+        List<Long> newItemIds = new java.util.ArrayList<>();
+        List<ConsolMove> newMoves = new java.util.ArrayList<>();
 
         try (Connection conn = DBConnection.getConnection()) {
-
             List<Alert> alerts = alertDao.findAllMatching(conn, false, null, null);
-
             for (Alert a : alerts) {
                 if (!"창고정리추천".equals(a.getAlertType())) continue;
                 ConsolMove move = parseConsolMessage(a.getMessage());
                 if (move == null) continue;
 
-                consolAlertIds.add(a.getAlertId());
-                consolItemIds.add(a.getItemId());
-                consolMoves.add(move);
+                newAlertIds.add(a.getAlertId());
+                newItemIds.add(a.getItemId());
+                newMoves.add(move);
             }
-
-            drawConsolList();
-
         } catch (SQLException ex) {
             DmartDialog.showMessageDialog(this, "조회 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
             ex.printStackTrace();
+            return;
         }
+
+        if (newAlertIds.equals(consolAlertIds)) {
+            return; // 지난번과 완전히 같다 - 표를 다시 그릴 필요가 없다(깜빡임/체크 해제 방지).
+        }
+
+        Set<Long> checkedAlertIds = new java.util.HashSet<>();
+        for (int i = 0; i < consolModel.getRowCount() && i < consolAlertIds.size(); i++) {
+            if (Boolean.TRUE.equals(consolModel.getValueAt(i, 0))) {
+                checkedAlertIds.add(consolAlertIds.get(i));
+            }
+        }
+
+        consolAlertIds.clear();
+        consolAlertIds.addAll(newAlertIds);
+        consolItemIds.clear();
+        consolItemIds.addAll(newItemIds);
+        consolMoves.clear();
+        consolMoves.addAll(newMoves);
+
+        drawConsolList(checkedAlertIds);
     }
 
     private ConsolMove parseConsolMessage(String msg) {
@@ -838,7 +861,7 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         return move;
     }
 
-    private void drawConsolList() {
+    private void drawConsolList(Set<Long> checkedAlertIds) {
 
         consolModel.setRowCount(0);
         tabConsolBtn.setText(consolAlertIds.isEmpty() ? "창고 정리 추천" : "창고 정리 추천 (" + consolAlertIds.size() + ")");
@@ -856,7 +879,8 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
             String unit = itemUnits.getOrDefault(itemId, "");
             String content = zoneLabel(move.fromZoneId) + " \u2192 " + zoneLabel(move.toZoneId)
                     + " (" + addComma(move.quantity) + unit + ")";
-            consolModel.addRow(new Object[] { false, itemName, content, "지금 실행" });
+            boolean checked = checkedAlertIds.contains(consolAlertIds.get(i));
+            consolModel.addRow(new Object[] { checked, itemName, content, "지금 실행" });
         }
         countConsolChecked();
     }
@@ -909,6 +933,27 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         return result;
     }
 
+    // [버그 수정] 처리 결과 메시지가 길어질 수 있는 곳(옮긴 항목이 많거나 실패 사유가 여러
+    // 줄) - DmartDialog의 기본 문자열 처리는 스크롤 없이 필요한 높이만큼 그대로 창을 늘려서,
+    // 화면 밖으로 넘칠 정도까지 계속 길어지는 문제가 있었다. 최대 높이(320px)에서 스크롤되는
+    // 컴포넌트로 감싸서 - 짧으면 원래처럼 딱 맞게, 길면 스크롤로 다 볼 수 있게 한다.
+    private JComponent buildScrollableMessage(String text) {
+        int contentW = DmartDialog.contentWidth(DmartDialog.WIDTH_NORMAL);
+        JTextArea textArea = new JTextArea(text);
+        textArea.setEditable(false);
+        textArea.setLineWrap(true);
+        textArea.setWrapStyleWord(true);
+        textArea.setOpaque(false);
+        textArea.setFont(textArea.getFont().deriveFont(14f));
+        textArea.setSize(new Dimension(contentW, Integer.MAX_VALUE));
+        int naturalH = textArea.getPreferredSize().height;
+        JScrollPane scroll = new JScrollPane(textArea,
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.setPreferredSize(new Dimension(contentW, Math.min(320, naturalH + 4)));
+        return scroll;
+    }
+
     private void doExecuteConsolidation(int i) {
 
         ConsolMove move = consolMoves.get(i);
@@ -933,8 +978,8 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
             // 놓치게 됩니다.
             if (result.movedQty == 0 && !result.failures.isEmpty()) {
                 DmartDialog.showMessageDialog(this,
-                        "옮기지 못했습니다:\n" + String.join("\n", result.failures)
-                        + "\n\n창고 간 재고 이동 화면에서 직접 처리해 주세요.",
+                        buildScrollableMessage("옮기지 못했습니다:\n" + String.join("\n", result.failures)
+                                + "\n\n창고 간 재고 이동 화면에서 직접 처리해 주세요."),
                         "오류", JOptionPane.ERROR_MESSAGE);
                 return;
             }
@@ -947,8 +992,8 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
             if (!result.failures.isEmpty()) {
                 // 일부만 실패한 경우 - 원본처럼 성공/실패를 같이 알려줍니다
                 DmartDialog.showMessageDialog(this,
-                        itemName + " " + addComma(result.movedQty) + unit + "을(를) 옮겼습니다.\n\n"
-                        + "다만 일부는 옮기지 못했습니다:\n" + String.join("\n", result.failures));
+                        buildScrollableMessage(itemName + " " + addComma(result.movedQty) + unit + "을(를) 옮겼습니다.\n\n"
+                                + "다만 일부는 옮기지 못했습니다:\n" + String.join("\n", result.failures)));
             } else {
                 DmartDialog.showMessageDialog(this, itemName + " " + addComma(result.movedQty) + unit + "을(를) 옮겼습니다.");
             }
@@ -1013,7 +1058,11 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         if (!allFailures.isEmpty()) {
             finalMsg += "\n\n다음은 옮기지 못했습니다:\n" + String.join("\n", allFailures);
         }
-        DmartDialog.showMessageDialog(this, finalMsg);
+        // [버그 수정] DmartDialog는 순수 문자열 메시지를 스크롤 없이 실제 필요한 높이만큼
+        // 그대로 늘려서 보여준다 - 체크한 항목이 많으면 결과 목록이 길어져 창이 화면 밖으로
+        // 넘칠 정도로 계속 늘어났다. 여기서는 스크롤 가능한 컴포넌트로 직접 감싸서, 짧으면
+        // 원래처럼 딱 맞게, 길면 최대 높이(320px)에서 스크롤되게 한다.
+        DmartDialog.showMessageDialog(this, buildScrollableMessage(finalMsg));
         loadConsolData();
     }
 
