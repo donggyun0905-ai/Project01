@@ -110,6 +110,30 @@ public class StockLotDao {
         return null;
     }
 
+    // [최적화] 화면에서 페이지 한 장을 그릴 때 로트 번호가 다른 행마다 찍혀 있어, 예전엔 행마다
+    // findById()를 따로 불러서(10행이면 10번 왕복) N+1이 났다 - 한 번에 IN절로 묶어 가져온다.
+    public Map<Long, StockLot> findByIds(Connection conn, List<Long> lotIds) throws SQLException {
+        Map<Long, StockLot> result = new HashMap<>();
+        if (lotIds == null || lotIds.isEmpty()) {
+            return result;
+        }
+        String placeholders = String.join(",", java.util.Collections.nCopies(lotIds.size(), "?"));
+        String sql = "SELECT * FROM STOCK_LOT WHERE lot_id IN (" + placeholders + ")";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int i = 1;
+            for (Long lotId : lotIds) {
+                ps.setLong(i++, lotId);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    StockLot lot = mapRow(rs);
+                    result.put(lot.getLotId(), lot);
+                }
+            }
+        }
+        return result;
+    }
+
     // FIFO 출고 순서 추천: 입고일이 빠른 순
     public List<StockLot> findByItemIdOrderByInboundDate(Connection conn, Long itemId) throws SQLException {
         return findByItemIdOrdered(conn, itemId, "inbound_date");

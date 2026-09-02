@@ -77,8 +77,9 @@ public class ReportPanel extends BasePanel implements Refreshable {
         // 웹 화면의 실시간 새로고침(5초 폴링)과 같은 효과 - 여기서는 SSE 대신 Timer로
         // 5초마다 조용히 다시 조회합니다. 기준일 입력칸에 커서가 가 있는 동안(타이핑 중)은
         // 값이 갑자기 바뀌면 방해되니 건너뜁니다.
+        // [최적화] 이 화면이 안 보일 때도 5초마다 계속 조회하고 있었다 - isShowing()으로 막는다.
         Timer refreshTimer = new Timer(5000, e -> {
-            if (!reportDateField.hasFocus()) {
+            if (isShowing() && !reportDateField.hasFocus()) {
                 loadDailyReport();
             }
         });

@@ -162,15 +162,9 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         // 웹 화면의 실시간 새로고침(SSE)과 같은 효과 - 원본(refreshIfIdle)과 같이 5초마다
         // 탭 3개를 전부 다시 조회합니다(지금 안 보고 있는 탭이라도 탭 이름 옆 숫자가 최신으로
         // 유지됩니다). 상세보기/등록 모달이 열려있거나 검색창 입력 중일 땐 건너뜁니다.
-        javax.swing.Timer refreshTimer = new javax.swing.Timer(5000, e -> {
-            if (nameField.hasFocus() || dialogOpen) {
-                return;
-            }
-            loadMasterData();
-            loadRequestData();
-            loadConsolData();
-            loadExcessData();
-        });
+        // [최적화] 이 화면이 안 보일 때(다른 화면이 CardLayout 위에 떠 있을 때)도 5초마다 계속
+        // 돌고 있었다 - 다른 패널들처럼 isShowing()으로 막는다.
+        javax.swing.Timer refreshTimer = new javax.swing.Timer(5000, e -> { if (isShowing()) { refreshAll(); } });
         refreshTimer.start();
 
         // approval.html의 connectRealtimeRefresh(..., ["approval","alert","outbound","disposal"])와 동일.
@@ -189,7 +183,10 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         if (nameField.hasFocus() || dialogOpen) {
             return;
         }
-        loadMasterData();
+        // [최적화] 여기서도 5초/이벤트마다 매번 loadMasterData()(품목/거래처/구역/창고/사용자
+        // findAll 5개)를 다시 조회하고 있었는데, 그 중 실시간으로 바뀌는 건 사실상 품목뿐이고
+        // 그건 이미 "item" 이벤트로 별도 구독 중이다(생성자 참고). 나머지(거래처/구역/창고/
+        // 사용자)는 운영 중 거의 안 바뀌는 마스터 데이터라 여기서 매번 다시 긁을 필요가 없다.
         loadRequestData();
         loadConsolData();
         loadExcessData();

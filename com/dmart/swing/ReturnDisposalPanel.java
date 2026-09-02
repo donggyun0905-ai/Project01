@@ -18,6 +18,7 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.sql.Connection;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -158,12 +159,16 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
                 itemMap.put(item.getItemId(), item);
             }
             Map<Long, String> zoneLabels = buildZoneLabels(conn);
+            // [최적화] 행마다 stockLotDao.findById()를 따로 부르던 것(페이지당 10번 왕복)을 한 번에.
+            List<Long> lotIds = new ArrayList<>();
+            for (ReturnDisposal rec : list) lotIds.add(rec.getLotId());
+            Map<Long, StockLot> lotsById = stockLotDao.findByIds(conn, lotIds);
 
             historyModel.setRowCount(0);
             int startNo = offset;
             for (int i = 0; i < list.size(); i++) {
                 ReturnDisposal rec = list.get(i);
-                StockLot lot = stockLotDao.findById(conn, rec.getLotId());
+                StockLot lot = lotsById.get(rec.getLotId());
                 Item item = lot != null ? itemMap.get(lot.getItemId()) : null;
                 historyModel.addRow(new Object[]{
                         startNo + i + 1, rec.getType(), rec.getReason(),

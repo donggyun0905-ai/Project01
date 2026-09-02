@@ -147,8 +147,9 @@ public class AlertPanel extends BasePanel {
         // 웹 화면의 실시간 새로고침(SSE)과 같은 효과 - 여기서는 Timer로 5초마다 조용히
         // 다시 조회합니다. 검색어 입력 중(포커스가 검색창에 있을 때)은 값이 갑자기 바뀌면
         // 방해되니 건너뜁니다.
+        // [최적화] 이 화면이 안 보일 때도 5초마다 계속 조회하고 있었다 - isShowing()으로 막는다.
         javax.swing.Timer refreshTimer = new javax.swing.Timer(5000, e -> {
-            if (!searchField.hasFocus() && !fromField.hasFocus() && !toField.hasFocus()) {
+            if (isShowing() && !searchField.hasFocus() && !fromField.hasFocus() && !toField.hasFocus()) {
                 loadData();
             }
         });

@@ -1,10 +1,12 @@
 package com.dmart.db;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
 
@@ -12,11 +14,17 @@ import java.util.Properties;
  * Reads db.properties from the project root and opens a JDBC connection.
  * Copy db.properties.example to db.properties and fill in your own credentials
  * (db.properties is gitignored so it never gets committed).
+ *
+ * [최적화] 예전엔 getConnection()을 부를 때마다 DriverManager.getConnection()으로 매번 새
+ * TCP 연결 + 인증을 했다 - 화면 전환/5초 폴링마다 반복되는 이 비용을 없애려고 HikariCP로 커넥션
+ * 풀을 둔다. getConnection()의 시그니처/반환 타입(Connection)은 그대로라 DAO/서비스 어디서도
+ * 고칠 게 없다 - try-with-resources의 close()가 이제 실제로 끊는 대신 풀에 반납하도록 바뀔 뿐이다.
  */
 public class DBConnection {
 
     private static final String CONFIG_FILE = "db.properties";
     private static Properties props;
+    private static volatile HikariDataSource dataSource;
 
     private static synchronized Properties loadProps() {
         if (props == null) {
@@ -45,25 +53,33 @@ public class DBConnection {
     }
 
     public static Connection getConnection() throws SQLException {
-        loadDriver();
-        Properties p = loadProps();
-        String url = p.getProperty("db.url");
-        String username = p.getProperty("db.username");
-        String password = p.getProperty("db.password");
-        return DriverManager.getConnection(url, username, password);
+        return dataSource().getConnection();
     }
 
-    // 커맨드라인 실행에서는 필요 없지만(드라이버가 앱과 같은 클래스로더에 있어 DriverManager가 자동으로 찾음),
-    // 톰캣처럼 웹앱마다 별도 클래스로더를 쓰는 환경에서는 DriverManager의 자동 탐색(SPI)이
-    // 우리 웹앱 클래스로더의 드라이버를 못 찾는 경우가 있다 ("No suitable driver found").
-    // 드라이버 클래스를 명시적으로 로드해서 등록시키면 어느 환경에서든 확실하게 동작한다.
-    private static synchronized void loadDriver() {
-        try {
-            Class.forName("com.mysql.cj.jdbc.Driver");
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException("MySQL JDBC 드라이버(mysql-connector-j)를 찾을 수 없습니다. "
-                    + "lib/에 jar가 있는지, 톰캣이면 WEB-INF/lib에 넣었는지 확인하세요.", e);
+    private static HikariDataSource dataSource() {
+        HikariDataSource ds = dataSource;
+        if (ds == null) {
+            synchronized (DBConnection.class) {
+                ds = dataSource;
+                if (ds == null) {
+                    Properties p = loadProps();
+                    HikariConfig config = new HikariConfig();
+                    config.setDriverClassName("com.mysql.cj.jdbc.Driver");
+                    config.setJdbcUrl(p.getProperty("db.url"));
+                    config.setUsername(p.getProperty("db.username"));
+                    config.setPassword(p.getProperty("db.password"));
+                    // 데스크톱 앱 하나 + 웹 화면 요청 몇 개 정도가 동시에 쓰는 규모라 크게 잡을
+                    // 필요가 없다 - MySQL 쪽 max_connections를 여러 창/여러 컴퓨터가 나눠 쓴다.
+                    config.setMaximumPoolSize(10);
+                    config.setMinimumIdle(2);
+                    config.setConnectionTimeout(10_000);
+                    config.setPoolName("dmart-pool");
+                    ds = new HikariDataSource(config);
+                    dataSource = ds;
+                }
+            }
         }
+        return ds;
     }
 
     /**

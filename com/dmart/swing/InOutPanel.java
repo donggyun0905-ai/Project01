@@ -28,6 +28,7 @@ import javax.swing.table.TableCellRenderer;
 import java.awt.*;
 import java.sql.Connection;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -739,10 +740,14 @@ public class InOutPanel extends JPanel implements Refreshable {
             Map<Long, Item> itemMap = mapById(itemDao.findAll(conn), Item::getItemId);
             Map<Long, Partner> partnerMap = mapById(partnerDao.findAll(conn), Partner::getPartnerId);
             Map<Long, String> zoneLabels = buildZoneLabels(conn);
+            // [최적화] 행마다 stockLotDao.findById()를 따로 부르던 것(페이지당 10번 왕복)을 한 번에.
+            List<Long> lotIds = new ArrayList<>();
+            for (Outbound outbound : list) lotIds.add(outbound.getLotId());
+            Map<Long, StockLot> lotsById = stockLotDao.findByIds(conn, lotIds);
 
             outboundHistModel.setRowCount(0);
             for (Outbound outbound : list) {
-                StockLot lot = stockLotDao.findById(conn, outbound.getLotId());
+                StockLot lot = lotsById.get(outbound.getLotId());
                 Item item = lot != null ? itemMap.get(lot.getItemId()) : null;
                 Partner partner = partnerMap.get(outbound.getPartnerId());
                 outboundHistModel.addRow(new Object[]{

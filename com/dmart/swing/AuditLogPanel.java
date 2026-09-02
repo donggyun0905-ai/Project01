@@ -149,6 +149,12 @@ public class AuditLogPanel extends JPanel implements Refreshable {
             for (AppUser user : appUserDao.findAll(conn)) {
                 userMap.put(user.getUserId(), user);
             }
+            // [최적화] 행마다 stockLotDao.findById()를 따로 부르던 것(페이지당 10번 왕복)을 한 번에.
+            List<Long> lotIds = new ArrayList<>();
+            for (StockChangeLog log : logs) {
+                if (log.getLotId() != null) lotIds.add(log.getLotId());
+            }
+            Map<Long, StockLot> lotsById = stockLotDao.findByIds(conn, lotIds);
 
             logModel.setRowCount(0);
             int startNo = offset;
@@ -156,7 +162,7 @@ public class AuditLogPanel extends JPanel implements Refreshable {
                 StockChangeLog log = logs.get(i);
                 String itemName = "-";
                 String itemNo = "-";
-                StockLot lot = stockLotDao.findById(conn, log.getLotId());
+                StockLot lot = lotsById.get(log.getLotId());
                 if (lot != null) {
                     Item item = itemMap.get(lot.getItemId());
                     if (item != null) {

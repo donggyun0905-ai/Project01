@@ -18,6 +18,7 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.sql.Connection;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -541,10 +542,14 @@ public class TransferPanel extends JPanel implements Refreshable {
                 itemMap.put(item.getItemId(), item);
             }
             Map<Long, String> zoneLabels = buildZoneLabels(conn);
+            // [최적화] 행마다 stockLotDao.findById()를 따로 부르던 것(페이지당 10번 왕복)을 한 번에.
+            List<Long> lotIds = new ArrayList<>();
+            for (StockTransfer t : list) lotIds.add(t.getLotId());
+            Map<Long, StockLot> lotsById = stockLotDao.findByIds(conn, lotIds);
 
             historyModel.setRowCount(0);
             for (StockTransfer t : list) {
-                StockLot lot = stockLotDao.findById(conn, t.getLotId());
+                StockLot lot = lotsById.get(t.getLotId());
                 Item item = lot != null ? itemMap.get(lot.getItemId()) : null;
                 historyModel.addRow(new Object[]{
                         t.getTransferId(), t.getMovedAt(),

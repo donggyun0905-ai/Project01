@@ -26,6 +26,7 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.sql.Connection;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -103,6 +104,27 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
             "블럭을 클릭하면 로트별 수량을 볼 수 있고, 끌어서 다른 구역/창고에 놓으면 이동합니다. "
                     + "마우스 휠로 창고 목록이나 구역 안을 스크롤할 수 있습니다.";
 
+    // [팀원 아이디어] 보기 모드 - 블럭 색을 "분류" 대신 "유통기한 임박도"로 칠하고, 오래 안
+    // 움직인(유령) 재고는 흐리게 보여준다. 두 아이디어를 토글 하나에 같이 묶는다.
+    private enum ViewMode { CATEGORY, EXPIRY }
+    private ViewMode viewMode = ViewMode.CATEGORY;
+    private static final String EXPIRY_HINT =
+            "유통기한 보기: 빨강(만료·D-3) → 주황(D-7) → 노랑(D-30) → 초록(여유). "
+                    + "흐리게 표시된 블럭은 90일 넘게 입고 이후로 움직이지 않은 재고(유령 재고)입니다.";
+    // 유통기한 임박도 4단계 색. 빨강/초록은 기존 NG_BORDER/OK_BORDER와 같은 색이지만, 여기선
+    // "임박도"라는 별개의 의미로 쓰는 거라 이름을 따로 둔다.
+    private static final Color EXPIRY_RED = new Color(0xC0, 0x39, 0x2b);
+    private static final Color EXPIRY_ORANGE = new Color(0xE0, 0x8E, 0x2E);
+    private static final Color EXPIRY_YELLOW = new Color(0xD9, 0xB8, 0x3D);
+    private static final Color EXPIRY_SAFE = new Color(0x34, 0x7A, 0x55);
+    // 팀원이 정한 기준: 90일 넘게 입고 이후로 안 움직인 로트는 "유령 재고"
+    private static final int GHOST_DAYS = 90;
+    private static final float GHOST_ALPHA = 0.35f;
+    // [팀원 아이디어] 창고 꽉 참 예측 - 최근 이 기간 동안의 입고량으로 하루 평균 입고 속도를 구해
+    // "이 속도가 계속되면 며칠 뒤 포화되는지" 추정한다. 출고/이동으로 빠지는 양은 고려하지 않는
+    // 단순 추정(최악의 경우 가정)이다.
+    private static final int SATURATION_WINDOW_DAYS = 14;
+
     // ---- 색 (다른 화면과 같은 톤) ----
     private static final Color CARD_BORDER = new Color(0xec, 0xec, 0xec);
     private static final Color ZONE_BG = new Color(0xf7, 0xf7, 0xf7);
@@ -159,6 +181,32 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
         hintLabel.setForeground(TEXT_MUTED);
         hintLabel.setFont(hintLabel.getFont().deriveFont(Font.PLAIN, 13f));
         bar.add(hintLabel, BorderLayout.CENTER);
+
+        // [팀원 아이디어] 보기 모드 토글 - 다른 화면의 시뮬레이터/자동관리 버튼과 같은 알약 토글 모양.
+        JPanel viewModeArea = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        viewModeArea.setOpaque(false);
+        RoundedButton categoryModeBtn = new RoundedButton("카테고리 보기", ACCENT, Color.WHITE, 14);
+        RoundedButton expiryModeBtn = new RoundedButton("유통기한 보기", new Color(0xe5, 0xe5, 0xe5), new Color(0x55, 0x55, 0x55), 14);
+        Insets pillMargin = new Insets(3, 12, 3, 12);
+        categoryModeBtn.setMargin(pillMargin);
+        expiryModeBtn.setMargin(pillMargin);
+        categoryModeBtn.addActionListener(e -> {
+            viewMode = ViewMode.CATEGORY;
+            categoryModeBtn.setColors(ACCENT, Color.WHITE);
+            expiryModeBtn.setColors(new Color(0xe5, 0xe5, 0xe5), new Color(0x55, 0x55, 0x55));
+            canvas.repaint();
+            refreshIdleHint();
+        });
+        expiryModeBtn.addActionListener(e -> {
+            viewMode = ViewMode.EXPIRY;
+            expiryModeBtn.setColors(EXPIRY_RED, Color.WHITE);
+            categoryModeBtn.setColors(new Color(0xe5, 0xe5, 0xe5), new Color(0x55, 0x55, 0x55));
+            canvas.repaint();
+            refreshIdleHint();
+        });
+        viewModeArea.add(categoryModeBtn);
+        viewModeArea.add(expiryModeBtn);
+        bar.add(viewModeArea, BorderLayout.WEST);
 
         // 품목 검색 + 카테고리 필터 - 찾는 물건이 어느 창고 어느 구역에 있는지 색으로 알려줍니다
         JPanel searchArea = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
@@ -226,7 +274,7 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
         canvas.setFilters(q, category);
 
         if (q.isEmpty() && category == null) {
-            setHint(DEFAULT_HINT, TEXT_MUTED);
+            refreshIdleHint();
             return;
         }
 
@@ -258,13 +306,22 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
         }
     }
 
+    /** 검색/카테고리 필터가 없을 때 안내 문구를 지금 보기 모드에 맞게 되돌립니다. */
+    private void refreshIdleHint() {
+        boolean noFilter = searchField.getText().trim().isEmpty()
+                && "전체".equals(categoryFilterBox.getSelectedItem());
+        if (noFilter) {
+            setHint(viewMode == ViewMode.EXPIRY ? EXPIRY_HINT : DEFAULT_HINT, TEXT_MUTED);
+        }
+    }
+
     private void setHint(String text, Color color) {
         hintLabel.setText(text);
         hintLabel.setForeground(color);
     }
 
     private void resetHintLater() {
-        Timer t = new Timer(4000, e -> setHint(DEFAULT_HINT, TEXT_MUTED));
+        Timer t = new Timer(4000, e -> onFilterChanged());
         t.setRepeats(false);
         t.start();
     }
@@ -309,9 +366,22 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
                     null, null, null, false, 0, 100000);
 
             Map<Long, List<StockLot>> lotsByZone = new HashMap<>();
+            // [팀원 아이디어] 창고 꽉 참 예측용 - 최근 SATURATION_WINDOW_DAYS일 동안 이 구역으로
+            // 입고된 양(로트의 최초 수량 기준). 지금 그 구역에 남아 있는지 여부(부분 출고/이동으로
+            // 줄었을 수 있음)와 무관하게 "그 구역으로 들어온 양"을 보려는 거라 lots 목록과는
+            // 별도로, 이미 조회해 둔 lots에서 한 번 더 걸러 계산한다(추가 조회 없음).
+            LocalDate saturationWindowStart = LocalDate.now().minusDays(SATURATION_WINDOW_DAYS);
+            Map<Long, Integer> recentInboundByZone = new HashMap<>();
             for (StockLot lot : lots) {
                 if (lot.getQuantity() == null || lot.getQuantity() <= 0) continue;
                 lotsByZone.computeIfAbsent(lot.getZoneId(), k -> new ArrayList<>()).add(lot);
+
+                LocalDate inboundDate = lot.getInboundDate();
+                if (inboundDate == null || inboundDate.isBefore(saturationWindowStart)) continue;
+                Integer qty = lot.getInitialQuantity();
+                if (qty == null) qty = lot.getQuantity();
+                if (qty == null || qty <= 0) continue;
+                recentInboundByZone.merge(lot.getZoneId(), qty, Integer::sum);
             }
 
             // [개선] 창고마다 zoneDao.findByWarehouseId()를 따로 부르면 창고 수만큼(현재 10번)
@@ -330,6 +400,7 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
                     ZoneBox zb = new ZoneBox();
                     zb.zone = zone;
                     zb.parent = box;
+                    zb.recentInboundQty = recentInboundByZone.getOrDefault(zone.getZoneId(), 0);
 
                     // 같은 품목의 로트들을 블럭 하나로 합칩니다
                     Map<Long, ItemGroup> byItem = new HashMap<>();
@@ -411,11 +482,25 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
         int scrollY;
         int contentHeight;
         int maxScroll;
+        // [팀원 아이디어] 최근 SATURATION_WINDOW_DAYS일 동안 이 구역으로 입고된 양(창고 꽉 참 예측용).
+        int recentInboundQty;
 
         double ratio() {
             Integer cap = zone.getCapacity();
             if (cap == null || cap == 0) return 0;
             return Math.min(1.0, used / (double) cap);
+        }
+
+        /** 최근 입고 속도가 계속된다면 며칠 뒤 용량을 넘는지 (출고/이동으로 빠지는 양은 고려하지
+         * 않는 단순 추정 - 예측 불가면 null, 이미 꽉 찼으면 0). */
+        Integer daysToSaturation() {
+            Integer cap = zone.getCapacity();
+            if (cap == null || cap <= 0) return null;
+            int remaining = cap - used;
+            if (remaining <= 0) return 0;
+            if (recentInboundQty <= 0) return null;
+            double dailyRate = recentInboundQty / (double) SATURATION_WINDOW_DAYS;
+            return (int) Math.ceil(remaining / dailyRate);
         }
     }
 
@@ -840,7 +925,8 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
         private static final int WH_PAD = 16;
         private static final int WH_HEADER_H = 30;
         private static final int ZONE_GAP = 12;
-        private static final int ZONE_HEADER_H = 40;
+        // [팀원 아이디어] 창고 꽉 참 예측 문구 한 줄이 늘어나 40 -> 52.
+        private static final int ZONE_HEADER_H = 52;
         private static final int ZONE_PAD = 10;
         private static final int BLOCK_H = 28;
         private static final int BLOCK_GAP = 6;
@@ -1062,6 +1148,18 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
                     g2.fillRoundRect(bxx, byy, bw, bh, bh, bh);
                     g2.setColor(Color.WHITE);
                     g2.drawString(badge, bxx + 7, byy + bh - 5);
+                } else if (viewMode == ViewMode.EXPIRY) {
+                    // [팀원 아이디어] 미니맵에 창고별 위험(빨강 등급) 재고 개수 배지.
+                    int risk = riskCount(b);
+                    String badge = "위험 " + risk;
+                    g2.setFont(getFont().deriveFont(Font.BOLD, 11f));
+                    FontMetrics bfm = g2.getFontMetrics();
+                    int bw = bfm.stringWidth(badge) + 14, bh = 18;
+                    int bxx = r.x + r.width - 12 - bw, byy = r.y + r.height - 8 - bh;
+                    g2.setColor(risk > 0 ? EXPIRY_RED : new Color(0xcc, 0xcc, 0xcc));
+                    g2.fillRoundRect(bxx, byy, bw, bh, bh, bh);
+                    g2.setColor(Color.WHITE);
+                    g2.drawString(badge, bxx + 7, byy + bh - 5);
                 } else {
                     int bx = r.x + r.width - 14;
                     int barW = 26, barH = 5;
@@ -1187,6 +1285,16 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
                     g2.setColor(ratioColor(ratio));
                     g2.fillRoundRect(r.x + ZONE_PAD, barY, fw, 5, 5, 5);
                 }
+
+                // [팀원 아이디어] 창고 꽉 참 예측 - 용량 막대 바로 아래에 "이 속도면 N일 뒤 포화".
+                // 너무 먼 미래(60일 넘게)면 알림 가치가 낮아 표시하지 않는다.
+                Integer daysToFull = zb.daysToSaturation();
+                if (daysToFull != null && daysToFull <= 60) {
+                    String satText = daysToFull == 0 ? "포화 상태" : "이 속도면 " + daysToFull + "일 뒤 포화 예상";
+                    g2.setFont(getFont().deriveFont(Font.PLAIN, 10.5f));
+                    g2.setColor(daysToFull <= 7 ? NG_BORDER : TEXT_MUTED);
+                    g2.drawString(satText, r.x + ZONE_PAD, barY + 17);
+                }
             }
 
             // [개선] 스크롤된 블럭이 헤더/진행바나 카드 바깥으로 삐져나와 보이지 않게, 블럭을
@@ -1224,11 +1332,19 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
         private void drawBlock(Graphics2D g2, ItemGroup g, int x, int y) {
             boolean searching = hasActiveFilter();
             boolean hit = searching && matches(g);
+            // [팀원 아이디어] 유령 재고 - 유통기한 보기 모드에서, 90일 넘게 입고 이후로 안 움직인
+            // 재고는 흐리게 그려서 "저건 죽은 재고"가 바로 눈에 띄게 한다.
+            boolean ghost = viewMode == ViewMode.EXPIRY && isGhostStale(g);
 
             Composite old = g2.getComposite();
+            float alpha = 1f;
             if (searching && !hit) {
                 // 찾는 물건이 아니면 흐리게 - 찾는 것만 도드라져 보이게 합니다
-                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.25f));
+                alpha = 0.25f;
+            }
+            if (ghost) alpha = Math.min(alpha, GHOST_ALPHA);
+            if (alpha < 1f) {
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
             }
 
             g2.setColor(blockColor(g));
@@ -1263,8 +1379,52 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
         }
 
         private Color blockColor(ItemGroup g) {
+            if (viewMode == ViewMode.EXPIRY) {
+                return expiryColorForGroup(g);
+            }
             String key = normalizeCategory(g.item == null ? null : g.item.getCategory());
             return categoryColors.getOrDefault(key, BLOCK_PALETTE[0]);
+        }
+
+        /** [팀원 아이디어] 유통기한 보기 - 블럭 안 로트 중 가장 임박한(가장 이른) 유통기한 기준으로
+         * 4단계 색을 고른다. 유통기한이 아예 없는 품목(비perishable)은 "여유"로 취급한다. */
+        private Color expiryColorForGroup(ItemGroup g) {
+            LocalDate soonest = null;
+            for (StockLot lot : g.lots) {
+                LocalDate exp = lot.getExpiryDate();
+                if (exp == null) continue;
+                if (soonest == null || exp.isBefore(soonest)) soonest = exp;
+            }
+            if (soonest == null) return EXPIRY_SAFE;
+            long daysLeft = ChronoUnit.DAYS.between(LocalDate.now(), soonest);
+            if (daysLeft <= 3) return EXPIRY_RED;
+            if (daysLeft <= 7) return EXPIRY_ORANGE;
+            if (daysLeft <= 30) return EXPIRY_YELLOW;
+            return EXPIRY_SAFE;
+        }
+
+        /** [팀원 아이디어] 유령 재고 - 블럭 안 로트 중 가장 최근 입고일 기준으로도 GHOST_DAYS일이
+         * 넘게 지났으면(즉 이 블럭의 로트 전부가 그만큼 오래됐으면) 유령 재고로 본다. */
+        private boolean isGhostStale(ItemGroup g) {
+            LocalDate latestInbound = null;
+            for (StockLot lot : g.lots) {
+                LocalDate d = lot.getInboundDate();
+                if (d == null) continue;
+                if (latestInbound == null || d.isAfter(latestInbound)) latestInbound = d;
+            }
+            if (latestInbound == null) return false;
+            return ChronoUnit.DAYS.between(latestInbound, LocalDate.now()) >= GHOST_DAYS;
+        }
+
+        /** [팀원 아이디어] 이 창고 안에 "위험"(빨강 - 만료/D-3) 등급인 품목 블럭이 몇 개인지. */
+        int riskCount(WarehouseBox box) {
+            int c = 0;
+            for (ZoneBox zb : box.zones) {
+                for (ItemGroup g : zb.groups) {
+                    if (expiryColorForGroup(g) == EXPIRY_RED) c++;
+                }
+            }
+            return c;
         }
 
         private Color ratioColor(double ratio) {
