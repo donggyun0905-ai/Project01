@@ -244,7 +244,7 @@ public class MainFrame extends JFrame {
             // 테스트용으로 쓰는 "축구공" 품목의 로트/이력만 좁게 정리하는 버튼으로 바꿨다 -
             // 원래 있던 전체 초기화(재고/입출고/알림/승인 전부를 기준점으로 되돌림)는 다른 품목
             // 재고까지 다 날아가서 시연 직전엔 너무 위험하다는 판단.
-            RoundedButton resetBtn = new RoundedButton("축구공 로트 삭제", UiUtil.COLOR_SYS_RESET_BG, UiUtil.COLOR_SYS_RESET_FG, 14);
+            RoundedButton resetBtn = new RoundedButton("축구공 삭제", UiUtil.COLOR_SYS_RESET_BG, UiUtil.COLOR_SYS_RESET_FG, 14);
             resetBtn.setMargin(pillMargin);
             resetBtn.addActionListener(e -> deleteTestItemLots());
 
@@ -383,23 +383,25 @@ public class MainFrame extends JFrame {
         btn.setColors(on ? UiUtil.COLOR_SYS_TOGGLE_ON : UiUtil.COLOR_BTN_GRAY, on ? Color.WHITE : new Color(0x555555));
     }
 
-    // [기능] 시연 중 자유롭게 입고/출고/이동해보는 테스트용 품목("축구공")의 로트와 그
-    // 이력(감사로그/출고/이동/반품폐기)만 지운다. 되돌릴 수 없어 한 번 더 확인한다.
+    // [기능] 시연 중 자유롭게 입고/출고/이동해보는 테스트용 품목("축구공")을 로트/이력은
+    // 물론 품목 자체까지 지워서 아예 없던 걸로 만든다. 되돌릴 수 없어 한 번 더 확인한다.
     private static final String TEST_ITEM_NAME = "축구공";
 
     private void deleteTestItemLots() {
         boolean ok = UiUtil.confirm(this,
-                "테스트용 품목 \"" + TEST_ITEM_NAME + "\"의 재고 로트와 그 이력을 전부 지웁니다.\n"
+                "테스트용 품목 \"" + TEST_ITEM_NAME + "\"을(를) 재고/이력은 물론 품목 자체까지 완전히 지웁니다.\n"
                         + "되돌릴 수 없습니다. 계속할까요?");
         if (!ok) {
             return;
         }
         try {
-            int deleted = dataResetService.deleteItemLots(TEST_ITEM_NAME);
-            for (String topic : new String[]{"inbound", "outbound", "transfer", "disposal", "auditLog"}) {
+            boolean deleted = dataResetService.deleteItemCompletely(TEST_ITEM_NAME);
+            for (String topic : new String[]{"inbound", "outbound", "transfer", "disposal", "auditLog", "item", "alert", "approval"}) {
                 AppEventBus.publish(topic);
             }
-            UiUtil.showInfo(this, "\"" + TEST_ITEM_NAME + "\" 로트 " + deleted + "개를 지웠습니다.");
+            UiUtil.showInfo(this, deleted
+                    ? "\"" + TEST_ITEM_NAME + "\" 품목을 완전히 지웠습니다."
+                    : "\"" + TEST_ITEM_NAME + "\" 품목을 찾을 수 없습니다(이미 지워졌을 수 있습니다).");
         } catch (Exception e) {
             UiUtil.showError(this, e);
         }
