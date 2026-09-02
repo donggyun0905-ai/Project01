@@ -1,5 +1,8 @@
 package com.dmart.swing;
 
+import com.dmart.dto.Item;
+import com.dmart.dto.Warehouse;
+
 import javax.swing.*;
 import java.awt.*;
 
@@ -12,11 +15,11 @@ public class InOutManagementPanel extends JPanel implements Refreshable {
     private final WarehouseZonePanel warehouseZonePanel = new WarehouseZonePanel();
     private final TransferPanel transferPanel = new TransferPanel();
     private final AuditLogPanel auditLogPanel = new AuditLogPanel();
+    private final JTabbedPane tabs = new JTabbedPane();
 
     public InOutManagementPanel() {
         setLayout(new BorderLayout());
 
-        JTabbedPane tabs = new JTabbedPane();
         tabs.addTab("품목 관리", itemPanel);
         tabs.addTab("입출고 등록", inOutPanel);
         tabs.addTab("창고 및 구역 관리", warehouseZonePanel);
@@ -27,6 +30,7 @@ public class InOutManagementPanel extends JPanel implements Refreshable {
     }
 
     // MainFrame 위쪽 "새로고침" 버튼 - 지금 이 화면이 보이는 중이면 5개 탭을 전부 다시 불러온다.
+    // 창고 배치도는 이제 탭이 아니라 MainFrame 상단의 별도 창 버튼으로 옮겨서 여기서 다루지 않는다.
     @Override
     public void refreshAll() {
         itemPanel.refreshAll();
@@ -34,5 +38,17 @@ public class InOutManagementPanel extends JPanel implements Refreshable {
         warehouseZonePanel.refreshAll();
         transferPanel.refreshAll();
         auditLogPanel.refreshAll();
+    }
+
+    // 창고 배치도(별도 창)의 우클릭 메뉴에서 MainFrame을 거쳐 여기로 들어온다 - "입출고 등록"
+    // 탭으로 바꾸고, 그 안의 출고/입고 탭까지 이어서 골라 준다.
+    public void focusOutboundFor(Item item) {
+        tabs.setSelectedComponent(inOutPanel);
+        inOutPanel.openOutboundFor(item);
+    }
+
+    public void focusInboundFor(Warehouse warehouse) {
+        tabs.setSelectedComponent(inOutPanel);
+        inOutPanel.openInboundFor(warehouse);
     }
 }

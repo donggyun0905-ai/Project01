@@ -109,14 +109,21 @@ public class TransferPanel extends JPanel implements Refreshable {
         itemPicker.selectFirstIfEmpty();
 
         refreshHistory();
-        AppEventBus.subscribe("transfer", this::refreshHistory);
+        // [버그 수정] "transfer" 이벤트에 이력 새로고침만 걸려 있어서, 방금 이 화면에서 재고를
+        // 옮긴 뒤 바로 다시 옮기려 하면 "출발 창고" 드롭박스가 옮기기 전 상태로 남아 있었다
+        // (이미 다 빠져나가 재고가 없어진 창고를 그대로 보여줘서, 그 창고를 낀 채로 [자동 추천
+        // 및 확인]을 누르면 "이 구역에는 옮길 수 있는 재고가 없습니다"로 막혔다). 입고/출고/
+        // 폐기도 같은 이유로 이 목록을 낡게 만들 수 있어 다 같이 구독한다.
+        for (String topic : new String[]{"inbound", "outbound", "transfer", "disposal"}) {
+            AppEventBus.subscribe(topic, this::onStockChanged);
+        }
         // [버그 수정] 품목 관리에서 품목을 추가/수정/비활성해도 이 화면의 품목명 후보는
         // 한 번도 다시 안 불러와서 앱을 껐다 켜야 반영됐다 (InOutPanel엔 이미 있던
         // reloadItemPickers()와 같은 이유의 같은 수정).
         AppEventBus.subscribe("item", itemPicker::reload);
         // movement.html의 connectRealtimeRefresh(refreshIfIdle,["transfer"]) + setInterval(...,5000) -
         // 다른 컴퓨터/다른 실행에서 생긴 변화도 놓치지 않도록 5초 폴링을 안전망으로 같이 둔다.
-        new Timer(5000, e -> { if (isShowing()) { itemPicker.reload(); refreshHistory(); } }).start();
+        new Timer(5000, e -> { if (isShowing()) { itemPicker.reload(); onStockChanged(); } }).start();
     }
 
 
@@ -146,6 +153,18 @@ public class TransferPanel extends JPanel implements Refreshable {
         pickZoneMatchingUnit(toZoneBox, item.getUnit());
         updateFromAvailLabel();
         updateToRoomLabel();
+    }
+
+    // 입고/출고/이동/폐기로 재고가 바뀔 때마다(내 조작이든 다른 컴퓨터/폴링이든) - 지금 고른
+    // 품목의 "출발 창고" 목록(재고가 있는 창고만)과 출발/도착 재고 안내를 최신 상태로 다시
+    // 맞춘다. 품목을 아직 안 골랐으면(itemPicker가 비어 있으면) 손댈 게 없다.
+    private void onStockChanged() {
+        refreshHistory();
+        // onItemChanged()와 할 일이 완전히 같다(품목을 다시 고른 것처럼 창고/구역/안내를 다시
+        // 맞춘다) - 나중에 그 로직이 바뀔 때 한 곳만 고치면 되게 그대로 재사용한다.
+        if (itemPicker.getSelectedItem() != null) {
+            onItemChanged();
+        }
     }
 
     // 이 품목의 정상 재고가 있는 창고만, 창고별 합계 수량과 함께 출발 창고 드롭박스에 채운다.

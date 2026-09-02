@@ -335,6 +335,22 @@ public class UiUtil {
     // 값) - JTabbedPane의 네이티브 탭 대신, 이 알약(둥근 사각) 버튼 줄 + CardLayout으로 html과
     // 완전히 같은 모양을 낸다(비활성 #f5f5f5/#555, 활성 파란 배경/흰 글자).
     public static JComponent buildTabSwitcher(String[] labels, JComponent[] pages) {
+        return buildTabSwitcherEx(labels, pages).component;
+    }
+
+    /** buildTabSwitcher가 만든 화면을 밖에서(다른 화면의 우클릭 메뉴 등에서) 골라 바꿀 수 있어야
+     *  할 때 씁니다 - select(index)를 부르면 그 탭 버튼을 직접 누른 것과 똑같이 동작합니다. */
+    public static final class TabSwitcher {
+        public final JComponent component;
+        private final Runnable[] selectors;
+        private TabSwitcher(JComponent component, Runnable[] selectors) {
+            this.component = component;
+            this.selectors = selectors;
+        }
+        public void select(int index) { selectors[index].run(); }
+    }
+
+    public static TabSwitcher buildTabSwitcherEx(String[] labels, JComponent[] pages) {
         JPanel wrap = new JPanel(new BorderLayout(0, 14));
         wrap.setOpaque(false);
 
@@ -346,17 +362,20 @@ public class UiUtil {
         content.setOpaque(false);
 
         RoundedButton[] buttons = new RoundedButton[labels.length];
+        Runnable[] selectors = new Runnable[labels.length];
         for (int i = 0; i < labels.length; i++) {
             content.add(pages[i], labels[i]);
             RoundedButton btn = new RoundedButton(labels[i], Color.WHITE, Color.BLACK, 8);
             int idx = i;
-            btn.addActionListener(e -> {
+            Runnable select = () -> {
                 cardLayout.show(content, labels[idx]);
                 for (int j = 0; j < buttons.length; j++) {
                     styleTabButton(buttons[j], j == idx);
                 }
-            });
+            };
+            btn.addActionListener(e -> select.run());
             buttons[i] = btn;
+            selectors[i] = select;
             tabRow.add(btn);
         }
         for (int i = 0; i < buttons.length; i++) {
@@ -365,7 +384,7 @@ public class UiUtil {
 
         wrap.add(tabRow, BorderLayout.NORTH);
         wrap.add(content, BorderLayout.CENTER);
-        return wrap;
+        return new TabSwitcher(wrap, selectors);
     }
 
     private static void styleTabButton(RoundedButton btn, boolean active) {

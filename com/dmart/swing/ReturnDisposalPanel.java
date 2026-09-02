@@ -206,9 +206,19 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
         return zoneLabels;
     }
 
+    // [개선] 창고 배치도 화면의 우클릭 메뉴("반품/폐기 등록")에서 부른다 - 품목(과 있으면 로트)을
+    // 미리 고른 채로 이 등록창을 연다.
+    public void openRegisterDialogFor(Item item, Long lotId) {
+        openRegisterDialog(item, lotId);
+    }
+
+    private void openRegisterDialog() {
+        openRegisterDialog(null, null);
+    }
+
     // return.html의 #registerModal - 구분(반품/폐기)에 따라 처리 유형 목록이 바뀌고, 품목을 고르면
     // 로트 표가 뜬다. 체크박스로 로트를 여러 개 고르고, 로트별 처리 수량을 입력해 한 번에 등록한다.
-    private void openRegisterDialog() {
+    private void openRegisterDialog(Item preselectedItem, Long preselectedLotId) {
         // return.html #registerModal(width:1100) - 구분/처리유형/품목명/품목번호/처리일이
         // 한 줄(5칸 그리드)로 나란히 오고, 그 아래 로트 선택 표가 이어진다.
         JDialog dialog = UiUtil.createHtmlDialog(this, "반품/폐기 등록");
@@ -297,9 +307,22 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
             Item selected = itemPicker.getSelectedItem();
             itemCodeLabel.setText(selected == null ? " " : "ITEM-" + selected.getItemId());
             loadLotsIntoModel(selected, lotModel);
+            // 특정 로트를 콕 집어 들어온 경우(창고 배치도의 로트 상세에서) - 그 로트를 미리 체크해 둔다.
+            if (preselectedLotId != null) {
+                for (int r = 0; r < lotModel.getRowCount(); r++) {
+                    if (((Number) lotModel.getValueAt(r, LOT_COL_LOT_ID)).longValue() == preselectedLotId) {
+                        lotModel.setValueAt(Boolean.TRUE, r, LOT_COL_PICKED);
+                        break;
+                    }
+                }
+            }
             updatePickedLabel(lotModel, pickedLabel);
         });
-        itemPicker.selectFirstIfEmpty();
+        if (preselectedItem != null) {
+            itemPicker.setSelectedItem(preselectedItem);
+        } else {
+            itemPicker.selectFirstIfEmpty();
+        }
 
         // return.html .form-group.full-width - 다른 라벨과 같은 굵은 16px 라벨, 표는 그 아래.
         JLabel lotAreaLabel = new JLabel("로트 선택 (여러 개 가능)");

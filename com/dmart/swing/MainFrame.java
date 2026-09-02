@@ -3,6 +3,8 @@ package com.dmart.swing;
 import com.dmart.dao.ApprovalDao;
 import com.dmart.dao.SystemToggleDao;
 import com.dmart.db.DBConnection;
+import com.dmart.dto.Item;
+import com.dmart.dto.Warehouse;
 import com.dmart.service.DataResetService;
 import com.dmart.swing.panels.AlertPanel;
 import com.dmart.swing.panels.SettingGroupPanel;
@@ -37,7 +39,6 @@ public class MainFrame extends JFrame {
         refreshNavHighlight();
     });
     private final InOutManagementPanel inOutManagementPanel = new InOutManagementPanel();
-    private final WarehouseMapPanel warehouseMapPanel = new WarehouseMapPanel();
     private final ReturnDisposalPanel returnDisposalPanel = new ReturnDisposalPanel();
     // 팀원 담당 화면(알림/통계/설정 및 권한 관리) - settingGroupPanel을 먼저 만들어야
     // alertPanel의 "승인 관리로 이동" 콜백이 그 안의 showApprovalTab을 참조할 수 있다.
@@ -51,6 +52,12 @@ public class MainFrame extends JFrame {
     private RoundedButton simulatorBtn;
     private RoundedButton autoManageBtn;
     private Badge waitBadgeLabel;
+
+    // 창고 배치도 - 탭 안에 가둬 두면 다른 화면(입출고 등록 등)을 보는 동안은 안 보여서,
+    // 여러 모니터/창을 쓰듯 옆에 띄워 두고 계속 지켜볼 수 있게 별도 창으로 연다. 버튼을 다시
+    // 누르면(이미 떠 있으면) 새로 만들지 않고 그 창을 앞으로 가져오기만 한다.
+    private WarehouseMapPanel warehouseMapPanel;
+    private JFrame warehouseMapWindow;
 
     public MainFrame() {
         super("DOWN MART - " + Session.getUser().getName() + "님");
@@ -70,7 +77,6 @@ public class MainFrame extends JFrame {
         add(rightWrap, BorderLayout.CENTER);
 
         contentPanel.add(dashboardPanel, "dashboard");
-        contentPanel.add(warehouseMapPanel, "warehouse-map");
         contentPanel.add(inOutManagementPanel, "inout-management");
         contentPanel.add(returnDisposalPanel, "return");
         contentPanel.add(alertPanel, "alert");
@@ -91,7 +97,6 @@ public class MainFrame extends JFrame {
         sidebar.add(buildLogo());
 
         sidebar.add(navButton("메인 화면", "dashboard"));
-        sidebar.add(navButton("실시간 창고 맵", "warehouse-map"));
         sidebar.add(navButton("입출고 관리", "inout-management"));
         sidebar.add(navButton("반품 및 폐기 관리", "return"));
         sidebar.add(navButton("알림", "alert"));
@@ -176,9 +181,25 @@ public class MainFrame extends JFrame {
     // 웹 버전 오른쪽 위 user-bar(js/common.js drawUserBar())를 옮김 - 관리자면 시뮬레이터/
     // 자동관리/데이터초기화 버튼, 역할 배지(관리자/담당자), "OOO님 환영합니다".
     private JComponent buildUserBar() {
-        JPanel bar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 8));
+        JPanel bar = new JPanel(new BorderLayout());
         bar.setBackground(Color.WHITE);
         bar.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(0xdddddd)));
+
+        // 창고 배치도 - 탭 전환이 아니라 크기 조절 가능한 별도 창으로 띄운다(여러 화면을 동시에
+        // 보고 싶을 때를 위해). 다른 버튼들과 같은 줄에 있지만 반대쪽(맨 왼쪽, 사이드바 로고
+        // 바로 옆)에 따로 둬서 "이 줄의 나머지와는 다른, 별도 창을 여는 버튼"이라는 걸
+        // 위치로도 드러낸다 - 색도 창고 관련 화면(창고 및 구역 관리)과 같은 계열로 맞춘다.
+        JPanel leftArea = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 8));
+        leftArea.setOpaque(false);
+        RoundedButton warehouseMapBtn = new RoundedButton("창고 배치도", UiUtil.COLOR_BTN_WAREHOUSE, Color.WHITE, 14);
+        warehouseMapBtn.setMargin(new Insets(3, 14, 3, 14));
+        warehouseMapBtn.addActionListener(e -> toggleWarehouseMapWindow());
+        leftArea.add(warehouseMapBtn);
+        bar.add(leftArea, BorderLayout.WEST);
+
+        JPanel rightArea = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 8));
+        rightArea.setOpaque(false);
+        bar.add(rightArea, BorderLayout.CENTER);
 
         // 화면마다 따로 있던 새로고침 버튼들을 없애고, 여기 하나로 - 지금 보이는 화면만 다시 불러온다.
         JButton screenRefreshBtn = new JButton("새로고침");
@@ -186,7 +207,7 @@ public class MainFrame extends JFrame {
         // 작은 알약 모양 상단바 버튼들만 유난히 커 보인다 - 원래 크기(FlatLaf 기본값)로 되돌린다.
         screenRefreshBtn.setMargin(new Insets(2, 14, 2, 14));
         screenRefreshBtn.addActionListener(e -> refreshCurrentScreen());
-        bar.add(screenRefreshBtn);
+        rightArea.add(screenRefreshBtn);
 
         if (Session.isAdmin()) {
             // css .wait-badge - 배경 있는 알약(pill) 모양 배지. 0건이면 안 보이게(setVisible)
@@ -203,7 +224,7 @@ public class MainFrame extends JFrame {
                     refreshNavHighlight();
                 }
             });
-            bar.add(waitBadgeLabel);
+            rightArea.add(waitBadgeLabel);
             refreshWaitBadge();
             AppEventBus.subscribe("approval", this::refreshWaitBadge);
             new Timer(5000, e -> refreshWaitBadge()).start();
@@ -224,9 +245,9 @@ public class MainFrame extends JFrame {
             resetBtn.setMargin(pillMargin);
             resetBtn.addActionListener(e -> resetSystemData());
 
-            bar.add(simulatorBtn);
-            bar.add(autoManageBtn);
-            bar.add(resetBtn);
+            rightArea.add(simulatorBtn);
+            rightArea.add(autoManageBtn);
+            rightArea.add(resetBtn);
 
             refreshToggleButtons();
         }
@@ -236,13 +257,74 @@ public class MainFrame extends JFrame {
         Badge roleBadge = new Badge(admin ? "관리자" : "담당자",
                 admin ? UiUtil.COLOR_PRIMARY : UiUtil.COLOR_BTN_GRAY,
                 admin ? Color.WHITE : new Color(0x555555));
-        bar.add(roleBadge);
+        rightArea.add(roleBadge);
 
         JLabel welcome = new JLabel(Session.getUser().getName() + "님 환영합니다");
         welcome.setFont(welcome.getFont().deriveFont(Font.BOLD));
-        bar.add(welcome);
+        rightArea.add(welcome);
 
         return bar;
+    }
+
+    // 처음 누르면 창을 만들고, 그 다음부터는 같은 창을 껐다 켰다 한다 - 매번 새로 만들면
+    // 창 위치/크기를 사용자가 맞춰 놓은 게 버튼 누를 때마다 초기화돼 버린다. 이미 떠 있는데
+    // (다른 창에 가려서) 또 눌렀다면 새로고침 후 앞으로 가져오기만 한다.
+    private void toggleWarehouseMapWindow() {
+        if (warehouseMapWindow == null) {
+            // 창고 배치도의 우클릭 메뉴(출고/반품·폐기/입고 등록)는 여기서 처리하지 않고, 이미
+            // 있는 화면(입출고 등록, 반품 및 폐기 관리)을 그 품목/창고가 골라진 채로 열어 준다 -
+            // 창고 배치도는 별도 창이라 MainFrame의 도움 없이는 다른 카드로 전환할 수 없다.
+            warehouseMapPanel = new WarehouseMapPanel(new WarehouseMapPanel.StockActionListener() {
+                @Override
+                public void openOutbound(Item item) {
+                    bringMainToFront();
+                    activeCardName = "inout-management";
+                    cardLayout.show(contentPanel, "inout-management");
+                    refreshNavHighlight();
+                    inOutManagementPanel.focusOutboundFor(item);
+                }
+
+                @Override
+                public void openReturnDisposal(Item item, Long lotId) {
+                    bringMainToFront();
+                    activeCardName = "return";
+                    cardLayout.show(contentPanel, "return");
+                    refreshNavHighlight();
+                    returnDisposalPanel.openRegisterDialogFor(item, lotId);
+                }
+
+                @Override
+                public void openInbound(Warehouse warehouse) {
+                    bringMainToFront();
+                    activeCardName = "inout-management";
+                    cardLayout.show(contentPanel, "inout-management");
+                    refreshNavHighlight();
+                    inOutManagementPanel.focusInboundFor(warehouse);
+                }
+            });
+            warehouseMapWindow = new JFrame("창고 배치도");
+            warehouseMapWindow.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+            warehouseMapWindow.add(warehouseMapPanel);
+            warehouseMapWindow.setSize(1200, 780);
+            warehouseMapWindow.setMinimumSize(new Dimension(900, 560));
+            warehouseMapWindow.setLocationRelativeTo(this);
+        }
+        if (warehouseMapWindow.isVisible()) {
+            warehouseMapWindow.setState(Frame.NORMAL);
+            warehouseMapWindow.toFront();
+            warehouseMapWindow.requestFocus();
+        } else {
+            warehouseMapPanel.refreshAll();
+            warehouseMapWindow.setVisible(true);
+        }
+    }
+
+    // 우클릭 메뉴로 다른 화면을 열 때 - 별도 창(창고 배치도)에 가려 안 보일 수 있으니 메인
+    // 창을 앞으로 가져온다.
+    private void bringMainToFront() {
+        setState(Frame.NORMAL);
+        toFront();
+        requestFocus();
     }
 
     // 지금 CardLayout에서 보이는 화면 하나만 찾아 다시 불러온다 (숨겨진 카드는 isVisible()==false).

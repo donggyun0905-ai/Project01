@@ -55,6 +55,10 @@ public class InOutPanel extends JPanel implements Refreshable {
     // 지역변수가 아니라 필드로 들고 있는다 (refreshAll에서 reloadItemPickers()로 갱신).
     private ItemPickerField inboundItemPicker;
     private ItemPickerField outboundItemPicker;
+    // [개선] 창고 배치도의 우클릭 메뉴("입고 등록")에서 창고를 미리 골라 둘 수 있게 필드로 든다.
+    private JComboBox<WarehouseOption> inboundWarehouseBox;
+    // 입고/출고 탭 전환 - 창고 배치도의 우클릭 메뉴에서 탭을 직접 눌러 준다.
+    private UiUtil.TabSwitcher tabSwitcher;
 
     // 입고 이력
     // "입고 수량"은 로트 생성 시점의 최초 수량(initial_quantity)이라 이동/출고 후에도 안 변하고,
@@ -91,8 +95,9 @@ public class InOutPanel extends JPanel implements Refreshable {
         setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         add(UiUtil.pageTitle("입출고 등록"), BorderLayout.NORTH);
-        add(UiUtil.buildTabSwitcher(new String[]{"입고", "출고"},
-                new JComponent[]{buildInboundTab(), buildOutboundTab()}), BorderLayout.CENTER);
+        tabSwitcher = UiUtil.buildTabSwitcherEx(new String[]{"입고", "출고"},
+                new JComponent[]{buildInboundTab(), buildOutboundTab()});
+        add(tabSwitcher.component, BorderLayout.CENTER);
 
         refreshInboundHistory();
         refreshOutboundHistory();
@@ -144,6 +149,7 @@ public class InOutPanel extends JPanel implements Refreshable {
         JTextField qtyField = new JTextField();
         JComboBox<String> unitBox = new JComboBox<>(new String[]{"EA", "BOX", "PALLET"});
         JComboBox<WarehouseOption> warehouseBox = new JComboBox<>();
+        this.inboundWarehouseBox = warehouseBox;
         JComboBox<PartnerOption> supplierBox = new JComboBox<>();
         JTextField dateField = new DatePickerField(LocalDate.now().toString(), 10);
         JLabel roomLabel = new JLabel(" ");
@@ -820,6 +826,29 @@ public class InOutPanel extends JPanel implements Refreshable {
             map.put(idFn.apply(t), t);
         }
         return map;
+    }
+
+    // [개선] 창고 배치도 화면의 우클릭 메뉴("출고 등록")에서 부른다 - 출고 탭으로 바꾸고 품목을
+    // 미리 채운다. 출고는 창고/구역을 따로 고르지 않고 전체 재고에서 FIFO/FEFO로 추천하므로
+    // 품목만 채우면 된다.
+    public void openOutboundFor(Item item) {
+        tabSwitcher.select(1);
+        outboundItemPicker.setSelectedItem(item);
+    }
+
+    // [개선] 창고 배치도 화면의 우클릭 메뉴("입고 등록")에서 부른다 - 입고 탭으로 바꾸고
+    // 창고를 미리 골라 둔다. 품목은 아직 안 정해졌으니 그대로 둔다(사용자가 고른다).
+    public void openInboundFor(Warehouse warehouse) {
+        tabSwitcher.select(0);
+        if (warehouse == null || inboundWarehouseBox == null) {
+            return;
+        }
+        for (int i = 0; i < inboundWarehouseBox.getItemCount(); i++) {
+            if (inboundWarehouseBox.getItemAt(i).warehouse.getWarehouseId().equals(warehouse.getWarehouseId())) {
+                inboundWarehouseBox.setSelectedIndex(i);
+                break;
+            }
+        }
     }
 
     /** 품목 관리에서 추가/수정한 내용이 입고·출고 양쪽 입력칸에 바로 반영되게 다시 불러옵니다 */
