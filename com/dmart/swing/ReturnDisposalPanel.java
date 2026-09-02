@@ -3,12 +3,14 @@ package com.dmart.swing;
 import com.dmart.dao.ItemDao;
 import com.dmart.dao.ReturnDisposalDao;
 import com.dmart.dao.StockLotDao;
+import com.dmart.dao.UserWarehouseDao;
 import com.dmart.dao.WarehouseDao;
 import com.dmart.dao.ZoneDao;
 import com.dmart.db.DBConnection;
 import com.dmart.dto.Item;
 import com.dmart.dto.ReturnDisposal;
 import com.dmart.dto.StockLot;
+import com.dmart.dto.UserWarehouse;
 import com.dmart.dto.Warehouse;
 import com.dmart.dto.Zone;
 import com.dmart.service.ReturnDisposalService;
@@ -43,6 +45,7 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
     private final ZoneDao zoneDao = new ZoneDao();
     private final WarehouseDao warehouseDao = new WarehouseDao();
     private final StockLotDao stockLotDao = new StockLotDao();
+    private final UserWarehouseDao userWarehouseDao = new UserWarehouseDao();
     private final ReturnDisposalDao returnDisposalDao = new ReturnDisposalDao();
     private final ReturnDisposalService returnDisposalService = new ReturnDisposalService();
 
@@ -149,10 +152,11 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
             LocalDate from = parseDateOrNull(fromField.getText());
             LocalDate to = parseDateOrNull(toField.getText());
 
-            int total = returnDisposalDao.count(conn, null, type, category, keyword, from, to);
+            List<Long> allowed = allowedWarehouseIds(conn);
+            int total = returnDisposalDao.count(conn, null, type, category, keyword, from, to, allowed);
             pager.clampToTotal(total);
             int offset = (pager.page - 1) * PAGE_SIZE;
-            List<ReturnDisposal> list = returnDisposalDao.findPage(conn, null, type, category, keyword, from, to, offset, PAGE_SIZE);
+            List<ReturnDisposal> list = returnDisposalDao.findPage(conn, null, type, category, keyword, from, to, allowed, offset, PAGE_SIZE);
 
             Map<Long, Item> itemMap = new HashMap<>();
             for (Item item : itemDao.findAll(conn)) {
@@ -195,6 +199,19 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    // [기능] 권한 관리(RolesPanel) 표의 "담당 창고의 로트만 처리할 수 있습니다" -
+    // WarehouseZonePanel/WarehouseMapPanel과 같은 기준(USER_WAREHOUSE). 관리자는 null(전체).
+    private List<Long> allowedWarehouseIds(Connection conn) throws java.sql.SQLException {
+        if (Session.isAdmin()) {
+            return null;
+        }
+        List<Long> ids = new ArrayList<>();
+        for (UserWarehouse uw : userWarehouseDao.findByUserId(conn, Session.getUserId())) {
+            ids.add(uw.getWarehouseId());
+        }
+        return ids;
     }
 
     private Map<Long, String> buildZoneLabels(Connection conn) throws Exception {
@@ -367,8 +384,10 @@ public class ReturnDisposalPanel extends JPanel implements Refreshable {
             return;
         }
         try (Connection conn = DBConnection.getConnection()) {
+            // [기능] 권한 관리(RolesPanel) 표의 "담당 창고의 로트만 처리할 수 있습니다".
+            List<Long> allowed = allowedWarehouseIds(conn);
             List<StockLot> lots = stockLotDao.findPage(conn, item.getItemId(), null, null, "NORMAL",
-                    null, null, null, false, 0, 100000);
+                    null, null, allowed, false, 0, 100000);
             Map<Long, String> zoneLabels = buildZoneLabels(conn);
             for (StockLot lot : lots) {
                 if (lot.getQuantity() == null || lot.getQuantity() <= 0) {

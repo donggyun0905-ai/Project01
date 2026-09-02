@@ -85,13 +85,19 @@ public class OutboundDao {
 
     // 출고 이력 화면용. OUTBOUND엔 item_id/item_name이 없어서 STOCK_LOT을 조인해 거르고,
     // keyword(품목명 검색)가 있을 때만 ITEM까지 추가로 조인한다.
-    public List<Outbound> findPage(Connection conn, Long itemId, String keyword, int offset, int limit) throws SQLException {
+    // [기능] allowedWarehouseIds - 권한 관리 표의 "담당 창고의 품목만 처리할 수 있습니다" -
+    // STAFF는 배정 창고 안의 로트에서 나간 출고만 본다(null이면 관리자, 제한 없음).
+    public List<Outbound> findPage(Connection conn, Long itemId, String keyword, List<Long> allowedWarehouseIds,
+                                    int offset, int limit) throws SQLException {
+        if (allowedWarehouseIds != null && allowedWarehouseIds.isEmpty()) {
+            return new ArrayList<>();
+        }
         String sql = "SELECT o.* FROM OUTBOUND o JOIN STOCK_LOT sl ON o.lot_id = sl.lot_id"
-                + joinClause(keyword) + whereClause(itemId, keyword)
+                + joinClause(keyword, allowedWarehouseIds) + whereClause(itemId, keyword, allowedWarehouseIds)
                 + " ORDER BY o.outbound_id DESC LIMIT ? OFFSET ?";
         List<Outbound> result = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = bindFilterParams(ps, 1, itemId, keyword);
+            int idx = bindFilterParams(ps, 1, itemId, keyword, allowedWarehouseIds);
             ps.setInt(idx++, limit);
             ps.setInt(idx, offset);
             try (ResultSet rs = ps.executeQuery()) {
@@ -103,11 +109,14 @@ public class OutboundDao {
         return result;
     }
 
-    public int count(Connection conn, Long itemId, String keyword) throws SQLException {
+    public int count(Connection conn, Long itemId, String keyword, List<Long> allowedWarehouseIds) throws SQLException {
+        if (allowedWarehouseIds != null && allowedWarehouseIds.isEmpty()) {
+            return 0;
+        }
         String sql = "SELECT COUNT(*) FROM OUTBOUND o JOIN STOCK_LOT sl ON o.lot_id = sl.lot_id"
-                + joinClause(keyword) + whereClause(itemId, keyword);
+                + joinClause(keyword, allowedWarehouseIds) + whereClause(itemId, keyword, allowedWarehouseIds);
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            bindFilterParams(ps, 1, itemId, keyword);
+            bindFilterParams(ps, 1, itemId, keyword, allowedWarehouseIds);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getInt(1);
@@ -115,11 +124,18 @@ public class OutboundDao {
         }
     }
 
-    private String joinClause(String keyword) {
-        return keyword != null ? " JOIN ITEM i ON sl.item_id = i.item_id" : "";
+    private String joinClause(String keyword, List<Long> allowedWarehouseIds) {
+        StringBuilder sb = new StringBuilder();
+        if (keyword != null) {
+            sb.append(" JOIN ITEM i ON sl.item_id = i.item_id");
+        }
+        if (allowedWarehouseIds != null) {
+            sb.append(" JOIN ZONE z ON sl.zone_id = z.zone_id");
+        }
+        return sb.toString();
     }
 
-    private String whereClause(Long itemId, String keyword) {
+    private String whereClause(Long itemId, String keyword, List<Long> allowedWarehouseIds) {
         StringBuilder sb = new StringBuilder();
         if (itemId != null) {
             sb.append(" AND sl.item_id = ?");
@@ -127,16 +143,26 @@ public class OutboundDao {
         if (keyword != null) {
             sb.append(" AND i.item_name LIKE ?");
         }
+        if (allowedWarehouseIds != null) {
+            String placeholders = String.join(",", java.util.Collections.nCopies(allowedWarehouseIds.size(), "?"));
+            sb.append(" AND z.warehouse_id IN (").append(placeholders).append(")");
+        }
         return sb.length() == 0 ? "" : " WHERE 1=1" + sb;
     }
 
-    private int bindFilterParams(PreparedStatement ps, int startIndex, Long itemId, String keyword) throws SQLException {
+    private int bindFilterParams(PreparedStatement ps, int startIndex, Long itemId, String keyword,
+                                  List<Long> allowedWarehouseIds) throws SQLException {
         int idx = startIndex;
         if (itemId != null) {
             ps.setLong(idx++, itemId);
         }
         if (keyword != null) {
             ps.setString(idx++, "%" + keyword + "%");
+        }
+        if (allowedWarehouseIds != null) {
+            for (Long id : allowedWarehouseIds) {
+                ps.setLong(idx++, id);
+            }
         }
         return idx;
     }

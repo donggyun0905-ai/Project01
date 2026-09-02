@@ -91,15 +91,22 @@ public class ReturnDisposalDao {
     // type/category/keyword/from/to는 화면(return.html)에서 예전엔 "지금 페이지 안에서만"
     // 걸러서 페이지네이션과 안 맞았는데, 여기서 걸러주면 total도 필터링된 기준으로 정확히 나온다.
     // category/keyword(품목명 검색)는 ITEM까지 한 번 더 조인해야 해서 함께 추가했다.
+    // [기능] allowedWarehouseIds - 권한 관리 표의 "담당 창고의 로트만 처리할 수 있습니다"
+    // (null이면 관리자, 제한 없음).
     public List<ReturnDisposal> findPage(Connection conn, Long itemId, String type, String category, String keyword,
-                                          LocalDate from, LocalDate to, int offset, int limit) throws SQLException {
+                                          LocalDate from, LocalDate to, List<Long> allowedWarehouseIds,
+                                          int offset, int limit) throws SQLException {
+        if (allowedWarehouseIds != null && allowedWarehouseIds.isEmpty()) {
+            return new ArrayList<>();
+        }
         String sql = "SELECT rd.* FROM RETURN_DISPOSAL rd JOIN STOCK_LOT sl ON rd.lot_id = sl.lot_id"
                 + " JOIN ITEM i ON sl.item_id = i.item_id"
-                + whereClause(itemId, type, category, keyword, from, to)
+                + joinClause(allowedWarehouseIds)
+                + whereClause(itemId, type, category, keyword, from, to, allowedWarehouseIds)
                 + " ORDER BY rd.record_id DESC LIMIT ? OFFSET ?";
         List<ReturnDisposal> result = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = bindFilterParams(ps, 1, itemId, type, category, keyword, from, to);
+            int idx = bindFilterParams(ps, 1, itemId, type, category, keyword, from, to, allowedWarehouseIds);
             ps.setInt(idx++, limit);
             ps.setInt(idx, offset);
             try (ResultSet rs = ps.executeQuery()) {
@@ -112,12 +119,16 @@ public class ReturnDisposalDao {
     }
 
     public int count(Connection conn, Long itemId, String type, String category, String keyword,
-                      LocalDate from, LocalDate to) throws SQLException {
+                      LocalDate from, LocalDate to, List<Long> allowedWarehouseIds) throws SQLException {
+        if (allowedWarehouseIds != null && allowedWarehouseIds.isEmpty()) {
+            return 0;
+        }
         String sql = "SELECT COUNT(*) FROM RETURN_DISPOSAL rd JOIN STOCK_LOT sl ON rd.lot_id = sl.lot_id"
                 + " JOIN ITEM i ON sl.item_id = i.item_id"
-                + whereClause(itemId, type, category, keyword, from, to);
+                + joinClause(allowedWarehouseIds)
+                + whereClause(itemId, type, category, keyword, from, to, allowedWarehouseIds);
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            bindFilterParams(ps, 1, itemId, type, category, keyword, from, to);
+            bindFilterParams(ps, 1, itemId, type, category, keyword, from, to, allowedWarehouseIds);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getInt(1);
@@ -125,8 +136,12 @@ public class ReturnDisposalDao {
         }
     }
 
+    private String joinClause(List<Long> allowedWarehouseIds) {
+        return allowedWarehouseIds != null ? " JOIN ZONE z ON sl.zone_id = z.zone_id" : "";
+    }
+
     private String whereClause(Long itemId, String type, String category, String keyword,
-                                LocalDate from, LocalDate to) {
+                                LocalDate from, LocalDate to, List<Long> allowedWarehouseIds) {
         StringBuilder sb = new StringBuilder();
         if (itemId != null) {
             sb.append(" AND sl.item_id = ?");
@@ -146,11 +161,16 @@ public class ReturnDisposalDao {
         if (to != null) {
             sb.append(" AND rd.processed_date <= ?");
         }
+        if (allowedWarehouseIds != null) {
+            String placeholders = String.join(",", java.util.Collections.nCopies(allowedWarehouseIds.size(), "?"));
+            sb.append(" AND z.warehouse_id IN (").append(placeholders).append(")");
+        }
         return sb.length() == 0 ? "" : " WHERE 1=1" + sb;
     }
 
     private int bindFilterParams(PreparedStatement ps, int startIndex, Long itemId, String type, String category,
-                                  String keyword, LocalDate from, LocalDate to) throws SQLException {
+                                  String keyword, LocalDate from, LocalDate to,
+                                  List<Long> allowedWarehouseIds) throws SQLException {
         int idx = startIndex;
         if (itemId != null) {
             ps.setLong(idx++, itemId);
@@ -169,6 +189,11 @@ public class ReturnDisposalDao {
         }
         if (to != null) {
             ps.setDate(idx++, Date.valueOf(to));
+        }
+        if (allowedWarehouseIds != null) {
+            for (Long id : allowedWarehouseIds) {
+                ps.setLong(idx++, id);
+            }
         }
         return idx;
     }

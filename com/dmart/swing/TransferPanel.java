@@ -3,12 +3,14 @@ package com.dmart.swing;
 import com.dmart.dao.ItemDao;
 import com.dmart.dao.StockLotDao;
 import com.dmart.dao.StockTransferDao;
+import com.dmart.dao.UserWarehouseDao;
 import com.dmart.dao.WarehouseDao;
 import com.dmart.dao.ZoneDao;
 import com.dmart.db.DBConnection;
 import com.dmart.dto.Item;
 import com.dmart.dto.StockLot;
 import com.dmart.dto.StockTransfer;
+import com.dmart.dto.UserWarehouse;
 import com.dmart.dto.Warehouse;
 import com.dmart.dto.Zone;
 import com.dmart.service.TransferService;
@@ -37,6 +39,7 @@ public class TransferPanel extends JPanel implements Refreshable {
     private final WarehouseDao warehouseDao = new WarehouseDao();
     private final StockLotDao stockLotDao = new StockLotDao();
     private final StockTransferDao stockTransferDao = new StockTransferDao();
+    private final UserWarehouseDao userWarehouseDao = new UserWarehouseDao();
     private final TransferService transferService = new TransferService();
 
     // 품목이 250개가 넘어 드롭다운 스크롤이 불편해서, 타이핑하면 후보가 뜨는 입력칸으로 바꿨다
@@ -130,12 +133,27 @@ public class TransferPanel extends JPanel implements Refreshable {
 
     private void loadWarehouses(JComboBox<WarehouseOption> box) {
         try (Connection conn = DBConnection.getConnection()) {
+            List<Long> allowed = allowedWarehouseIds(conn);
             for (Warehouse wh : warehouseDao.findAll(conn)) {
+                if (allowed != null && !allowed.contains(wh.getWarehouseId())) continue;
                 box.addItem(new WarehouseOption(wh));
             }
         } catch (Exception e) {
             UiUtil.showError(this, e);
         }
+    }
+
+    // [기능] 권한 관리(RolesPanel) 표의 "출발·도착 창고가 모두 담당 창고여야 합니다" -
+    // WarehouseZonePanel/WarehouseMapPanel과 같은 기준(USER_WAREHOUSE). 관리자는 null(전체).
+    private List<Long> allowedWarehouseIds(Connection conn) throws java.sql.SQLException {
+        if (Session.isAdmin()) {
+            return null;
+        }
+        List<Long> ids = new ArrayList<>();
+        for (UserWarehouse uw : userWarehouseDao.findByUserId(conn, Session.getUserId())) {
+            ids.add(uw.getWarehouseId());
+        }
+        return ids;
     }
 
     // 품목명을 고르면 코드가 채워지고, 그 품목 단위와 같은 이름의 구역을 출발/도착 양쪽에서
@@ -172,13 +190,15 @@ public class TransferPanel extends JPanel implements Refreshable {
     private void loadWarehousesWithStock(Long itemId) {
         fromWarehouseBox.removeAllItems();
         try (Connection conn = DBConnection.getConnection()) {
+            List<Long> allowed = allowedWarehouseIds(conn);
+
             Map<Long, Long> zoneWarehouseId = new HashMap<>();
             for (Zone zone : zoneDao.findAll(conn)) {
                 zoneWarehouseId.put(zone.getZoneId(), zone.getWarehouseId());
             }
 
             Map<Long, Integer> qtyByWarehouse = new HashMap<>();
-            List<StockLot> lots = stockLotDao.findPage(conn, itemId, null, null, "NORMAL", null, null, null, false, 0, 100000);
+            List<StockLot> lots = stockLotDao.findPage(conn, itemId, null, null, "NORMAL", null, null, allowed, false, 0, 100000);
             for (StockLot lot : lots) {
                 if (lot.getQuantity() == null || lot.getQuantity() <= 0) {
                     continue;
@@ -191,6 +211,7 @@ public class TransferPanel extends JPanel implements Refreshable {
             }
 
             for (Warehouse wh : warehouseDao.findAll(conn)) {
+                if (allowed != null && !allowed.contains(wh.getWarehouseId())) continue;
                 Integer qty = qtyByWarehouse.get(wh.getWarehouseId());
                 if (qty != null && qty > 0) {
                     fromWarehouseBox.addItem(new WarehouseOption(wh, qty));
@@ -532,10 +553,11 @@ public class TransferPanel extends JPanel implements Refreshable {
             LocalDate from = parseDateOrNull(historyFromField.getText());
             LocalDate to = parseDateOrNull(historyToField.getText());
 
-            int total = stockTransferDao.count(conn, null, keyword, from, to);
+            List<Long> allowed = allowedWarehouseIds(conn);
+            int total = stockTransferDao.count(conn, null, keyword, from, to, allowed);
             historyPager.clampToTotal(total);
             int offset = (historyPager.page - 1) * PAGE_SIZE;
-            List<StockTransfer> list = stockTransferDao.findPage(conn, null, keyword, from, to, offset, PAGE_SIZE);
+            List<StockTransfer> list = stockTransferDao.findPage(conn, null, keyword, from, to, allowed, offset, PAGE_SIZE);
 
             Map<Long, Item> itemMap = new HashMap<>();
             for (Item item : itemDao.findAll(conn)) {

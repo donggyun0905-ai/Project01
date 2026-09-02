@@ -6,6 +6,7 @@ import com.dmart.dao.ItemDao;
 import com.dmart.dao.OutboundDao;
 import com.dmart.dao.PartnerDao;
 import com.dmart.dao.StockLotDao;
+import com.dmart.dao.UserWarehouseDao;
 import com.dmart.dao.WarehouseDao;
 import com.dmart.dao.ZoneDao;
 import com.dmart.db.DBConnection;
@@ -15,6 +16,7 @@ import com.dmart.dto.Item;
 import com.dmart.dto.Outbound;
 import com.dmart.dto.Partner;
 import com.dmart.dto.StockLot;
+import com.dmart.dto.UserWarehouse;
 import com.dmart.dto.Warehouse;
 import com.dmart.dto.Zone;
 import com.dmart.service.InboundService;
@@ -45,6 +47,7 @@ public class InOutPanel extends JPanel implements Refreshable {
     private final WarehouseDao warehouseDao = new WarehouseDao();
     private final PartnerDao partnerDao = new PartnerDao();
     private final StockLotDao stockLotDao = new StockLotDao();
+    private final UserWarehouseDao userWarehouseDao = new UserWarehouseDao();
     private final OutboundDao outboundDao = new OutboundDao();
     private final ApprovalDao approvalDao = new ApprovalDao();
     private final AppUserDao appUserDao = new AppUserDao();
@@ -274,12 +277,27 @@ public class InOutPanel extends JPanel implements Refreshable {
 
     private void loadWarehousesInto(JComboBox<WarehouseOption> box) {
         try (Connection conn = DBConnection.getConnection()) {
+            List<Long> allowed = allowedWarehouseIds(conn);
             for (Warehouse wh : warehouseDao.findAll(conn)) {
+                if (allowed != null && !allowed.contains(wh.getWarehouseId())) continue;
                 box.addItem(new WarehouseOption(wh));
             }
         } catch (Exception e) {
             UiUtil.showError(this, e);
         }
+    }
+
+    // [기능] 권한 관리(RolesPanel) 표의 "담당 창고의 품목만 처리할 수 있습니다" -
+    // WarehouseZonePanel/WarehouseMapPanel과 같은 기준(USER_WAREHOUSE). 관리자는 null(전체).
+    private List<Long> allowedWarehouseIds(Connection conn) throws java.sql.SQLException {
+        if (Session.isAdmin()) {
+            return null;
+        }
+        List<Long> ids = new ArrayList<>();
+        for (UserWarehouse uw : userWarehouseDao.findByUserId(conn, Session.getUserId())) {
+            ids.add(uw.getWarehouseId());
+        }
+        return ids;
     }
 
     // 이 창고 안에서 이름이 unit과 같은 구역을 찾는다 (movement.html pickSameZone과 동일 규칙).
@@ -362,11 +380,12 @@ public class InOutPanel extends JPanel implements Refreshable {
                 }
             }
 
-            int total = stockLotDao.count(conn, null, null, null, null, keyword, partnerKeyword, null, true);
+            List<Long> allowed = allowedWarehouseIds(conn);
+            int total = stockLotDao.count(conn, null, null, null, null, keyword, partnerKeyword, allowed, true);
             inboundPager.clampToTotal(total);
             int offset = (inboundPager.page - 1) * PAGE_SIZE;
             List<StockLot> lots = stockLotDao.findPage(conn, null, null, null, null,
-                    keyword, partnerKeyword, null, true, offset, PAGE_SIZE);
+                    keyword, partnerKeyword, allowed, true, offset, PAGE_SIZE);
 
             Map<Long, Item> itemMap = mapById(itemDao.findAll(conn), Item::getItemId);
             Map<Long, Partner> partnerMap = mapById(partnerDao.findAll(conn), Partner::getPartnerId);
@@ -530,6 +549,17 @@ public class InOutPanel extends JPanel implements Refreshable {
             lots = fefo ? stockLotDao.findByItemIdOrderByExpiryDate(conn, item.getItemId())
                     : stockLotDao.findByItemIdOrderByInboundDate(conn, item.getItemId());
             zoneLabels = buildZoneLabels(conn);
+
+            // [기능] 권한 관리(RolesPanel) 표의 "담당 창고의 품목만 처리할 수 있습니다" - STAFF는
+            // 이 품목이 다른 창고에도 있더라도, 자기 담당 창고에 있는 로트만 출고 후보로 본다.
+            List<Long> allowed = allowedWarehouseIds(conn);
+            if (allowed != null) {
+                Map<Long, Long> zoneWarehouseId = new HashMap<>();
+                for (Zone zone : zoneDao.findAll(conn)) {
+                    zoneWarehouseId.put(zone.getZoneId(), zone.getWarehouseId());
+                }
+                lots.removeIf(l -> !allowed.contains(zoneWarehouseId.get(l.getZoneId())));
+            }
         } catch (Exception ex) {
             UiUtil.showError(this, ex);
             return;
@@ -744,10 +774,11 @@ public class InOutPanel extends JPanel implements Refreshable {
                 keyword = null;
             }
 
-            int total = outboundDao.count(conn, null, keyword);
+            List<Long> allowed = allowedWarehouseIds(conn);
+            int total = outboundDao.count(conn, null, keyword, allowed);
             outboundPager.clampToTotal(total);
             int offset = (outboundPager.page - 1) * PAGE_SIZE;
-            List<Outbound> list = outboundDao.findPage(conn, null, keyword, offset, PAGE_SIZE);
+            List<Outbound> list = outboundDao.findPage(conn, null, keyword, allowed, offset, PAGE_SIZE);
 
             Map<Long, Item> itemMap = mapById(itemDao.findAll(conn), Item::getItemId);
             Map<Long, Partner> partnerMap = mapById(partnerDao.findAll(conn), Partner::getPartnerId);

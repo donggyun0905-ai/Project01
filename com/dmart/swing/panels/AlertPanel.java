@@ -3,11 +3,16 @@ package com.dmart.swing.panels;
 import com.dmart.dao.AlertDao;
 import com.dmart.dao.ItemDao;
 import com.dmart.dao.StockLotDao;
+import com.dmart.dao.UserWarehouseDao;
+import com.dmart.dao.ZoneDao;
 import com.dmart.db.DBConnection;
 import com.dmart.dto.Alert;
 import com.dmart.dto.Item;
+import com.dmart.dto.UserWarehouse;
+import com.dmart.dto.Zone;
 import com.dmart.service.WarehouseConsolidationService;
 import com.dmart.swing.DatePickerField;
+import com.dmart.swing.Session;
 import static com.dmart.swing.panels.SwingStyle.*;
 
 import javax.swing.*;
@@ -19,8 +24,10 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -40,7 +47,11 @@ public class AlertPanel extends BasePanel {
     private final AlertDao alertDao = new AlertDao();
     private final ItemDao itemDao = new ItemDao();
     private final StockLotDao stockLotDao = new StockLotDao();
+    private final ZoneDao zoneDao = new ZoneDao();
+    private final UserWarehouseDao userWarehouseDao = new UserWarehouseDao();
     private final WarehouseConsolidationService consolidationService = new WarehouseConsolidationService();
+    private static final String CONSOLIDATION_TYPE = "창고정리추천";
+    private static final Pattern ZONE_ID_PATTERN = Pattern.compile("zoneId=(\\d+)");
 
     private final java.util.function.IntConsumer goToApprovalTab; // 0=승인요청, 1=창고정리추천, 2=재고초과반품
 
@@ -487,6 +498,9 @@ public class AlertPanel extends BasePanel {
 
             Boolean resolved = onlyUnresolved ? Boolean.FALSE : null;
             allAlerts = alertDao.findAllMatching(conn, resolved, null, keyword.isEmpty() ? null : keyword);
+            if (!Session.isAdmin()) {
+                allAlerts = filterConsolidationByWarehouse(conn, allAlerts);
+            }
 
             itemMap = new HashMap<>();
             for (Item item : itemDao.findAll(conn)) {
@@ -500,6 +514,47 @@ public class AlertPanel extends BasePanel {
             DmartDialog.showMessageDialog(this, "조회 중 오류가 발생했습니다: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
             ex.printStackTrace();
         }
+    }
+
+    // [기능] 권한 관리(RolesPanel) 표의 "담당 창고의 알림만 보입니다" - 웹 버전 AlertServlet과
+    // 같은 기준: 재고부족/재고초과/이상출고는 그 품목 재고가 여러 창고에 걸쳐 있을 수 있어 특정
+    // 창고에 묶인 알림이 아니므로 그대로 두고, "창고정리추천"만 메시지 속 두 zoneId 중 하나라도
+    // 배정 창고에 속해야 남긴다.
+    private List<Alert> filterConsolidationByWarehouse(Connection conn, List<Alert> alerts) throws SQLException {
+        Map<Long, Long> zoneWarehouseId = new HashMap<>();
+        for (Zone zone : zoneDao.findAll(conn)) {
+            zoneWarehouseId.put(zone.getZoneId(), zone.getWarehouseId());
+        }
+        Set<Long> allowed = new HashSet<>();
+        for (UserWarehouse uw : userWarehouseDao.findByUserId(conn, Session.getUserId())) {
+            allowed.add(uw.getWarehouseId());
+        }
+
+        List<Alert> result = new ArrayList<>();
+        for (Alert alert : alerts) {
+            if (!CONSOLIDATION_TYPE.equals(alert.getAlertType())) {
+                result.add(alert);
+                continue;
+            }
+            if (isAssignedZoneMentioned(alert.getMessage(), zoneWarehouseId, allowed)) {
+                result.add(alert);
+            }
+        }
+        return result;
+    }
+
+    private boolean isAssignedZoneMentioned(String message, Map<Long, Long> zoneWarehouseId, Set<Long> allowed) {
+        if (message == null) {
+            return false;
+        }
+        Matcher m = ZONE_ID_PATTERN.matcher(message);
+        while (m.find()) {
+            Long warehouseId = zoneWarehouseId.get(Long.valueOf(m.group(1)));
+            if (warehouseId != null && allowed.contains(warehouseId)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void changeFilter() {

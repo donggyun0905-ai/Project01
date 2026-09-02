@@ -91,14 +91,19 @@ public class StockTransferDao {
     // 예전엔 화면에서 현재 페이지 안의 로트만 날짜로 걸러서 페이지네이션과 안 맞았는데,
     // 여기서 걸러주면 total도 필터링된 기준으로 정확히 나온다. keyword(품목명 검색)가 있을 때만
     // ITEM까지 추가로 조인한다.
+    // [기능] allowedWarehouseIds - 권한 관리 표의 "출발·도착 창고가 모두 담당 창고여야 합니다" -
+    // 이력 조회에서는 출발/도착 어느 한쪽이라도 배정 창고에 걸리면 보여준다(null이면 관리자, 제한 없음).
     public List<StockTransfer> findPage(Connection conn, Long itemId, String keyword, LocalDate from, LocalDate to,
-                                         int offset, int limit) throws SQLException {
+                                         List<Long> allowedWarehouseIds, int offset, int limit) throws SQLException {
+        if (allowedWarehouseIds != null && allowedWarehouseIds.isEmpty()) {
+            return new ArrayList<>();
+        }
         String sql = "SELECT st.* FROM STOCK_TRANSFER st JOIN STOCK_LOT sl ON st.lot_id = sl.lot_id"
-                + joinClause(keyword) + whereClause(itemId, keyword, from, to)
+                + joinClause(keyword, allowedWarehouseIds) + whereClause(itemId, keyword, from, to, allowedWarehouseIds)
                 + " ORDER BY st.transfer_id DESC LIMIT ? OFFSET ?";
         List<StockTransfer> result = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = bindFilterParams(ps, 1, itemId, keyword, from, to);
+            int idx = bindFilterParams(ps, 1, itemId, keyword, from, to, allowedWarehouseIds);
             ps.setInt(idx++, limit);
             ps.setInt(idx, offset);
             try (ResultSet rs = ps.executeQuery()) {
@@ -110,11 +115,15 @@ public class StockTransferDao {
         return result;
     }
 
-    public int count(Connection conn, Long itemId, String keyword, LocalDate from, LocalDate to) throws SQLException {
+    public int count(Connection conn, Long itemId, String keyword, LocalDate from, LocalDate to,
+                      List<Long> allowedWarehouseIds) throws SQLException {
+        if (allowedWarehouseIds != null && allowedWarehouseIds.isEmpty()) {
+            return 0;
+        }
         String sql = "SELECT COUNT(*) FROM STOCK_TRANSFER st JOIN STOCK_LOT sl ON st.lot_id = sl.lot_id"
-                + joinClause(keyword) + whereClause(itemId, keyword, from, to);
+                + joinClause(keyword, allowedWarehouseIds) + whereClause(itemId, keyword, from, to, allowedWarehouseIds);
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            bindFilterParams(ps, 1, itemId, keyword, from, to);
+            bindFilterParams(ps, 1, itemId, keyword, from, to, allowedWarehouseIds);
             try (ResultSet rs = ps.executeQuery()) {
                 rs.next();
                 return rs.getInt(1);
@@ -122,11 +131,20 @@ public class StockTransferDao {
         }
     }
 
-    private String joinClause(String keyword) {
-        return keyword != null ? " JOIN ITEM i ON sl.item_id = i.item_id" : "";
+    private String joinClause(String keyword, List<Long> allowedWarehouseIds) {
+        StringBuilder sb = new StringBuilder();
+        if (keyword != null) {
+            sb.append(" JOIN ITEM i ON sl.item_id = i.item_id");
+        }
+        if (allowedWarehouseIds != null) {
+            sb.append(" JOIN ZONE fz ON st.from_zone_id = fz.zone_id")
+              .append(" JOIN ZONE tz ON st.to_zone_id = tz.zone_id");
+        }
+        return sb.toString();
     }
 
-    private String whereClause(Long itemId, String keyword, LocalDate from, LocalDate to) {
+    private String whereClause(Long itemId, String keyword, LocalDate from, LocalDate to,
+                                List<Long> allowedWarehouseIds) {
         StringBuilder sb = new StringBuilder();
         if (itemId != null) {
             sb.append(" AND sl.item_id = ?");
@@ -140,11 +158,16 @@ public class StockTransferDao {
         if (to != null) {
             sb.append(" AND DATE(st.moved_at) <= ?");
         }
+        if (allowedWarehouseIds != null) {
+            String placeholders = String.join(",", java.util.Collections.nCopies(allowedWarehouseIds.size(), "?"));
+            sb.append(" AND (fz.warehouse_id IN (").append(placeholders)
+              .append(") OR tz.warehouse_id IN (").append(placeholders).append("))");
+        }
         return sb.length() == 0 ? "" : " WHERE 1=1" + sb;
     }
 
     private int bindFilterParams(PreparedStatement ps, int startIndex, Long itemId, String keyword,
-                                  LocalDate from, LocalDate to) throws SQLException {
+                                  LocalDate from, LocalDate to, List<Long> allowedWarehouseIds) throws SQLException {
         int idx = startIndex;
         if (itemId != null) {
             ps.setLong(idx++, itemId);
@@ -157,6 +180,14 @@ public class StockTransferDao {
         }
         if (to != null) {
             ps.setDate(idx++, Date.valueOf(to));
+        }
+        if (allowedWarehouseIds != null) {
+            for (Long id : allowedWarehouseIds) {
+                ps.setLong(idx++, id);
+            }
+            for (Long id : allowedWarehouseIds) {
+                ps.setLong(idx++, id);
+            }
         }
         return idx;
     }
