@@ -475,7 +475,20 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         return p;
     }
 
+    // [기능] 권한 관리(RolesPanel) 표에 "승인하면 입고·출고가 바로 실행되어 관리자만 가능합니다"로
+    // 문서화돼 있었는데 실제 코드엔 이 화면(승인 요청 결정/창고 정리 추천 실행/재고초과 반품 처리)
+    // 어디에도 관리자 확인이 없었다 - STAFF도 그대로 승인/실행이 가능했다. 요청 등록(create)은
+    // STAFF의 정상 업무라 그대로 두고, "결정/실행" 4곳에만 막는다.
+    private boolean requireAdmin() {
+        if (!Session.isAdmin()) {
+            UiUtil.showError(this, "관리자만 할 수 있습니다.");
+            return false;
+        }
+        return true;
+    }
+
     private void decide(Approval a, String status) {
+        if (!requireAdmin()) return;
 
         String itemName = itemNames.getOrDefault(a.getItemId(), "품목 " + a.getItemId());
         String unit = itemUnits.getOrDefault(a.getItemId(), "");
@@ -952,6 +965,7 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
     }
 
     private void doExecuteConsolidation(int i) {
+        if (!requireAdmin()) return;
 
         ConsolMove move = consolMoves.get(i);
         Long itemId = consolItemIds.get(i);
@@ -1002,6 +1016,7 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
     }
 
     private void doExecuteAllConsolidation() {
+        if (!requireAdmin()) return;
 
         List<Integer> checked = new java.util.ArrayList<>();
         for (int i = 0; i < consolModel.getRowCount(); i++) {
@@ -1154,6 +1169,7 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
     }
 
     private void doExecuteExcessReturn(int i) {
+        if (!requireAdmin()) return;
 
         Long itemId = excessItemIds.get(i);
         Long alertId = excessAlertIds.get(i);

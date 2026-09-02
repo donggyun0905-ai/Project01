@@ -2,11 +2,13 @@ package com.dmart.swing;
 
 import com.dmart.dao.ItemDao;
 import com.dmart.dao.StockLotDao;
+import com.dmart.dao.UserWarehouseDao;
 import com.dmart.dao.WarehouseDao;
 import com.dmart.dao.ZoneDao;
 import com.dmart.db.DBConnection;
 import com.dmart.dto.Item;
 import com.dmart.dto.StockLot;
+import com.dmart.dto.UserWarehouse;
 import com.dmart.dto.Warehouse;
 import com.dmart.dto.Zone;
 import com.dmart.service.TransferService;
@@ -25,6 +27,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -83,6 +86,7 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
     private final ZoneDao zoneDao = new ZoneDao();
     private final StockLotDao stockLotDao = new StockLotDao();
     private final ItemDao itemDao = new ItemDao();
+    private final UserWarehouseDao userWarehouseDao = new UserWarehouseDao();
     private final TransferService transferService = new TransferService();
     private final StockActionListener actionListener;
 
@@ -393,7 +397,14 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
                 zonesByWarehouse.computeIfAbsent(zone.getWarehouseId(), k -> new ArrayList<>()).add(zone);
             }
 
+            // [기능] 담당자(STAFF)는 배정된 창고만 본다 - 다른 화면(창고/구역 관리)과 같은 기준
+            // (USER_WAREHOUSE). 관리자는 null(전체 다 봄).
+            List<Long> allowedWarehouseIds = allowedWarehouseIds(conn);
+
             for (Warehouse wh : warehouseDao.findAll(conn)) {
+                if (allowedWarehouseIds != null && !allowedWarehouseIds.contains(wh.getWarehouseId())) {
+                    continue;
+                }
                 WarehouseBox box = new WarehouseBox();
                 box.warehouse = wh;
                 for (Zone zone : zonesByWarehouse.getOrDefault(wh.getWarehouseId(), List.of())) {
@@ -433,6 +444,19 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
             return;
         }
         canvas.setData(boxes);
+    }
+
+    // [기능] STAFF는 배정된 창고만 본다(setting.html의 창고 배정 - USER_WAREHOUSE). ADMIN은 null(전체).
+    // WarehouseZonePanel의 같은 이름 메서드와 동일한 기준.
+    private List<Long> allowedWarehouseIds(Connection conn) throws SQLException {
+        if (Session.isAdmin()) {
+            return null;
+        }
+        List<Long> ids = new ArrayList<>();
+        for (UserWarehouse uw : userWarehouseDao.findByUserId(conn, Session.getUserId())) {
+            ids.add(uw.getWarehouseId());
+        }
+        return ids;
     }
 
     /** 유통기한이 임박한 것 먼저, 없으면 뒤로, 같으면 로트 번호 순 (출고 화면의 FEFO와 같은 기준) */

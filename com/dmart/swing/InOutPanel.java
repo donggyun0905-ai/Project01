@@ -402,8 +402,20 @@ public class InOutPanel extends JPanel implements Refreshable {
         }
     }
 
+    // [기능] 권한 관리(RolesPanel) 표에 "재고 직접 수정·삭제"는 "정상 업무 흐름이 아닌 직접
+    // 수정이라 관리자만 가능합니다"로 문서화돼 있었는데(웹 버전 StockLotServlet도 requireAdmin으로
+    // 막혀 있음), 여기엔 그 확인이 빠져 있어 STAFF도 입고 기록을 직접 지울 수 있었다.
+    private boolean requireAdmin() {
+        if (!Session.isAdmin()) {
+            UiUtil.showError(this, "관리자만 할 수 있습니다.");
+            return false;
+        }
+        return true;
+    }
+
     // inbound.html doDelete() - 입고 이력 표의 "삭제" 칸 버튼을 누르면 바로 이 로트를 지운다.
     private void deleteInboundRow(int modelRow) {
+        if (!requireAdmin()) return;
         Long lotId = ((Number) inboundHistModel.getValueAt(modelRow, 0)).longValue();
         if (!UiUtil.confirm(this, "로트(id=" + lotId + ") 입고 기록을 삭제할까요? (사유: 입고 오입력)")) {
             return;

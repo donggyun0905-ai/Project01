@@ -229,9 +229,21 @@ public class AuditLogPanel extends JPanel implements Refreshable {
         }
     }
 
+    // [기능] 권한 관리(RolesPanel) 표에 "되돌리기는 재고를 바꾸는 일이라 관리자만 가능합니다"로
+    // 문서화돼 있었는데(웹 버전 StockChangeLogServlet도 requireAdmin으로 막혀 있음), 여기엔
+    // 그 확인이 빠져 있어 STAFF도 그대로 되돌릴 수 있었다. 조회 자체는 STAFF에게도 계속 열어둔다.
+    private boolean requireAdmin() {
+        if (!Session.isAdmin()) {
+            UiUtil.showError(this, "관리자만 할 수 있습니다.");
+            return false;
+        }
+        return true;
+    }
+
     // audit.html doRestore()/afterRestore() - 변경 전 값으로 재고를 되돌리고, 되돌린 일 자체도
     // 새 기록(RESTORE)으로 남긴다.
     private void restoreRow(int modelRow) {
+        if (!requireAdmin()) return;
         StockChangeLog log = currentLogs.get(modelRow);
         String before = (String) logModel.getValueAt(modelRow, 7);
         String after = (String) logModel.getValueAt(modelRow, 8);
