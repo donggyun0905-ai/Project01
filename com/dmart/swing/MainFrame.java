@@ -240,10 +240,13 @@ public class MainFrame extends JFrame {
             autoManageBtn.setMargin(pillMargin);
             autoManageBtn.addActionListener(e -> toggleFlag(AUTO_MANAGE, autoManageBtn, "자동관리"));
 
-            // css .sys-reset-btn - 알약 모양, 빨간 계열.
-            RoundedButton resetBtn = new RoundedButton("데이터 초기화", UiUtil.COLOR_SYS_RESET_BG, UiUtil.COLOR_SYS_RESET_FG, 14);
+            // css .sys-reset-btn - 알약 모양, 빨간 계열. [기능] 전체 데이터 초기화 대신, 시연 중
+            // 테스트용으로 쓰는 "축구공" 품목의 로트/이력만 좁게 정리하는 버튼으로 바꿨다 -
+            // 원래 있던 전체 초기화(재고/입출고/알림/승인 전부를 기준점으로 되돌림)는 다른 품목
+            // 재고까지 다 날아가서 시연 직전엔 너무 위험하다는 판단.
+            RoundedButton resetBtn = new RoundedButton("축구공 로트 삭제", UiUtil.COLOR_SYS_RESET_BG, UiUtil.COLOR_SYS_RESET_FG, 14);
             resetBtn.setMargin(pillMargin);
-            resetBtn.addActionListener(e -> resetSystemData());
+            resetBtn.addActionListener(e -> deleteTestItemLots());
 
             rightArea.add(simulatorBtn);
             rightArea.add(autoManageBtn);
@@ -380,19 +383,23 @@ public class MainFrame extends JFrame {
         btn.setColors(on ? UiUtil.COLOR_SYS_TOGGLE_ON : UiUtil.COLOR_BTN_GRAY, on ? Color.WHITE : new Color(0x555555));
     }
 
-    // 웹 버전 resetSystemData(js/common.js) - 재고/입출고/알림/승인만 기준점으로 되돌린다
-    // (품목/거래처/창고/구역/사용자는 그대로). 되돌릴 수 없어 한 번 더 확인한다.
-    private void resetSystemData() {
+    // [기능] 시연 중 자유롭게 입고/출고/이동해보는 테스트용 품목("축구공")의 로트와 그
+    // 이력(감사로그/출고/이동/반품폐기)만 지운다. 되돌릴 수 없어 한 번 더 확인한다.
+    private static final String TEST_ITEM_NAME = "축구공";
+
+    private void deleteTestItemLots() {
         boolean ok = UiUtil.confirm(this,
-                "재고·입출고·알림·승인 데이터를 기준점으로 초기화합니다.\n"
-                        + "(품목/거래처/창고/구역/사용자 정보는 그대로 유지됩니다)\n"
+                "테스트용 품목 \"" + TEST_ITEM_NAME + "\"의 재고 로트와 그 이력을 전부 지웁니다.\n"
                         + "되돌릴 수 없습니다. 계속할까요?");
         if (!ok) {
             return;
         }
         try {
-            dataResetService.reset();
-            UiUtil.showInfo(this, "데이터를 초기화했습니다. 각 화면에서 새로고침 해주세요.");
+            int deleted = dataResetService.deleteItemLots(TEST_ITEM_NAME);
+            for (String topic : new String[]{"inbound", "outbound", "transfer", "disposal", "auditLog"}) {
+                AppEventBus.publish(topic);
+            }
+            UiUtil.showInfo(this, "\"" + TEST_ITEM_NAME + "\" 로트 " + deleted + "개를 지웠습니다.");
         } catch (Exception e) {
             UiUtil.showError(this, e);
         }

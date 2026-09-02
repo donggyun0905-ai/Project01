@@ -63,4 +63,50 @@ public class DataResetService {
             }
         }
     }
+
+    // 시연 중 임의로 입출고/이동을 테스트해보는 용도로 쓰는 품목(예: "축구공")의 로트/이력을
+    // 통째로 지우는 버튼용 - 위 reset()처럼 전체 5개 테이블을 기준점으로 되돌리는 건 너무
+    // 넓어서(다른 품목 재고까지 다 날아감), 이 품목 하나만 좁게 정리하고 싶을 때 쓴다.
+    // FK 순서를 신경 쓸 필요 없게 reset()과 같은 방식(FOREIGN_KEY_CHECKS 잠깐 끔)을 쓴다.
+    public int deleteItemLots(String itemName) throws SQLException {
+        return DBConnection.executeInTransactionWithResult(conn -> {
+            Long itemId;
+            try (PreparedStatement ps = conn.prepareStatement("SELECT item_id FROM ITEM WHERE item_name = ?")) {
+                ps.setString(1, itemName);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        return 0;
+                    }
+                    itemId = rs.getLong(1);
+                }
+            }
+            int deleted;
+            try (Statement st = conn.createStatement()) {
+                st.execute("SET FOREIGN_KEY_CHECKS = 0");
+            }
+            try {
+                deleteByLotSubquery(conn, "STOCK_CHANGE_LOG", itemId);
+                deleteByLotSubquery(conn, "OUTBOUND", itemId);
+                deleteByLotSubquery(conn, "STOCK_TRANSFER", itemId);
+                deleteByLotSubquery(conn, "RETURN_DISPOSAL", itemId);
+                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM STOCK_LOT WHERE item_id = ?")) {
+                    ps.setLong(1, itemId);
+                    deleted = ps.executeUpdate();
+                }
+            } finally {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("SET FOREIGN_KEY_CHECKS = 1");
+                }
+            }
+            return deleted;
+        });
+    }
+
+    private void deleteByLotSubquery(Connection conn, String table, Long itemId) throws SQLException {
+        String sql = "DELETE FROM " + table + " WHERE lot_id IN (SELECT lot_id FROM STOCK_LOT WHERE item_id = ?)";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, itemId);
+            ps.executeUpdate();
+        }
+    }
 }
