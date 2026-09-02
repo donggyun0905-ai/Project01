@@ -77,7 +77,9 @@ public class WarehouseZonePanel extends JPanel implements Refreshable {
         UiUtil.setColumnWidths(warehouseTable, 9, 22, 40, 12, 20);
         installActionButtons(warehouseTable, WH_COL_MANAGE, new String[]{"수정", "삭제"}, this::onWarehouseRowAction);
         // warehouse.html 구역 표 colgroup 비율(NO8/구역명20/최대수용량20/현재사용량24/관리28%)
-        UiUtil.setColumnWidths(zoneTable, 8, 18, 12, 18, 20, 12, 28);
+        // [버그 수정] 글자 크기를 키우면서(14->15px) "단위" 칸의 "PALLET (팔레트)"가 원래 비율(12)
+        // 로는 안 들어가고 "PALLET (팔..."로 잘렸다 - 그만큼을 여유 있던 "관리"(28)에서 덜어왔다.
+        UiUtil.setColumnWidths(zoneTable, 8, 18, 18, 18, 20, 12, 22);
         installActionButtons(zoneTable, ZONE_COL_MANAGE, new String[]{"수정", "삭제"}, this::onZoneRowAction);
         zoneTable.getColumnModel().getColumn(ZONE_COL_SATURATION).setCellRenderer(new SaturationRenderer());
 

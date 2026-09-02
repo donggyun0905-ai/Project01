@@ -178,13 +178,20 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
 
     private JComponent buildTopBar() {
         RoundedPanel bar = new RoundedPanel(SwingStyle.CARD_ARC, Color.WHITE);
-        bar.setLayout(new BorderLayout(14, 0));
+        // [버그 수정] 보기 모드 토글(왼쪽)을 추가하면서 안내 문구(가운데)가 밀려서 폭이 좁아져
+        // "..."로 잘렸다 - 위 줄(토글/검색)과 안내 문구를 아예 다른 줄로 나눠서, 안내 문구가
+        // 항상 창 전체 폭을 쓰게 한다.
+        bar.setLayout(new BorderLayout(0, 8));
         bar.setBorder(BorderFactory.createEmptyBorder(12, 18, 12, 18));
+
+        JPanel controlRow = new JPanel(new BorderLayout(14, 0));
+        controlRow.setOpaque(false);
+        bar.add(controlRow, BorderLayout.NORTH);
 
         hintLabel.setText(DEFAULT_HINT);
         hintLabel.setForeground(TEXT_MUTED);
         hintLabel.setFont(hintLabel.getFont().deriveFont(Font.PLAIN, 13f));
-        bar.add(hintLabel, BorderLayout.CENTER);
+        bar.add(hintLabel, BorderLayout.SOUTH);
 
         // [팀원 아이디어] 보기 모드 토글 - 다른 화면의 시뮬레이터/자동관리 버튼과 같은 알약 토글 모양.
         JPanel viewModeArea = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
@@ -210,7 +217,7 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
         });
         viewModeArea.add(categoryModeBtn);
         viewModeArea.add(expiryModeBtn);
-        bar.add(viewModeArea, BorderLayout.WEST);
+        controlRow.add(viewModeArea, BorderLayout.WEST);
 
         // 품목 검색 + 카테고리 필터 - 찾는 물건이 어느 창고 어느 구역에 있는지 색으로 알려줍니다
         JPanel searchArea = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
@@ -248,7 +255,7 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
         });
         searchArea.add(clearButton);
 
-        bar.add(searchArea, BorderLayout.EAST);
+        controlRow.add(searchArea, BorderLayout.EAST);
         return bar;
     }
 
