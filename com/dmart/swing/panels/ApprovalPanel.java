@@ -960,6 +960,10 @@ public class ApprovalPanel extends BasePanel implements Refreshable {
         JScrollPane scroll = new JScrollPane(textArea,
                 JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.setBorder(BorderFactory.createEmptyBorder());
+        // [버그 수정] textArea만 setOpaque(false)를 해놓고 스크롤 자체(및 그 뷰포트)는 그대로 둬서,
+        // 다이얼로그의 흰 배경 대신 FlatLaf 기본 회색이 그대로 비쳤다.
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
         scroll.setPreferredSize(new Dimension(contentW, Math.min(320, naturalH + 4)));
         return scroll;
     }
