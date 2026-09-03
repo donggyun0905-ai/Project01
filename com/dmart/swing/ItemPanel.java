@@ -1,5 +1,6 @@
 package com.dmart.swing;
 
+import com.dmart.dao.AlertDao;
 import com.dmart.dao.ItemDao;
 import com.dmart.dao.StockLotDao;
 import com.dmart.dao.WarehouseDao;
@@ -38,6 +39,7 @@ public class ItemPanel extends JPanel implements Refreshable {
 
     private final ItemDao itemDao = new ItemDao();
     private final StockLotDao stockLotDao = new StockLotDao();
+    private final AlertDao alertDao = new AlertDao();
     private final WarehouseDao warehouseDao = new WarehouseDao();
     private final ZoneDao zoneDao = new ZoneDao();
 
@@ -368,10 +370,22 @@ public class ItemPanel extends JPanel implements Refreshable {
 
             try (Connection conn = DBConnection.getConnection()) {
                 itemDao.update(conn, selected);
+                // [버그 수정] 비활성화는 재고를 0으로 만든 뒤에만 가능한데, 그러면 재고부족
+                // 알림의 "재고가 기준 이상으로 돌아와야 해결 가능" 조건(checkStillUnresolved)이
+                // 영원히 참이 돼서 - 품목을 비활성화해도 예전 재고부족 알림이 안 없어지고 계속
+                // 떠 있었다. 품목을 아예 안 쓰기로 한 것이므로 재고 기준과 무관하게 그 품목의
+                // 미해결 재고부족/재고초과 알림을 여기서 바로 해결 처리한다.
+                if (currentlyActive) { // true였다가 이번에 false로 바꾼 경우 = 비활성화하는 순간
+                    alertDao.resolveUnresolvedByItemIdAndType(conn, selected.getItemId(), "재고부족");
+                    alertDao.resolveUnresolvedByItemIdAndType(conn, selected.getItemId(), "재고초과");
+                }
             }
             refresh();
             // 사용중/비활성 전환도 입출고 등록에서 고를 수 있는 품목이 달라지므로 같이 알린다
             AppEventBus.publish("item");
+            if (currentlyActive) {
+                AppEventBus.publish("alert"); // 위에서 해결 처리한 알림 화면도 바로 새로고침
+            }
 
         } catch (Exception e) {
             UiUtil.showError(this, e);

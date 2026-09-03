@@ -176,33 +176,45 @@ public class AlertPanel extends BasePanel {
         wrap.setOpaque(false);
 
         // ---- css .search-box : 흰 배경, 둥근 모서리(10px), padding 12px 22px ----
+        // [버그 수정] 글자 크기를 키우면서(전체적으로 작아 보인다는 피드백) "내용검색~상태"까지
+        // 한 줄(FlowLayout)에 다 넣었던 게 더 이상 안 들어가서, 뒤로 밀려난 "유형"/"상태" 콤보가
+        // 다음 줄로 넘어갔는데 이 패널의 높이가 한 줄 높이(70px)로 고정돼 있어 통째로 잘려
+        // 안 보였다(창고 배치도 상단바에서 안내 문구가 잘렸던 것과 같은 원인) - 아예 두 줄로
+        // 나누고 그만큼 높이도 늘린다.
         RoundedPanel searchBox = new RoundedPanel(14, Color.WHITE);
-        searchBox.setLayout(new FlowLayout(FlowLayout.LEFT, 20, 12));
+        searchBox.setLayout(new BoxLayout(searchBox, BoxLayout.Y_AXIS));
         searchBox.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
         searchBox.setAlignmentX(Component.LEFT_ALIGNMENT);
-        searchBox.setMaximumSize(new Dimension(Integer.MAX_VALUE, 70));
+        searchBox.setMaximumSize(new Dimension(Integer.MAX_VALUE, 140));
+
+        JPanel searchRow1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 12));
+        searchRow1.setOpaque(false);
+        JPanel searchRow2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 12));
+        searchRow2.setOpaque(false);
+        searchBox.add(searchRow1);
+        searchBox.add(searchRow2);
 
         JLabel searchLabel = new JLabel("내용 검색");
         searchLabel.setFont(searchLabel.getFont().deriveFont(Font.BOLD, 18f));
-        searchBox.add(searchLabel);
+        searchRow1.add(searchLabel);
 
         // css .search-input-wrap : 둥근 알약 모양(22px radius) 테두리
         searchField.setBorder(BorderFactory.createEmptyBorder(8, 16, 8, 16));
-        searchBox.add(pill(searchField));
+        searchRow1.add(pill(searchField));
 
         JButton searchButton = flatButton("검색", new Color(0xe5, 0xe5, 0xe5), Color.BLACK);
         searchButton.addActionListener(e -> { nowPage = 1; loadData(); });
         searchField.addActionListener(e -> { nowPage = 1; loadData(); });
-        searchBox.add(searchButton);
+        searchRow1.add(searchButton);
 
-        searchBox.add(boldLabel("기간"));
-        searchBox.add(fromField);
-        searchBox.add(new JLabel("~"));
-        searchBox.add(toField);
-        searchBox.add(boldLabel("유형"));
-        searchBox.add(typeCombo);
-        searchBox.add(boldLabel("상태"));
-        searchBox.add(stateCombo);
+        searchRow1.add(boldLabel("기간"));
+        searchRow1.add(fromField);
+        searchRow1.add(new JLabel("~"));
+        searchRow1.add(toField);
+        searchRow2.add(boldLabel("유형"));
+        searchRow2.add(typeCombo);
+        searchRow2.add(boldLabel("상태"));
+        searchRow2.add(stateCombo);
 
         java.awt.event.ActionListener filterChanged = e -> changeFilter();
         fromField.addActionListener(filterChanged);
