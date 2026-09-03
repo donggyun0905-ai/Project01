@@ -103,6 +103,10 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
     // [개선] 이름만 찾는 검색과 별개로 카테고리로도 거를 수 있게 - 품목이 많아질수록 이름만으론
     // 원하는 걸 좁히기 어려워진다.
     private final JComboBox<String> categoryFilterBox = new JComboBox<>();
+    // [팀원 코드 통합] 평면 <-> 입체(3D) 보기 전환. 같은 창고/같은 검색 상태를 그대로 두고
+    // 그리는 방법만 바꾼다 - MapCanvas.solidView 참고.
+    private final JButton viewToggleButton = SwingStyle.filledButton("입체 보기",
+            new Color(0xe5, 0xe5, 0xe5), Color.BLACK, SwingStyle.FIELD_ARC);
 
     private static final String DEFAULT_HINT =
             "블럭을 클릭하면 로트별 수량을 볼 수 있고, 끌어서 다른 구역/창고에 놓으면 이동합니다. "
@@ -131,6 +135,7 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
 
     // ---- 색 (다른 화면과 같은 톤) ----
     private static final Color CARD_BORDER = new Color(0xec, 0xec, 0xec);
+    private static final Color RACK_COLOR = new Color(0x9A, 0xA3, 0xAF); // 입체 보기 선반 골조
     private static final Color ZONE_BG = new Color(0xf7, 0xf7, 0xf7);
     private static final Color ZONE_BORDER = new Color(0xe4, 0xe4, 0xe4);
     private static final Color TEXT_DARK = new Color(0x22, 0x22, 0x22);
@@ -245,6 +250,18 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
         reloadCategoryFilterOptions();
         categoryFilterBox.addActionListener(e -> onFilterChanged());
         searchArea.add(categoryFilterBox);
+
+        // [팀원 코드 통합] 평면 <-> 입체 전환.
+        viewToggleButton.addActionListener(e -> {
+            canvas.setSolidView(!canvas.isSolidView());
+            viewToggleButton.setText(canvas.isSolidView() ? "평면 보기" : "입체 보기");
+            if (canvas.isSolidView()) {
+                setHint("드래그로 창고를 돌려볼 수 있습니다.", TEXT_MUTED);
+            } else {
+                onFilterChanged(); // 검색/카테고리 필터가 있었으면 그 안내로, 없었으면 기본 안내로 복귀
+            }
+        });
+        searchArea.add(viewToggleButton);
 
         JButton clearButton = SwingStyle.filledButton("지우기",
                 new Color(0xe5, 0xe5, 0xe5), Color.BLACK, SwingStyle.FIELD_ARC);
@@ -600,6 +617,23 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
         // derive하고 FontMetrics를 다시 구하고 있었다 - 글꼴이 안 바뀌니 한 번만 구해서 재사용한다.
         private FontMetrics blockFontMetrics;
 
+        /* ---------- [팀원 코드 통합] 입체 보기 상태 ----------
+           평면과 데이터를 공유하고, 그리는 방법만 다르다. 카메라를 두 축으로 돌린다:
+             yaw  = 창고를 좌우로 빙 돌리기
+             elev = 0°에 가까우면 옆에서, 90°에 가까우면 위에서 내려다보기        */
+        private boolean solidView = false;
+        private double yaw = Math.toRadians(35), elev = Math.toRadians(28);
+        private double s3Scale = 30, s3OX = 0, s3OY = 0, s3CX = 0, s3CY = 0, s3CZ = 0;
+        private Point rotateFrom;           // 회전 드래그 시작점
+
+        boolean isSolidView() { return solidView; }
+
+        void setSolidView(boolean on) {
+            this.solidView = on;
+            setCursor(Cursor.getDefaultCursor());
+            repaint();
+        }
+
         List<WarehouseBox> getBoxes() { return boxes; }
 
         /** 검색어/카테고리 필터에 모두 맞는 품목인지 (필터가 하나도 없으면 아무것도 강조하지 않는다) */
@@ -684,6 +718,14 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
                         return;
                     }
 
+                    // [팀원 코드 통합] 입체 보기에서 오른쪽 영역을 왼쪽 버튼으로 끌면 창고를 돌린다
+                    // (평면 보기의 블럭 드래그 이동과 겹치지 않게 solidView일 때만).
+                    if (solidView && e.getX() > RAIL_W) {
+                        rotateFrom = e.getPoint();
+                        setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+                        return;
+                    }
+
                     WarehouseBox rail = findRailAt(e.getPoint());
                     if (rail != null) {
                         int idx = boxes.indexOf(rail);
@@ -717,6 +759,7 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
 
                 @Override
                 public void mouseReleased(MouseEvent e) {
+                    if (rotateFrom != null) { rotateFrom = null; setCursor(Cursor.getDefaultCursor()); return; }
                     if (scrollingZone != null) {
                         scrollingZone = null;
                         setCursor(Cursor.getDefaultCursor());
@@ -765,6 +808,14 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
             addMouseMotionListener(new MouseMotionAdapter() {
                 @Override
                 public void mouseDragged(MouseEvent e) {
+                    if (rotateFrom != null) { // 좌우 = 빙 돌리기, 위아래 = 시점 높낮이
+                        int dx = e.getX() - rotateFrom.x, dy = e.getY() - rotateFrom.y;
+                        yaw -= dx * 0.012;
+                        elev = Math.max(Math.toRadians(8), Math.min(Math.toRadians(85), elev + dy * 0.008));
+                        rotateFrom = e.getPoint();
+                        repaint();
+                        return;
+                    }
                     if (scrollingZone != null) {
                         // 실제 스크롤바 손잡이처럼 마우스를 따라간다 - 아래로 끌면(화면 y가
                         // 늘어나면) 손잡이도 아래로 내려가면서 scrollY가 늘어나(아래쪽 내용이 보인다).
@@ -1092,6 +1143,12 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
 
             drawRail(g2);
 
+            if (solidView) { // [팀원 코드 통합] 입체 보기 - 오른쪽 영역만 다르게 그린다(왼쪽 미니맵은 그대로)
+                drawSolid(g2, boxes.get(selected));
+                g2.dispose();
+                return;
+            }
+
             float e = ease(enterT);
             Graphics2D gm = (Graphics2D) g2.create();
             gm.translate((int) ((1 - e) * 26), 0);
@@ -1115,6 +1172,289 @@ public class WarehouseMapPanel extends BasePanel implements Refreshable {
                 gf.dispose();
             }
             g2.dispose();
+        }
+
+        /* ============================================================
+           [팀원 코드 통합] 입체 보기 - 실제 구역 용량에서 선반 규격을 역산해서 그린다.
+           칸 수 = 용량 / 박스1개당 수량, 그 칸을 가로 2 × 4단으로 나눠 선반 길이를 정한다.
+           박스는 선반을 뚫지 않고 칸을 채우다 넘치면 옆칸 -> 윗단으로 넘어간다.
+           ============================================================ */
+
+        private static final int S3_LEVELS = 4, S3_COLS = 2;
+
+        /**
+         * 박스 1개에 담는 수량. 창고끼리 비교가 되려면 이 값이 어디서나 같아야 하므로 고정한다.
+         * (예전엔 구역 사정에 따라 이 값을 줄였는데, 그러면 선반 칸 수가 늘어나서
+         *  소형 창고가 대형 창고보다 커 보이는 문제가 있었다)
+         */
+        private int unitsPerBox(ZoneBox zb) {
+            String n = zb.zone.getZoneName();
+            if ("PALLET".equals(n)) return 2;
+            if ("BOX".equals(n)) return 5;
+            return 30; // EA
+        }
+
+        /** 구역 칸 수 - 오직 용량으로만 정해진다. 그래야 창고 크기가 재고 구성과 무관하게 일정하다. */
+        private int slotCount(ZoneBox zb) {
+            Integer cap = zb.zone.getCapacity();
+            if (cap == null || cap <= 0) return S3_COLS * S3_LEVELS;
+            int byCapacity = Math.max(1, (int) Math.ceil(cap / (double) unitsPerBox(zb)));
+            return Math.min(byCapacity, S3_COLS * S3_LEVELS * 12); // 선반이 무한정 길어지지 않게
+        }
+
+        /** 이 단위로 담았을 때 품목 전부가 차지하는 박스 수 (품목마다 올림) */
+        private int boxesNeeded(ZoneBox zb) {
+            int perBox = unitsPerBox(zb), total = 0;
+            for (ItemGroup g : zb.groups) {
+                total += Math.max(1, (int) Math.ceil(g.totalQty / (double) perBox));
+            }
+            return total;
+        }
+
+        /**
+         * 한 칸을 몇 등분해서 쓸지 (1이면 칸 하나에 박스 하나).
+         *
+         * 소량 품목이 많으면 품목마다 최소 1박스씩 필요해서 박스 수가 칸 수를 넘는다.
+         * 이때 선반을 늘리면 창고가 커 보이므로(용량은 그대로인데!), 선반 크기는 두고
+         * 칸을 잘게 나눠서 작은 박스를 여러 개 놓는다. 실제 창고에서 한 파렛트 자리에
+         * 소량 품목을 나눠 싣는 것과 같다.
+         */
+        private int subDivision(ZoneBox zb) {
+            int slots = slotCount(zb), need = boxesNeeded(zb);
+            int sub = 1;
+            while (sub < 4 && need > slots * sub * sub) sub++;
+            return sub;
+        }
+
+        private int rackRows(ZoneBox zb) {
+            return Math.max(1, (int) Math.ceil(slotCount(zb) / (double) (S3_COLS * S3_LEVELS)));
+        }
+
+        /** 3D 점 -> 화면 좌표 */
+        private Point p3(double x, double y, double z) {
+            double dx = x - s3CX, dy = y - s3CY, dz = z - s3CZ;
+            double rx = dx * Math.cos(yaw) - dy * Math.sin(yaw);
+            double ry = dx * Math.sin(yaw) + dy * Math.cos(yaw);
+            double sx = rx;
+            double sy = ry * Math.sin(elev) - dz * Math.cos(elev);
+            return new Point((int) Math.round(s3OX + sx * s3Scale),
+                             (int) Math.round(s3OY + sy * s3Scale));
+        }
+
+        /** 카메라 깊이 (클수록 앞) */
+        private double d3(double x, double y, double z) {
+            double dx = x - s3CX, dy = y - s3CY, dz = z - s3CZ;
+            double ry = dx * Math.sin(yaw) + dy * Math.cos(yaw);
+            return ry * Math.cos(elev) + dz * Math.sin(elev);
+        }
+
+        /** 면 법선 기준 밝기 - 어느 각도로 돌려도 조명이 자연스럽게 유지된다 */
+        private double shade3(double nx, double ny, double nz) {
+            double rx = nx * Math.cos(yaw) - ny * Math.sin(yaw);
+            double ry = nx * Math.sin(yaw) + ny * Math.cos(yaw);
+            double d = rx * -0.45 + ry * -0.35 + nz * 0.82;
+            return 0.5 + 0.5 * Math.max(0, d);
+        }
+
+        private void poly3(Graphics2D g, Color fill, Color line, Point... ps) {
+            Polygon p = new Polygon();
+            for (Point q : ps) p.addPoint(q.x, q.y);
+            if (fill != null) { g.setColor(fill); g.fillPolygon(p); }
+            if (line != null) { g.setColor(line); g.drawPolygon(p); }
+        }
+
+        private void cuboid3(Graphics2D g, double x, double y, double z,
+                             double w, double d, double h, Color base, float alpha) {
+            double[][] faces = {
+                {-1,0,0}, {1,0,0}, {0,-1,0}, {0,1,0}, {0,0,1}, {0,0,-1}
+            };
+            Point[][] pts = {
+                {p3(x,y,z), p3(x,y+d,z), p3(x,y+d,z+h), p3(x,y,z+h)},
+                {p3(x+w,y,z), p3(x+w,y+d,z), p3(x+w,y+d,z+h), p3(x+w,y,z+h)},
+                {p3(x,y,z), p3(x+w,y,z), p3(x+w,y,z+h), p3(x,y,z+h)},
+                {p3(x,y+d,z), p3(x+w,y+d,z), p3(x+w,y+d,z+h), p3(x,y+d,z+h)},
+                {p3(x,y,z+h), p3(x+w,y,z+h), p3(x+w,y+d,z+h), p3(x,y+d,z+h)},
+                {p3(x,y,z), p3(x+w,y,z), p3(x+w,y+d,z), p3(x,y+d,z)}
+            };
+            double[] deps = {
+                d3(x,y+d/2,z+h/2), d3(x+w,y+d/2,z+h/2), d3(x+w/2,y,z+h/2),
+                d3(x+w/2,y+d,z+h/2), d3(x+w/2,y+d/2,z+h), d3(x+w/2,y+d/2,z)
+            };
+            Integer[] order = {0,1,2,3,4,5};
+            java.util.Arrays.sort(order, (i, j) -> Double.compare(deps[i], deps[j]));
+
+            Composite old = g.getComposite();
+            if (alpha < 1f) g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+            for (int i : order) {
+                double br = shade3(faces[i][0], faces[i][1], faces[i][2]);
+                Color c = (faces[i][2] > 0) ? blend(base, Color.WHITE, 0.28f)
+                                            : blend(base, Color.BLACK, (float) ((1 - br) * 0.55));
+                poly3(g, c, new Color(0, 0, 0, 26), pts[i]);
+            }
+            g.setComposite(old);
+        }
+
+        /** 회전/창 크기가 바뀌어도 항상 화면에 꽉 차게 맞춘다 */
+        private void fit3(WarehouseBox box, Rectangle area) {
+            List<double[]> corners = new ArrayList<>();
+            double rackX = 0;
+            for (ZoneBox zb : box.zones) {
+                int rows = rackRows(zb);
+                for (double xx : new double[]{rackX, rackX + 2})
+                    for (double yy : new double[]{0, rows})
+                        for (double zz : new double[]{0, S3_LEVELS * 1.05})
+                            corners.add(new double[]{xx, yy, zz});
+                rackX += 4;
+            }
+            if (corners.isEmpty()) return;
+
+            double mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9,mnz=1e9,mxz=-1e9;
+            for (double[] c : corners) {
+                mnx=Math.min(mnx,c[0]); mxx=Math.max(mxx,c[0]);
+                mny=Math.min(mny,c[1]); mxy=Math.max(mxy,c[1]);
+                mnz=Math.min(mnz,c[2]); mxz=Math.max(mxz,c[2]);
+            }
+            s3CX=(mnx+mxx)/2; s3CY=(mny+mxy)/2; s3CZ=(mnz+mxz)/2;
+
+            s3Scale = 1; s3OX = 0; s3OY = 0;
+            double sminx=1e9,smaxx=-1e9,sminy=1e9,smaxy=-1e9;
+            for (double[] c : corners) {
+                Point q = p3(c[0], c[1], c[2]);
+                sminx=Math.min(sminx,q.x); smaxx=Math.max(smaxx,q.x);
+                sminy=Math.min(sminy,q.y); smaxy=Math.max(smaxy,q.y);
+            }
+            double sw = Math.max(1e-6, smaxx - sminx), sh = Math.max(1e-6, smaxy - sminy);
+            s3Scale = Math.min((area.width - 40) / sw, (area.height - 70) / sh) * 0.92;
+            s3OX = area.x + area.width / 2.0 - (sminx + smaxx) / 2.0 * s3Scale;
+            s3OY = area.y + (area.height - 30) / 2.0 + 20 - (sminy + smaxy) / 2.0 * s3Scale;
+        }
+
+        private void drawSolid(Graphics2D g2, WarehouseBox box) {
+
+            Rectangle area = new Rectangle(RAIL_W + GAP, 0, getWidth() - RAIL_W - GAP, getHeight());
+            g2.setColor(Color.WHITE);
+            g2.fillRoundRect(area.x, area.y, area.width, area.height, SwingStyle.CARD_ARC, SwingStyle.CARD_ARC);
+            g2.setColor(CARD_BORDER);
+            g2.drawRoundRect(area.x, area.y, area.width - 1, area.height - 1, SwingStyle.CARD_ARC, SwingStyle.CARD_ARC);
+
+            g2.setColor(TEXT_DARK);
+            g2.setFont(getFont().deriveFont(Font.BOLD, 17f));
+            g2.drawString(box.label() + " 창고 내부", area.x + 16, 26);
+            g2.setColor(TEXT_MUTED);
+            g2.setFont(getFont().deriveFont(Font.PLAIN, 11f));
+            String hint = "드래그: 좌우 회전 / 위아래 시점";
+            g2.drawString(hint, area.x + area.width - 16 - g2.getFontMetrics().stringWidth(hint), 26);
+
+            fit3(box, area);
+
+            // 선반과 박스를 한 목록에 모아 깊이순으로 그린다.
+            // (따로 그리면 위층 선반이 아래 박스를 덮거나, 반대로 앞 선반이 뒤로 밀린다)
+            List<double[]> deps = new ArrayList<>();
+            List<Runnable> draws = new ArrayList<>();
+            List<Runnable> zoneLabels = new ArrayList<>();
+
+            boolean filtering = !search.isEmpty() || categoryFilter != null;
+            double rackX = 0;
+
+            for (ZoneBox zb : box.zones) {
+                final double rx = rackX;
+                int rows = rackRows(zb);
+                int perBox = unitsPerBox(zb);
+
+                /* 선반은 통판(deck)이 아니라 실제 랙처럼 "양옆 가로대(빔) + 기둥"으로 그린다.
+                   중요한 점: 빔이나 기둥을 통짜 막대 하나로 그리면 안 된다. 이 화면은 물체를
+                   "카메라에서 먼 것부터" 차례로 덧그리는 방식이라, 물체 하나당 깊이값도 하나뿐이다.
+                   선반 전체를 관통하는 긴 막대는 그 값이 중심점 기준이라 "통째로 앞" 아니면
+                   "통째로 뒤"로만 그려지고, 그래서 중간에 있는 박스를 뚫고 지나가 보인다.
+                   빔은 칸마다, 기둥은 단마다 잘라서 조각별로 정렬되게 한다. */
+                for (int lv = 0; lv < S3_LEVELS; lv++) {
+                    final double zz = lv * 1.05;
+                    for (int r = 0; r < rows; r++) {
+                        final int fr = r;
+                        // 왼쪽 가로대 한 칸
+                        deps.add(new double[]{ d3(rx, fr + 0.5, zz + 0.035) });
+                        draws.add(() -> cuboid3(g2, rx - 0.04, fr, zz, 0.09, 1.0, 0.07, RACK_COLOR, 1f));
+                        // 오른쪽 가로대 한 칸
+                        deps.add(new double[]{ d3(rx + 2, fr + 0.5, zz + 0.035) });
+                        draws.add(() -> cuboid3(g2, rx + 1.95, fr, zz, 0.09, 1.0, 0.07, RACK_COLOR, 1f));
+                    }
+                }
+                // 기둥 - 단마다 잘라서
+                for (double px : new double[]{ rx - 0.04, rx + 1.95 }) {
+                    for (double py : new double[]{ 0, rows - 0.09 }) {
+                        for (int lv = 0; lv < S3_LEVELS; lv++) {
+                            final double fpx = px, fpy = py, zz = lv * 1.05;
+                            deps.add(new double[]{ d3(fpx + 0.045, fpy + 0.045, zz + 0.5) });
+                            draws.add(() -> cuboid3(g2, fpx, fpy, zz, 0.09, 0.09, 1.05, RACK_COLOR, 1f));
+                        }
+                    }
+                }
+
+                /* [버그 수정] 품목마다 따로 올림해서 박스 수를 구하면, 그 합이 구역 칸 수를
+                   넘을 수 있다. (예: EA는 박스 1개가 30개인데 5개짜리 품목이 10종 있으면
+                   실제 재고는 50개뿐인데 박스는 10개가 나온다) 구역이 실제로 가진 칸 수를
+                   예산으로 두고, 그 안에서만 나눠 담는다. */
+                // 한 칸을 sub×sub로 나눠 쓴다(소량 품목이 많을 때만 2 이상이 된다)
+                int sub = subDivision(zb);
+                int cellsPerSlot = sub * sub;
+                int budget = Math.min(slotCount(zb), S3_COLS * rows * S3_LEVELS) * cellsPerSlot;
+                double cw = 0.80 / sub, cd = 0.76 / sub, ch = 0.78 / sub;
+
+                int idx = 0;
+                for (ItemGroup grp : zb.groups) {
+                    if (idx >= budget) break;
+                    int nb = Math.max(1, (int) Math.ceil(grp.totalQty / (double) perBox));
+                    nb = Math.min(nb, budget - idx);
+                    boolean dim = filtering && !matches(grp);
+
+                    for (int b = 0; b < nb; b++) {
+                        int slotIdx = idx / cellsPerSlot;          // 몇 번째 칸인지
+                        int cell = idx % cellsPerSlot;             // 그 칸 안에서 몇 번째 자리인지
+                        int lv = slotIdx / (S3_COLS * rows);
+                        int rem = slotIdx % (S3_COLS * rows);
+                        int r = rem / S3_COLS, c = rem % S3_COLS;
+                        if (lv >= S3_LEVELS) break;
+
+                        int sx = cell % sub, sy = cell / sub;
+                        final double bx = rx + 0.10 + c * 0.92 + sx * cw;
+                        final double by = r + 0.12 + sy * cd;
+                        final double bz = lv * 1.05 + 0.10;
+                        final double bw = cw * 0.92, bd = cd * 0.92, bh = ch;
+                        final Color col = blockColor(grp);
+                        final float alpha = dim ? 0.18f : 1f;
+                        deps.add(new double[]{ d3(bx + bw / 2, by + bd / 2, bz + bh / 2) });
+                        draws.add(() -> cuboid3(g2, bx, by, bz, bw, bd, bh, col, alpha));
+                        idx++;
+                    }
+                }
+
+                final String nm = zb.zone.getZoneName();
+                final int usedSlots = (int) Math.ceil(idx / (double) cellsPerSlot);
+                final String cap = usedSlots + " / " + slotCount(zb) + "칸  ·  박스 1개=" + perBox + zb.zone.getZoneName()
+                        + (sub > 1 ? "  (칸당 " + cellsPerSlot + "칸 분할)" : "");
+                final int frows = rows;
+                zoneLabels.add(() -> {
+                    Point p = p3(rx + 1, frows + 0.35, 0);
+                    g2.setFont(getFont().deriveFont(Font.BOLD, 13f));
+                    g2.setColor(TEXT_DARK);
+                    g2.drawString(nm, p.x - g2.getFontMetrics().stringWidth(nm) / 2, p.y + 16);
+                    g2.setFont(getFont().deriveFont(Font.PLAIN, 11f));
+                    g2.setColor(TEXT_MUTED);
+                    g2.drawString(cap, p.x - g2.getFontMetrics().stringWidth(cap) / 2, p.y + 30);
+                });
+                rackX += 4;
+            }
+
+            drawSorted(deps, draws);
+            for (Runnable r : zoneLabels) r.run();
+
+        }
+
+        private void drawSorted(List<double[]> deps, List<Runnable> draws) {
+            Integer[] order = new Integer[deps.size()];
+            for (int i = 0; i < order.length; i++) order[i] = i;
+            java.util.Arrays.sort(order, (i, j) -> Double.compare(deps.get(i)[0], deps.get(j)[0]));
+            for (int i : order) draws.get(i).run();
         }
 
         private void drawRail(Graphics2D g2) {
